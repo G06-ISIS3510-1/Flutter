@@ -1,0 +1,3 @@
+class RidesModel {
+  const RidesModel();
+}

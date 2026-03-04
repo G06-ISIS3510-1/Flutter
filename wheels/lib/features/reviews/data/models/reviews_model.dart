@@ -1,0 +1,3 @@
+class ReviewsModel {
+  const ReviewsModel();
+}

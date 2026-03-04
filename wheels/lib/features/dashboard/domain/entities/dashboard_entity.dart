@@ -1,0 +1,3 @@
+class DashboardEntity {
+  const DashboardEntity();
+}

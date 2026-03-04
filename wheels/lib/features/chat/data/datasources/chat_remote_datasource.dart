@@ -1,0 +1,3 @@
+class ChatRemoteDataSource {
+  const ChatRemoteDataSource();
+}

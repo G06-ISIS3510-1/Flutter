@@ -1,0 +1,3 @@
+class RidesEntity {
+  const RidesEntity();
+}

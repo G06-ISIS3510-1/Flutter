@@ -1,0 +1,3 @@
+class TrustEntity {
+  const TrustEntity();
+}

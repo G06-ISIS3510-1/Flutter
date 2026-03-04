@@ -1,0 +1,3 @@
+class ProfileEntity {
+  const ProfileEntity();
+}

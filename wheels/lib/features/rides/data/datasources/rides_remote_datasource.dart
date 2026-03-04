@@ -1,0 +1,3 @@
+class RidesRemoteDataSource {
+  const RidesRemoteDataSource();
+}

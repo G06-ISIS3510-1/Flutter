@@ -1,0 +1,3 @@
+class NotificationsRemoteDataSource {
+  const NotificationsRemoteDataSource();
+}

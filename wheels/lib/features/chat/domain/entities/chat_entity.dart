@@ -1,0 +1,3 @@
+class ChatEntity {
+  const ChatEntity();
+}

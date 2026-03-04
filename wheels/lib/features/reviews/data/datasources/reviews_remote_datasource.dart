@@ -1,0 +1,3 @@
+class ReviewsRemoteDataSource {
+  const ReviewsRemoteDataSource();
+}

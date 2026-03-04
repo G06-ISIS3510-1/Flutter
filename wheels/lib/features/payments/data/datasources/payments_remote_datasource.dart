@@ -1,0 +1,3 @@
+class PaymentsRemoteDataSource {
+  const PaymentsRemoteDataSource();
+}

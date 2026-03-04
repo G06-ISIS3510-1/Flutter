@@ -1,0 +1,3 @@
+class PaymentsEntity {
+  const PaymentsEntity();
+}
