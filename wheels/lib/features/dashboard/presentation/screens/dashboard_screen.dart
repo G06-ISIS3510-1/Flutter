@@ -20,46 +20,40 @@ class DashboardScreen extends ConsumerWidget {
     return AppScaffold(
       title: 'Dashboard',
       showAppBar: false,
-      padding: EdgeInsets.zero,
+      backgroundColor: AppColors.background,
+      maxScrollableWidth: 440,
+      scrollableHeader: const _Header(),
       bottomNavigationBar: AppBottomNav(
         currentTab: AppBottomNavTab.home,
         role: role,
       ),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 440),
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                const _Header(),
-                const SizedBox(height: 6),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: _MapCard(),
-                ),
-                const SizedBox(height: 14),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: _CurrentRideCard(),
-                ),
-                const SizedBox(height: 14),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: _UpdatesSection(),
-                ),
-                const SizedBox(height: 10),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    summary,
-                    style: const TextStyle(color: AppColors.textSecondary),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
+      child: Column(
+        children: [
+          const SizedBox(height: 6),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: _MapCard(),
+          ),
+          const SizedBox(height: 14),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: _CurrentRideCard(),
+          ),
+          const SizedBox(height: 14),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: _UpdatesSection(),
+          ),
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              summary,
+              style: const TextStyle(color: AppColors.textSecondary),
             ),
           ),
-        ),
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }

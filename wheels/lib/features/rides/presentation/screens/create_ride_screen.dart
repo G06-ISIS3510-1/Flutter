@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
+import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../shared/widgets/app_gradient_header.dart';
 import '../../../../theme/app_colors.dart';
@@ -124,194 +125,27 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   Widget build(BuildContext context) {
     final role = ref.watch(currentUserRoleProvider);
 
-    return Scaffold(
+    return AppScaffold(
+      title: 'Create Ride',
+      showAppBar: false,
       backgroundColor: AppColors.muted,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Column(
-              children: [
-                AppGradientHeader(
-                  title: 'Create a Ride',
-                  subtitle: 'Publish your ride and earn money',
-                  onBack: () => context.go(AppRoutes.dashboard),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.m,
-                    AppSpacing.m,
-                    AppSpacing.m,
-                    AppSpacing.l,
-                  ),
-                  child: _estimatedEarningsCard(),
-                ),
-              ],
+      scrollableHeader: Column(
+        children: [
+          AppGradientHeader(
+            title: 'Create a Ride',
+            subtitle: 'Publish your ride and earn money',
+            onBack: () => context.go(AppRoutes.dashboard),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.m,
+              AppSpacing.m,
+              AppSpacing.m,
+              AppSpacing.l,
             ),
-            Expanded(
-              child: Form(
-                key: _formKey,
-                child: ListView(
-                  primary: true,
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.m,
-                    0,
-                    AppSpacing.m,
-                    AppSpacing.m,
-                  ),
-                  children: [
-                    _sectionCard(
-                      title: 'Route Details',
-                      child: Column(
-                        children: [
-                          _locationAutocompleteField(
-                            label: 'Pickup Location',
-                            hint: 'e.g. Campus Uniandes - Main Gate',
-                            icon: Icons.location_pin,
-                            onChanged: (value) => _origin = value,
-                            validatorText: 'Pickup location is required.',
-                          ),
-                          const SizedBox(height: AppSpacing.m),
-                          _locationAutocompleteField(
-                            label: 'Destination',
-                            hint: 'e.g. Centro Comercial Andino',
-                            icon: Icons.place_outlined,
-                            onChanged: (value) => _destination = value,
-                            validatorText: 'Destination is required.',
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.m),
-                    _sectionCard(
-                      title: 'Schedule',
-                      child: Column(
-                        children: [
-                          _readOnlyField(
-                            controller: _dateController,
-                            label: 'Date',
-                            hint: 'dd/mm/yyyy',
-                            icon: Icons.calendar_month_outlined,
-                            trailing: Icons.edit_calendar_outlined,
-                            onTap: _pickDate,
-                            validatorText: 'Date is required.',
-                          ),
-                          const SizedBox(height: AppSpacing.m),
-                          _readOnlyField(
-                            controller: _timeController,
-                            label: 'Departure Time',
-                            hint: '--:--',
-                            icon: Icons.schedule_outlined,
-                            trailing: Icons.watch_later_outlined,
-                            onTap: _pickTime,
-                            validatorText: 'Departure time is required.',
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.m),
-                    _sectionCard(
-                      title: 'Capacity & Pricing',
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const _FieldLabel(
-                            icon: Icons.groups_outlined,
-                            text: 'Available Seats',
-                          ),
-                          const SizedBox(height: AppSpacing.s),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              _seatControlButton(
-                                icon: Icons.remove,
-                                onTap: _availableSeats > 1
-                                    ? () => setState(() {
-                                        _availableSeats -= 1;
-                                      })
-                                    : null,
-                              ),
-                              Column(
-                                children: [
-                                  Text(
-                                    '$_availableSeats',
-                                    style: const TextStyle(
-                                      fontSize: 36,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.primary,
-                                    ),
-                                  ),
-                                  const Text(
-                                    'seats available',
-                                    style: TextStyle(
-                                      color: AppColors.mutedForeground,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              _seatControlButton(
-                                icon: Icons.add,
-                                onTap: _availableSeats < 4
-                                    ? () => setState(() {
-                                        _availableSeats += 1;
-                                      })
-                                    : null,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: AppSpacing.m),
-                          TextFormField(
-                            controller: _priceController,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            inputFormatters: <TextInputFormatter>[
-                              FilteringTextInputFormatter.allow(
-                                RegExp(r'^\d*\.?\d{0,2}$'),
-                              ),
-                            ],
-                            decoration: _inputDecoration(
-                              label: 'Price per Seat',
-                              hint: '3500',
-                              icon: Icons.attach_money,
-                              prefixText: '\$ ',
-                            ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Price per seat is required.';
-                              }
-                              final parsed = double.tryParse(value);
-                              if (parsed == null || parsed <= 0) {
-                                return 'Enter a valid price.';
-                              }
-                              return null;
-                            },
-                            onChanged: (_) => setState(() {}),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.m),
-                    _sectionCard(
-                      title: 'Additional Information (Optional)',
-                      child: TextFormField(
-                        controller: _notesController,
-                        minLines: 4,
-                        maxLines: 5,
-                        decoration: _inputDecoration(
-                          label: 'Notes',
-                          hint:
-                              'Only women, pets allowed, stops along the way...',
-                          icon: Icons.notes_outlined,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 120),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+            child: _estimatedEarningsCard(),
+          ),
+        ],
       ),
       bottomNavigationBar: Container(
         color: AppColors.card,
@@ -347,6 +181,167 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
             const SizedBox(height: AppSpacing.s),
             AppBottomNav(currentTab: AppBottomNavTab.middle, role: role),
           ],
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.m,
+          0,
+          AppSpacing.m,
+          AppSpacing.m,
+        ),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              _sectionCard(
+                title: 'Route Details',
+                child: Column(
+                  children: [
+                    _locationAutocompleteField(
+                      label: 'Pickup Location',
+                      hint: 'e.g. Campus Uniandes - Main Gate',
+                      icon: Icons.location_pin,
+                      onChanged: (value) => _origin = value,
+                      validatorText: 'Pickup location is required.',
+                    ),
+                    const SizedBox(height: AppSpacing.m),
+                    _locationAutocompleteField(
+                      label: 'Destination',
+                      hint: 'e.g. Centro Comercial Andino',
+                      icon: Icons.place_outlined,
+                      onChanged: (value) => _destination = value,
+                      validatorText: 'Destination is required.',
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.m),
+              _sectionCard(
+                title: 'Schedule',
+                child: Column(
+                  children: [
+                    _readOnlyField(
+                      controller: _dateController,
+                      label: 'Date',
+                      hint: 'dd/mm/yyyy',
+                      icon: Icons.calendar_month_outlined,
+                      trailing: Icons.edit_calendar_outlined,
+                      onTap: _pickDate,
+                      validatorText: 'Date is required.',
+                    ),
+                    const SizedBox(height: AppSpacing.m),
+                    _readOnlyField(
+                      controller: _timeController,
+                      label: 'Departure Time',
+                      hint: '--:--',
+                      icon: Icons.schedule_outlined,
+                      trailing: Icons.watch_later_outlined,
+                      onTap: _pickTime,
+                      validatorText: 'Departure time is required.',
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.m),
+              _sectionCard(
+                title: 'Capacity & Pricing',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const _FieldLabel(
+                      icon: Icons.groups_outlined,
+                      text: 'Available Seats',
+                    ),
+                    const SizedBox(height: AppSpacing.s),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _seatControlButton(
+                          icon: Icons.remove,
+                          onTap: _availableSeats > 1
+                              ? () => setState(() {
+                                  _availableSeats -= 1;
+                                })
+                              : null,
+                        ),
+                        Column(
+                          children: [
+                            Text(
+                              '$_availableSeats',
+                              style: const TextStyle(
+                                fontSize: 36,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            const Text(
+                              'seats available',
+                              style: TextStyle(
+                                color: AppColors.mutedForeground,
+                              ),
+                            ),
+                          ],
+                        ),
+                        _seatControlButton(
+                          icon: Icons.add,
+                          onTap: _availableSeats < 4
+                              ? () => setState(() {
+                                  _availableSeats += 1;
+                                })
+                              : null,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.m),
+                    TextFormField(
+                      controller: _priceController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: <TextInputFormatter>[
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d*\.?\d{0,2}$'),
+                        ),
+                      ],
+                      decoration: _inputDecoration(
+                        label: 'Price per Seat',
+                        hint: '3500',
+                        icon: Icons.attach_money,
+                        prefixText: '\$ ',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Price per seat is required.';
+                        }
+                        final parsed = double.tryParse(value);
+                        if (parsed == null || parsed <= 0) {
+                          return 'Enter a valid price.';
+                        }
+                        return null;
+                      },
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.m),
+              _sectionCard(
+                title: 'Additional Information (Optional)',
+                child: TextFormField(
+                  controller: _notesController,
+                  minLines: 4,
+                  maxLines: 5,
+                  decoration: _inputDecoration(
+                    label: 'Notes',
+                    hint: 'Only women, pets allowed, stops along the way...',
+                    icon: Icons.notes_outlined,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 120),
+            ],
+          ),
         ),
       ),
     );

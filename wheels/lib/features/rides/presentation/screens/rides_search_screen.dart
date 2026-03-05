@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
+import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../shared/widgets/app_gradient_header.dart';
 import '../../../../theme/app_colors.dart';
@@ -127,63 +128,41 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   Widget build(BuildContext context) {
     final role = ref.watch(currentUserRoleProvider);
 
-    return Scaffold(
+    return AppScaffold(
+      title: 'Rides',
+      showAppBar: false,
       backgroundColor: AppColors.muted,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth > 430
-                ? 430.0
-                : constraints.maxWidth;
-            return Align(
-              alignment: Alignment.topCenter,
-              child: SizedBox(
-                width: width,
-                height: constraints.maxHeight,
-                child: Column(
-                  children: [
-                    AppGradientHeader(
-                      title: 'Find a Ride',
-                      subtitle: 'Available rides from your university',
-                      onBack: () => context.go(AppRoutes.dashboard),
-                      height: 160,
-                    ),
-                    Expanded(
-                      child: ListView(
-                        padding: const EdgeInsets.all(AppSpacing.m),
-                        children: [
-                          _searchCard(),
-                          const SizedBox(height: AppSpacing.m),
-                          _sortBar(),
-                          const SizedBox(height: AppSpacing.l),
-                          _sectionTitle(
-                            'Available Drivers',
-                            '${_results.length} rides',
-                          ),
-                          const SizedBox(height: AppSpacing.s),
-                          if (_results.isEmpty) _emptyState(),
-                          for (final ride in _results) ...[
-                            _RideResultCard(
-                              ride: ride,
-                              onTap: () => context.go(
-                                AppRoutes.rideDetailsById(ride.id),
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.m),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
+      scrollableHeader: AppGradientHeader(
+        title: 'Find a Ride',
+        subtitle: 'Available rides from your university',
+        onBack: () => context.go(AppRoutes.dashboard),
+        height: 160,
       ),
       bottomNavigationBar: AppBottomNav(
         currentTab: AppBottomNavTab.middle,
         role: role,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.m),
+        child: Column(
+          children: [
+            _searchCard(),
+            const SizedBox(height: AppSpacing.m),
+            _sortBar(),
+            const SizedBox(height: AppSpacing.l),
+            _sectionTitle('Available Drivers', '${_results.length} rides'),
+            const SizedBox(height: AppSpacing.s),
+            if (_results.isEmpty) _emptyState(),
+            for (final ride in _results) ...[
+              _RideResultCard(
+                ride: ride,
+                onTap: () => context.go(AppRoutes.rideDetailsById(ride.id)),
+              ),
+              const SizedBox(height: AppSpacing.m),
+            ],
+            const SizedBox(height: AppSpacing.s),
+          ],
+        ),
       ),
     );
   }
