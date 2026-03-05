@@ -8,3 +8,6 @@ final currentUserRoleProvider = StateProvider<UserRole>((ref) => UserRole.driver
 final isDriverProvider = Provider<bool>(
   (ref) => ref.watch(currentUserRoleProvider) == UserRole.driver,
 );
+final isPassengerProvider = Provider<bool>(
+  (ref) => ref.watch(currentUserRoleProvider) == UserRole.passenger,
+);

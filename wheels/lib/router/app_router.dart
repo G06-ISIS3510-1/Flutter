@@ -13,6 +13,7 @@ import '../features/reviews/presentation/screens/reviews_screen.dart';
 import '../features/rides/presentation/screens/active_ride_screen.dart';
 import '../features/rides/presentation/screens/create_ride_screen.dart';
 import '../features/rides/presentation/screens/group_screen.dart';
+import '../features/rides/presentation/screens/ride_details_screen.dart';
 import '../features/rides/presentation/screens/rides_search_screen.dart';
 import '../features/trust/presentation/screens/trust_screen.dart';
 import 'app_routes.dart';
@@ -21,11 +22,26 @@ class AppRouter {
   static final GoRouter router = GoRouter(
     initialLocation: AppRoutes.login,
     routes: <RouteBase>[
-      GoRoute(path: AppRoutes.login, builder: (context, state) => const LoginScreen()),
-      GoRoute(path: AppRoutes.register, builder: (context, state) => const RegisterScreen()),
-      GoRoute(path: AppRoutes.forgotPassword, builder: (context, state) => const ForgotPasswordScreen()),
-      GoRoute(path: AppRoutes.dashboard, builder: (context, state) => const DashboardScreen()),
-      GoRoute(path: AppRoutes.notifications, builder: (context, state) => const NotificationsScreen()),
+      GoRoute(
+        path: AppRoutes.login,
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.register,
+        builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.forgotPassword,
+        builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.dashboard,
+        builder: (context, state) => const DashboardScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.notifications,
+        builder: (context, state) => const NotificationsScreen(),
+      ),
       GoRoute(
         path: AppRoutes.createRide,
         redirect: (context, state) {
@@ -35,18 +51,46 @@ class AppRouter {
         },
         builder: (context, state) => const CreateRideScreen(),
       ),
-      GoRoute(path: AppRoutes.rides, builder: (context, state) => const RidesSearchScreen()),
-      GoRoute(path: AppRoutes.activeRide, builder: (context, state) => const ActiveRideScreen()),
       GoRoute(
-        path: AppRoutes.group,
-        builder: (context, state) => GroupScreen(
+        path: AppRoutes.rides,
+        redirect: (context, state) {
+          final container = ProviderScope.containerOf(context, listen: false);
+          final isDriver = container.read(isDriverProvider);
+          return isDriver ? AppRoutes.createRide : null;
+        },
+        builder: (context, state) => const RidesSearchScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.rideDetails,
+        builder: (context, state) => RideDetailsScreen(
           rideId: state.pathParameters['rideId'] ?? 'unknown',
         ),
       ),
-      GoRoute(path: AppRoutes.payment, builder: (context, state) => const PaymentScreen()),
-      GoRoute(path: AppRoutes.profile, builder: (context, state) => const ProfileScreen()),
-      GoRoute(path: AppRoutes.trust, builder: (context, state) => const TrustScreen()),
-      GoRoute(path: AppRoutes.reviews, builder: (context, state) => const ReviewsScreen()),
+      GoRoute(
+        path: AppRoutes.activeRide,
+        builder: (context, state) => const ActiveRideScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.group,
+        builder: (context, state) =>
+            GroupScreen(rideId: state.pathParameters['rideId'] ?? 'unknown'),
+      ),
+      GoRoute(
+        path: AppRoutes.payment,
+        builder: (context, state) => const PaymentScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.profile,
+        builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.trust,
+        builder: (context, state) => const TrustScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.reviews,
+        builder: (context, state) => const ReviewsScreen(),
+      ),
     ],
   );
 }
