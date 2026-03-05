@@ -1,5 +1,7 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/auth/presentation/providers/auth_providers.dart';
 import '../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../features/auth/presentation/screens/login_screen.dart';
 import '../features/auth/presentation/screens/register_screen.dart';
@@ -24,7 +26,15 @@ class AppRouter {
       GoRoute(path: AppRoutes.forgotPassword, builder: (context, state) => const ForgotPasswordScreen()),
       GoRoute(path: AppRoutes.dashboard, builder: (context, state) => const DashboardScreen()),
       GoRoute(path: AppRoutes.notifications, builder: (context, state) => const NotificationsScreen()),
-      GoRoute(path: AppRoutes.createRide, builder: (context, state) => const CreateRideScreen()),
+      GoRoute(
+        path: AppRoutes.createRide,
+        redirect: (context, state) {
+          final container = ProviderScope.containerOf(context, listen: false);
+          final isDriver = container.read(isDriverProvider);
+          return isDriver ? null : AppRoutes.dashboard;
+        },
+        builder: (context, state) => const CreateRideScreen(),
+      ),
       GoRoute(path: AppRoutes.rides, builder: (context, state) => const RidesSearchScreen()),
       GoRoute(path: AppRoutes.activeRide, builder: (context, state) => const ActiveRideScreen()),
       GoRoute(
