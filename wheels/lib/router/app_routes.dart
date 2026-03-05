@@ -6,6 +6,7 @@ class AppRoutes {
   static const notifications = '/notifications';
   static const createRide = '/create-ride';
   static const rides = '/rides';
+  static const rideDetails = '/ride/:rideId';
   static const activeRide = '/active-ride';
   static const group = '/group/:rideId';
   static const payment = '/payment';
@@ -14,4 +15,5 @@ class AppRoutes {
   static const reviews = '/reviews';
 
   static String groupByRideId(String rideId) => '/group/$rideId';
+  static String rideDetailsById(String rideId) => '/ride/$rideId';
 }

@@ -25,6 +25,9 @@ class AppBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final availableWidth =
+        MediaQuery.sizeOf(context).width - (AppSpacing.m * 2);
+    final navWidth = availableWidth > 430 ? 430.0 : availableWidth;
     final middleLabel = role == UserRole.driver ? 'Create' : 'Search';
     final middleIcon = role == UserRole.driver
         ? Icons.directions_car_outlined
@@ -32,47 +35,60 @@ class AppBottomNav extends StatelessWidget {
 
     return SafeArea(
       top: false,
-      child: Container(
-        decoration: const BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(AppRadius.lg),
-            topRight: Radius.circular(AppRadius.lg),
-          ),
-          boxShadow: AppShadows.md,
-        ),
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.m,
-          AppSpacing.xs,
-          AppSpacing.m,
-          AppSpacing.s,
-        ),
-        child: NavigationBar(
-          selectedIndex: _selectedIndex,
-          indicatorColor: Colors.transparent,
-          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          onDestinationSelected: (index) =>
-              _onDestinationSelected(context, index),
-          destinations: <NavigationDestination>[
-            const NavigationDestination(
-              icon: Icon(Icons.place_outlined),
-              selectedIcon: _ActiveNavIcon(icon: Icons.place_outlined),
-              label: 'Home',
-            ),
-            NavigationDestination(
-              icon: Icon(middleIcon),
-              selectedIcon: _ActiveNavIcon(icon: middleIcon),
-              label: middleLabel,
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.notifications_none),
-              selectedIcon: _ActiveNavIcon(icon: Icons.notifications_none),
-              label: 'Alerts',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: _ActiveNavIcon(icon: Icons.person_outline),
-              label: 'Profile',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: navWidth,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(AppRadius.lg),
+                    topRight: Radius.circular(AppRadius.lg),
+                  ),
+                  boxShadow: AppShadows.md,
+                ),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.m,
+                  AppSpacing.xs,
+                  AppSpacing.m,
+                  AppSpacing.s,
+                ),
+                child: NavigationBar(
+                  selectedIndex: _selectedIndex,
+                  indicatorColor: Colors.transparent,
+                  labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+                  onDestinationSelected: (index) =>
+                      _onDestinationSelected(context, index),
+                  destinations: <NavigationDestination>[
+                    const NavigationDestination(
+                      icon: Icon(Icons.place_outlined),
+                      selectedIcon: _ActiveNavIcon(icon: Icons.place_outlined),
+                      label: 'Home',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(middleIcon),
+                      selectedIcon: _ActiveNavIcon(icon: middleIcon),
+                      label: middleLabel,
+                    ),
+                    const NavigationDestination(
+                      icon: Icon(Icons.notifications_none),
+                      selectedIcon: _ActiveNavIcon(
+                        icon: Icons.notifications_none,
+                      ),
+                      label: 'Alerts',
+                    ),
+                    const NavigationDestination(
+                      icon: Icon(Icons.person_outline),
+                      selectedIcon: _ActiveNavIcon(icon: Icons.person_outline),
+                      label: 'Profile',
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
