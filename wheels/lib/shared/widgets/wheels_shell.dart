@@ -48,9 +48,9 @@ class WheelsShell extends StatelessWidget {
             boxShadow: [
               BoxShadow(
                 blurRadius: 20,
-                color: Colors.black.withOpacity(0.06),
+                color: Colors.black.withValues(alpha: 0.06),
                 offset: const Offset(0, -6),
-              )
+              ),
             ],
           ),
           child: BottomNavigationBar(
@@ -61,10 +61,22 @@ class WheelsShell extends StatelessWidget {
             unselectedItemColor: AppColors.textSecondary,
             showUnselectedLabels: true,
             items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Home'),
-              BottomNavigationBarItem(icon: Icon(Icons.near_me_outlined), label: 'Rides'),
-              BottomNavigationBarItem(icon: Icon(Icons.notifications_none), label: 'Alerts'),
-              BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.home_outlined),
+                label: 'Home',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.near_me_outlined),
+                label: 'Rides',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.notifications_none),
+                label: 'Alerts',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person_outline),
+                label: 'Profile',
+              ),
             ],
           ),
         ),

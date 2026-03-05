@@ -3,10 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../router/app_routes.dart';
-import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../theme/app_colors.dart';
-import '../../../../theme/app_spacing.dart';
 import '../providers/auth_providers.dart';
 
 class LoginScreen extends ConsumerWidget {
@@ -14,11 +12,7 @@ class LoginScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final status = ref.watch(authStatusProvider);
-
-    return const _LoginScaffold(
-      child: _LoginBody(),
-    );
+    return const _LoginScaffold(child: _LoginBody());
   }
 }
 
@@ -63,9 +57,9 @@ class _LoginBody extends ConsumerWidget {
               boxShadow: [
                 BoxShadow(
                   blurRadius: 24,
-                  color: Colors.black.withOpacity(0.10),
+                  color: Colors.black.withValues(alpha: 0.10),
                   offset: const Offset(0, 10),
-                )
+                ),
               ],
             ),
             child: const Center(
@@ -98,51 +92,51 @@ class _LoginBody extends ConsumerWidget {
 
         // Info card
         Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              blurRadius: 20,
-              color: Colors.black.withOpacity(0.05),
-              offset: const Offset(0, 10),
-            )
-          ],
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                blurRadius: 20,
+                color: Colors.black.withValues(alpha: 0.05),
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.shield_outlined,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Safe rides. Verified students only.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Join a trusted community of university students sharing safe, reliable rides.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.textSecondary, height: 1.3),
+              ),
+            ],
+          ),
         ),
-        child: Column(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Icon(Icons.shield_outlined, color: AppColors.primary),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Safe rides. Verified students only.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Join a trusted community of university students sharing safe, reliable rides.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                height: 1.3,
-              ),
-            ),
-          ],
-        ),
-      ),
 
         const SizedBox(height: 18),
 
@@ -183,8 +177,10 @@ class _LoginBody extends ConsumerWidget {
           child: OutlinedButton(
             style: OutlinedButton.styleFrom(
               backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              side: BorderSide(color: Colors.black.withOpacity(0.10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              side: BorderSide(color: Colors.black.withValues(alpha: 0.10)),
             ),
             onPressed: () => context.go(AppRoutes.dashboard),
             child: Row(
@@ -192,7 +188,10 @@ class _LoginBody extends ConsumerWidget {
               children: const [
                 Text('G', style: TextStyle(fontWeight: FontWeight.w900)),
                 SizedBox(width: 12),
-                Text('Continue with Google', style: TextStyle(fontWeight: FontWeight.w700)),
+                Text(
+                  'Continue with Google',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
               ],
             ),
           ),
@@ -203,7 +202,11 @@ class _LoginBody extends ConsumerWidget {
         const Text(
           "By continuing, you agree to Wheels' Terms of Service and Privacy\nPolicy",
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.3),
+          style: TextStyle(
+            fontSize: 12,
+            color: AppColors.textSecondary,
+            height: 1.3,
+          ),
         ),
 
         const SizedBox(height: 10),
@@ -258,9 +261,9 @@ class _MiniFeature extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             blurRadius: 20,
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             offset: const Offset(0, 10),
-          )
+          ),
         ],
       ),
       child: Column(
