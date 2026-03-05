@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
+import '../../../../shared/ui/app_scaffold.dart';
+import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../theme/app_colors.dart';
 import '../providers/dashboard_providers.dart';
 
@@ -12,59 +15,47 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(dashboardSummaryProvider);
+    final role = ref.watch(currentUserRoleProvider);
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
-            child: Stack(
+    return AppScaffold(
+      title: 'Dashboard',
+      showAppBar: false,
+      padding: EdgeInsets.zero,
+      bottomNavigationBar: AppBottomNav(
+        currentTab: AppBottomNavTab.home,
+        role: role,
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: SingleChildScrollView(
+            child: Column(
               children: [
-                Positioned.fill(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.only(bottom: 98),
-                    child: Column(
-                      children: [
-                        const _Header(),
-                        const SizedBox(height: 6),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: _MapCard(),
-                        ),
-                        const SizedBox(height: 14),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: _CurrentRideCard(),
-                        ),
-                        const SizedBox(height: 14),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: _UpdatesSection(),
-                        ),
-
-                        // (Opcional) mantener el summary del provider por ahora
-                        const SizedBox(height: 10),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            summary,
-                            style: const TextStyle(color: AppColors.textSecondary),
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-                      ],
-                    ),
+                const _Header(),
+                const SizedBox(height: 6),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: _MapCard(),
+                ),
+                const SizedBox(height: 14),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: _CurrentRideCard(),
+                ),
+                const SizedBox(height: 14),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: _UpdatesSection(),
+                ),
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    summary,
+                    style: const TextStyle(color: AppColors.textSecondary),
                   ),
                 ),
-
-                const Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: _BottomNav(currentIndex: 0),
-                ),
+                const SizedBox(height: 16),
               ],
             ),
           ),
@@ -73,7 +64,6 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 }
-
 /* ---------- UI widgets ---------- */
 
 class _Header extends StatelessWidget {
@@ -102,7 +92,11 @@ class _Header extends StatelessWidget {
                   children: [
                     Text(
                       'Welcome back',
-                      style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.1),
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        height: 1.1,
+                      ),
                     ),
                     SizedBox(height: 2),
                     Text(
@@ -138,17 +132,21 @@ class _StatsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: const [
-        Expanded(child: _StatCard(value: '12', label: 'Rides')),
+        Expanded(
+          child: _StatCard(value: '12', label: 'Rides'),
+        ),
         SizedBox(width: 10),
         Expanded(
           child: _StatCard(
             value: '98%',
             label: 'Score', // ✅ mockup
-            valueColor: Color(0xFF22C55E),
+            valueColor: AppColors.accent,
           ),
         ),
         SizedBox(width: 10),
-        Expanded(child: _StatCard(value: '4.9', label: 'Rating')), // ✅ mockup
+        Expanded(
+          child: _StatCard(value: '4.9', label: 'Rating'),
+        ), // ✅ mockup
       ],
     );
   }
@@ -166,7 +164,9 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.18), // ✅ más visible como mockup
+        color: Colors.white.withValues(
+          alpha: 0.18,
+        ), // ✅ más visible como mockup
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -174,7 +174,7 @@ class _StatCard extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              color: valueColor ?? Colors.white,
+              color: valueColor ?? AppColors.primaryForeground,
               fontSize: 22,
               fontWeight: FontWeight.w900,
               height: 1.1,
@@ -203,14 +203,14 @@ class _MapCard extends StatelessWidget {
     return Container(
       height: 200, // ✅ más compacto como el mockup
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
             blurRadius: 20,
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             offset: const Offset(0, 10),
-          )
+          ),
         ],
       ),
       child: Stack(
@@ -227,23 +227,26 @@ class _MapCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.card,
                 borderRadius: BorderRadius.circular(999),
                 boxShadow: [
                   BoxShadow(
                     blurRadius: 18,
-                    color: Colors.black.withOpacity(0.08),
+                    color: Colors.black.withValues(alpha: 0.08),
                     offset: const Offset(0, 8),
-                  )
+                  ),
                 ],
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.schedule, size: 18, color: Color(0xFF22C55E)),
+                  Icon(Icons.schedule, size: 18, color: AppColors.accent),
                   SizedBox(width: 8),
                   Text(
                     '3 min away',
-                    style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ],
               ),
@@ -255,15 +258,15 @@ class _MapCard extends StatelessWidget {
                 width: 70,
                 height: 70,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.card,
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0xFF22C55E), width: 4),
+                  border: Border.all(color: AppColors.accent, width: 4),
                   boxShadow: [
                     BoxShadow(
                       blurRadius: 18,
-                      color: Colors.black.withOpacity(0.10),
+                      color: Colors.black.withValues(alpha: 0.10),
                       offset: const Offset(0, 10),
-                    )
+                    ),
                   ],
                 ),
                 child: const Icon(Icons.near_me, color: AppColors.primary),
@@ -277,14 +280,14 @@ class _MapCard extends StatelessWidget {
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.card,
                 borderRadius: BorderRadius.circular(999),
                 boxShadow: [
                   BoxShadow(
                     blurRadius: 16,
-                    color: Colors.black.withOpacity(0.10),
+                    color: Colors.black.withValues(alpha: 0.10),
                     offset: const Offset(0, 10),
-                  )
+                  ),
                 ],
               ),
               child: const Icon(Icons.near_me, color: AppColors.primary),
@@ -304,14 +307,14 @@ class _CurrentRideCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
             blurRadius: 20,
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             offset: const Offset(0, 10),
-          )
+          ),
         ],
       ),
       child: Column(
@@ -330,16 +333,23 @@ class _CurrentRideCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFD1FAE5),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: const Text(
                   'Active',
-                  style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.w800, fontSize: 12),
+                  style: TextStyle(
+                    color: AppColors.accentHover,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
                 ),
-              )
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -349,11 +359,17 @@ class _CurrentRideCard extends StatelessWidget {
                 width: 54,
                 height: 54,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF334E84),
+                  color: AppColors.primaryLight,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: const Center(
-                  child: Text('CM', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+                  child: Text(
+                    'CM',
+                    style: TextStyle(
+                      color: AppColors.primaryForeground,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -361,19 +377,32 @@ class _CurrentRideCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Carlos Mendez',
-                        style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
+                    Text(
+                      'Carlos Mendez',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
                     SizedBox(height: 4),
                     Row(
                       children: [
                         Icon(Icons.star, size: 16, color: Color(0xFFF59E0B)),
                         SizedBox(width: 4),
-                        Text('4.8',
-                            style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+                        Text(
+                          '4.8',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
                         SizedBox(width: 10),
-                        Text('Toyota Corolla 2020', style: TextStyle(color: AppColors.textSecondary)),
+                        Text(
+                          'Toyota Corolla 2020',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
                       ],
-                    )
+                    ),
                   ],
                 ),
               ),
@@ -384,7 +413,7 @@ class _CurrentRideCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Divider(color: Colors.black.withOpacity(0.06)),
+          Divider(color: Colors.black.withValues(alpha: 0.06)),
           const SizedBox(height: 10),
           const _InfoRow(
             icon: Icons.circle,
@@ -405,10 +434,19 @@ class _CurrentRideCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Trip Progress',
-                  style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-              Text('45%', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w900)),
+              Text(
+                '45%',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -417,16 +455,20 @@ class _CurrentRideCard extends StatelessWidget {
             child: const LinearProgressIndicator(
               value: 0.45,
               minHeight: 8,
-              backgroundColor: Color(0xFFE2E8F0),
-              valueColor: AlwaysStoppedAnimation(Color(0xFF22C55E)),
+              backgroundColor: AppColors.border,
+              valueColor: AlwaysStoppedAnimation(AppColors.accent),
             ),
           ),
           const SizedBox(height: 14),
           const Row(
             children: [
-              Expanded(child: _MiniMetric(title: 'Distance', value: '4.2 km')),
+              Expanded(
+                child: _MiniMetric(title: 'Distance', value: '4.2 km'),
+              ),
               SizedBox(width: 12),
-              Expanded(child: _MiniMetric(title: 'Fare', value: '\$3,500')),
+              Expanded(
+                child: _MiniMetric(title: 'Fare', value: '\$3,500'),
+              ),
             ],
           ),
         ],
@@ -445,12 +487,16 @@ class _UpdatesSection extends StatelessWidget {
       children: [
         const Text(
           'Updates',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.textPrimary),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            color: AppColors.textPrimary,
+          ),
         ),
         const SizedBox(height: 10),
         _UpdateCard(
           icon: Icons.near_me,
-          iconBg: const Color(0xFF22C55E),
+          iconBg: AppColors.accent,
           title: 'Driver arriving soon',
           subtitle: 'Carlos is 3 minutes away from pickup',
           trailing: 'Now',
@@ -459,8 +505,8 @@ class _UpdatesSection extends StatelessWidget {
         const SizedBox(height: 10),
         _UpdateCard(
           icon: Icons.star_border,
-          iconBg: const Color(0xFFE2E8F0),
-          iconColor: const Color(0xFF2563EB),
+          iconBg: AppColors.border,
+          iconColor: AppColors.secondary,
           title: 'You earned punctuality points!',
           subtitle: '+5 points for being on time',
           trailing: '5m',
@@ -497,7 +543,9 @@ class _UpdateCard extends StatelessWidget {
         color: highlight ? const Color(0xFFECFDF5) : Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: highlight ? const Color(0xFFBBF7D0) : Colors.black.withOpacity(0.06),
+          color: highlight
+              ? const Color(0xFFBBF7D0)
+              : Colors.black.withValues(alpha: 0.06),
         ),
       ),
       child: Row(
@@ -516,14 +564,29 @@ class _UpdateCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(subtitle, style: const TextStyle(color: AppColors.textSecondary)),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: AppColors.textSecondary),
+                ),
               ],
             ),
           ),
           const SizedBox(width: 10),
-          Text(trailing, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
+          Text(
+            trailing,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
@@ -541,17 +604,27 @@ class _MiniMetric extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: AppColors.input,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black.withOpacity(0.04)),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
       ),
       child: Column(
         children: [
-          Text(title, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
+          Text(
+            title,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w900, fontSize: 16),
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+            ),
           ),
         ],
       ),
@@ -583,9 +656,21 @@ class _InfoRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               const SizedBox(height: 2),
-              Text(value, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w900)),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ],
           ),
         ),
@@ -633,10 +718,10 @@ class _CircleIconButton extends StatelessWidget {
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.18),
+          color: Colors.white.withValues(alpha: 0.18),
           borderRadius: BorderRadius.circular(999),
         ),
-        child: Icon(icon, color: Colors.white),
+        child: Icon(icon, color: AppColors.primaryForeground),
       ),
     );
   }
@@ -658,10 +743,13 @@ class _BellButton extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.18),
+              color: Colors.white.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(999),
             ),
-            child: const Icon(Icons.notifications_none, color: Colors.white),
+            child: const Icon(
+              Icons.notifications_none,
+              color: AppColors.primaryForeground,
+            ),
           ),
           Positioned(
             right: 10,
@@ -670,7 +758,7 @@ class _BellButton extends StatelessWidget {
               width: 10,
               height: 10,
               decoration: BoxDecoration(
-                color: const Color(0xFF22C55E),
+                color: AppColors.accent,
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(color: AppColors.primary, width: 2),
               ),
@@ -683,116 +771,14 @@ class _BellButton extends StatelessWidget {
 }
 
 /* ✅ Bottom nav estilo mockup (círculo oscuro activo) */
-class _BottomNav extends StatelessWidget {
-  final int currentIndex;
-  const _BottomNav({required this.currentIndex});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            blurRadius: 20,
-            color: Colors.black.withOpacity(0.08),
-            offset: const Offset(0, -10),
-          )
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _NavItem(
-            label: 'Home',
-            icon: Icons.location_on_outlined,
-            selected: currentIndex == 0,
-            onTap: () => context.go(AppRoutes.dashboard),
-          ),
-          _NavItem(
-            label: 'Create',
-            icon: Icons.directions_car_outlined,
-            selected: currentIndex == 1,
-            onTap: () => context.go(AppRoutes.createRide),
-          ),
-          _NavItem(
-            label: 'Alerts',
-            icon: Icons.notifications_none,
-            selected: currentIndex == 2,
-            onTap: () => context.go(AppRoutes.notifications),
-          ),
-          _NavItem(
-            label: 'Profile',
-            icon: Icons.person_outline,
-            selected: currentIndex == 3,
-            onTap: () => context.go(AppRoutes.profile),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _NavItem({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: selected ? const Color(0xFF0B2346) : Colors.transparent,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Icon(
-                icon,
-                color: selected ? Colors.white : const Color(0xFF94A3B8),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? const Color(0xFF0B2346) : const Color(0xFF94A3B8),
-                fontSize: 12,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final bg = Paint()..color = const Color(0xFFF8FAFC);
+    final bg = Paint()..color = AppColors.input;
     canvas.drawRect(Offset.zero & size, bg);
 
     final gridPaint = Paint()
-      ..color = const Color(0xFFE2E8F0)
+      ..color = AppColors.border
       ..strokeWidth = 1;
 
     const step = 46.0;
@@ -810,7 +796,12 @@ class _GridPainter extends CustomPainter {
 
     final path = Path()
       ..moveTo(size.width * 0.2, size.height * 0.75)
-      ..quadraticBezierTo(size.width * 0.55, size.height * 0.45, size.width * 0.82, size.height * 0.35);
+      ..quadraticBezierTo(
+        size.width * 0.55,
+        size.height * 0.45,
+        size.width * 0.82,
+        size.height * 0.35,
+      );
 
     const dash = 10.0;
     const gap = 8.0;
@@ -822,10 +813,10 @@ class _GridPainter extends CustomPainter {
       }
     }
 
-    final dot = Paint()..color = const Color(0xFF2563EB);
+    final dot = Paint()..color = AppColors.secondary;
     canvas.drawCircle(Offset(size.width * 0.27, size.height * 0.78), 5, dot);
 
-    final dot2 = Paint()..color = const Color(0xFF22C55E);
+    final dot2 = Paint()..color = AppColors.accent;
     canvas.drawCircle(Offset(size.width * 0.58, size.height * 0.48), 8, dot2);
 
     final dot3 = Paint()..color = const Color(0xFF0F172A);
