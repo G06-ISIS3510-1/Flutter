@@ -9,6 +9,7 @@ class AppScaffold extends StatelessWidget {
     this.actions,
     this.padding,
     this.bottomNavigationBar,
+    this.showAppBar = true,
     super.key,
   });
 
@@ -17,11 +18,12 @@ class AppScaffold extends StatelessWidget {
   final List<Widget>? actions;
   final EdgeInsets? padding;
   final Widget? bottomNavigationBar;
+  final bool showAppBar;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title), actions: actions),
+      appBar: showAppBar ? AppBar(title: Text(title), actions: actions) : null,
       bottomNavigationBar: bottomNavigationBar,
       body: SafeArea(
         child: Padding(
