@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
+import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../theme/app_spacing.dart';
 import '../providers/profile_providers.dart';
@@ -14,13 +16,21 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(profileSummaryProvider);
+    final role = ref.watch(currentUserRoleProvider);
 
     return AppScaffold(
       title: 'Profile',
+      bottomNavigationBar: AppBottomNav(
+        currentTab: AppBottomNavTab.profile,
+        role: role,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Profile Screen', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const Text(
+            'Profile Screen',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: AppSpacing.s),
           Text(summary),
           const SizedBox(height: AppSpacing.l),

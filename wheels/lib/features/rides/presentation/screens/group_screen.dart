@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
+import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../theme/app_spacing.dart';
 import '../../../chat/presentation/providers/chat_providers.dart';
@@ -18,13 +20,21 @@ class GroupScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final rideInfo = ref.watch(ridesStatusProvider);
     final chatInfo = ref.watch(chatStatusProvider);
+    final role = ref.watch(currentUserRoleProvider);
 
     return AppScaffold(
       title: 'Group Ride',
+      bottomNavigationBar: AppBottomNav(
+        currentTab: AppBottomNavTab.middle,
+        role: role,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Group Screen', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const Text(
+            'Group Screen',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: AppSpacing.s),
           Text('Ride ID: $rideId'),
           const SizedBox(height: AppSpacing.s),
