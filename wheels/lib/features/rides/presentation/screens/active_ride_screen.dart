@@ -48,7 +48,14 @@ class ActiveRideScreen extends ConsumerWidget {
           ],
           const SizedBox(height: AppSpacing.l),
           AppButton(
+            label: 'Open Group Chat',
+            onPressed: () =>
+                context.go(AppRoutes.groupChatByTripId('active-driver-trip')),
+          ),
+          const SizedBox(height: AppSpacing.m),
+          AppButton(
             label: 'Go to Notifications',
+            isPrimary: false,
             onPressed: () => context.go(AppRoutes.notifications),
           ),
           const SizedBox(height: AppSpacing.m),
