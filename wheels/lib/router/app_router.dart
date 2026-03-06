@@ -68,6 +68,11 @@ class AppRouter {
       ),
       GoRoute(
         path: AppRoutes.activeRide,
+        redirect: (context, state) {
+          final container = ProviderScope.containerOf(context, listen: false);
+          final isDriver = container.read(isDriverProvider);
+          return isDriver ? null : AppRoutes.dashboard;
+        },
         builder: (context, state) => const ActiveRideScreen(),
       ),
       GoRoute(
