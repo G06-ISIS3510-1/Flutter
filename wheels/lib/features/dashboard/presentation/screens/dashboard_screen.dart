@@ -7,6 +7,7 @@ import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../theme/app_colors.dart';
+import '../../../rides/presentation/mock/driver_active_ride_mock.dart';
 import '../providers/dashboard_providers.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -16,6 +17,7 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(dashboardSummaryProvider);
     final role = ref.watch(currentUserRoleProvider);
+    final canOpenActiveRide = role == UserRole.driver;
 
     return AppScaffold(
       title: 'Dashboard',
@@ -35,9 +37,13 @@ class DashboardScreen extends ConsumerWidget {
             child: _MapCard(),
           ),
           const SizedBox(height: 14),
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
-            child: _CurrentRideCard(),
+            child: _CurrentRideCard(
+              onTap: canOpenActiveRide
+                  ? () => context.go(AppRoutes.activeRide)
+                  : null,
+            ),
           ),
           const SizedBox(height: 14),
           const Padding(
@@ -294,11 +300,15 @@ class _MapCard extends StatelessWidget {
 }
 
 class _CurrentRideCard extends StatelessWidget {
-  const _CurrentRideCard();
+  const _CurrentRideCard({this.onTap});
+
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final ride = DriverActiveRideMock.ride;
+
+    final content = Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.card,
@@ -356,9 +366,9 @@ class _CurrentRideCard extends StatelessWidget {
                   color: AppColors.primaryLight,
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: const Center(
+                child: Center(
                   child: Text(
-                    'CM',
+                    '${ride['driverInitials']}',
                     style: TextStyle(
                       color: AppColors.primaryForeground,
                       fontWeight: FontWeight.w900,
@@ -367,12 +377,12 @@ class _CurrentRideCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Carlos Mendez',
+                      '${ride['driverName']}',
                       style: TextStyle(
                         fontWeight: FontWeight.w900,
                         color: AppColors.textPrimary,
@@ -384,7 +394,7 @@ class _CurrentRideCard extends StatelessWidget {
                         Icon(Icons.star, size: 16, color: Color(0xFFF59E0B)),
                         SizedBox(width: 4),
                         Text(
-                          '4.8',
+                          '${ride['driverRating']}',
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
                             color: AppColors.textSecondary,
@@ -392,7 +402,7 @@ class _CurrentRideCard extends StatelessWidget {
                         ),
                         SizedBox(width: 10),
                         Text(
-                          'Toyota Corolla 2020',
+                          '${ride['carModel']}',
                           style: TextStyle(color: AppColors.textSecondary),
                         ),
                       ],
@@ -409,18 +419,18 @@ class _CurrentRideCard extends StatelessWidget {
           const SizedBox(height: 12),
           Divider(color: Colors.black.withValues(alpha: 0.06)),
           const SizedBox(height: 10),
-          const _InfoRow(
+          _InfoRow(
             icon: Icons.circle,
             iconColor: Color(0xFF3B82F6),
             label: 'Pickup',
-            value: 'Campus Uniandes - Entrance Gate',
+            value: '${ride['origin']}',
           ),
           const SizedBox(height: 10),
-          const _InfoRow(
+          _InfoRow(
             icon: Icons.location_on_outlined,
             iconColor: AppColors.textSecondary,
             label: 'Destination',
-            value: 'Centro Comercial Andino',
+            value: '${ride['destination']}',
           ),
           const SizedBox(height: 12),
           Row(
@@ -454,20 +464,29 @@ class _CurrentRideCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          const Row(
+          Row(
             children: [
               Expanded(
-                child: _MiniMetric(title: 'Distance', value: '4.2 km'),
+                child: _MiniMetric(
+                  title: 'Distance',
+                  value: '${ride['distance']}',
+                ),
               ),
               SizedBox(width: 12),
               Expanded(
-                child: _MiniMetric(title: 'Fare', value: '\$3,500'),
+                child: _MiniMetric(title: 'Fare', value: '${ride['fare']}'),
               ),
             ],
           ),
         ],
       ),
     );
+
+    if (onTap == null) {
+      return content;
+    }
+
+    return GestureDetector(onTap: onTap, child: content);
   }
 }
 
