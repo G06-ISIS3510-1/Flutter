@@ -119,7 +119,7 @@ class RideDetailsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.m),
           ElevatedButton(
-            onPressed: () => context.go(AppRoutes.groupByRideId(ride.id)),
+            onPressed: () => context.go(AppRoutes.groupChatByTripId(ride.id)),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.accent,
               foregroundColor: AppColors.accentForeground,

@@ -411,7 +411,12 @@ class _CurrentRideCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              _SmallActionButton(icon: Icons.chat_bubble_outline, onTap: () {}),
+              _SmallActionButton(
+                icon: Icons.chat_bubble_outline,
+                onTap: () => context.go(
+                  AppRoutes.groupChatByTripId('dashboard-active-trip'),
+                ),
+              ),
               const SizedBox(width: 8),
               _SmallActionButton(icon: Icons.call_outlined, onTap: () {}),
             ],

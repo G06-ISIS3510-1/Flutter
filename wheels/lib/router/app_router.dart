@@ -76,7 +76,23 @@ class AppRouter {
         builder: (context, state) => const ActiveRideScreen(),
       ),
       GoRoute(
+        path: AppRoutes.groupChat,
+        redirect: (context, state) {
+          final container = ProviderScope.containerOf(context, listen: false);
+          final isDriver = container.read(isDriverProvider);
+          return isDriver ? null : AppRoutes.dashboard;
+        },
+        builder: (context, state) => GroupChatScreen(
+          tripId: state.uri.queryParameters['tripId'] ?? 'active-trip',
+        ),
+      ),
+      GoRoute(
         path: AppRoutes.group,
+        redirect: (context, state) {
+          final container = ProviderScope.containerOf(context, listen: false);
+          final isDriver = container.read(isDriverProvider);
+          return isDriver ? null : AppRoutes.dashboard;
+        },
         builder: (context, state) =>
             GroupScreen(rideId: state.pathParameters['rideId'] ?? 'unknown'),
       ),

@@ -8,6 +8,7 @@ class AppRoutes {
   static const rides = '/rides';
   static const rideDetails = '/ride/:rideId';
   static const activeRide = '/active-ride';
+  static const groupChat = '/group-chat';
   static const group = '/group/:rideId';
   static const payment = '/payment';
   static const profile = '/profile';
@@ -15,5 +16,7 @@ class AppRoutes {
   static const reviews = '/reviews';
 
   static String groupByRideId(String rideId) => '/group/$rideId';
+  static String groupChatByTripId(String tripId) =>
+      '/group-chat?tripId=$tripId';
   static String rideDetailsById(String rideId) => '/ride/$rideId';
 }
