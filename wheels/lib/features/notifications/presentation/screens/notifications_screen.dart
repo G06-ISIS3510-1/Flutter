@@ -241,7 +241,7 @@ class _NotificationCard extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             blurRadius: 18,
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             offset: const Offset(0, 8),
           ),
         ],
@@ -343,7 +343,7 @@ class _BottomNav extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               blurRadius: 20,
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               offset: const Offset(0, -10),
             ),
           ],
