@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../features/auth/presentation/providers/auth_providers.dart';
@@ -23,6 +25,7 @@ class CreateRideScreen extends ConsumerStatefulWidget {
 
 class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _originFieldKey = GlobalKey<FormFieldState<String>>();
   final _notesController = TextEditingController();
   final _dateController = TextEditingController();
   final _timeController = TextEditingController();
@@ -33,6 +36,9 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   int _availableSeats = 3;
   String _origin = '';
   String _destination = '';
+  bool _isResolvingOriginFromGps = false;
+  String? _originLocationError;
+  String? _currentLocationSuggestion;
 
   static const List<String> _campusLocations = <String>[
     'Campus Uniandes - Main Gate',
@@ -52,6 +58,137 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     _timeController.dispose();
     _priceController.dispose();
     super.dispose();
+  }
+
+  Future<void> _useCurrentLocationAsOrigin() async {
+    setState(() {
+      _isResolvingOriginFromGps = true;
+      _originLocationError = null;
+    });
+
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception('Location services are disabled on this device.');
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw Exception('Location permission was not granted.');
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+      final address = await _reverseGeocodePosition(position);
+
+      _originFieldKey.currentState?.didChange(address);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _origin = address;
+        _currentLocationSuggestion = address;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pickup location updated from GPS.')),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('GPS origin error: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _originLocationError = error.toString().replaceFirst('Exception: ', '');
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _originLocationError ?? 'Unable to read current location.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isResolvingOriginFromGps = false;
+        });
+      }
+    }
+  }
+
+  Future<String> _reverseGeocodePosition(Position position) async {
+    final fallbackAddress =
+        'Current location (${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)})';
+
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      if (placemarks.isEmpty) {
+        return fallbackAddress;
+      }
+
+      final placemark = placemarks.first;
+      final parts =
+          <String?>[
+                placemark.street,
+                placemark.subLocality,
+                placemark.locality,
+                placemark.administrativeArea,
+                placemark.country,
+              ]
+              .whereType<String>()
+              .map((part) => part.trim())
+              .where((part) => part.isNotEmpty)
+              .toList();
+
+      if (parts.isEmpty) {
+        return fallbackAddress;
+      }
+
+      return parts.toSet().join(', ');
+    } catch (error, stackTrace) {
+      debugPrint('Reverse geocoding failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      return fallbackAddress;
+    }
+  }
+
+  List<String> _locationSuggestionsFor(String query) {
+    final normalizedQuery = query.trim().toLowerCase();
+    final baseSuggestions = <String>[
+      ...(_currentLocationSuggestion == null
+          ? const <String>[]
+          : <String>[_currentLocationSuggestion!]),
+      ..._campusLocations,
+    ];
+
+    final uniqueSuggestions = baseSuggestions.toSet().toList();
+    if (normalizedQuery.isEmpty) {
+      return uniqueSuggestions;
+    }
+
+    return uniqueSuggestions
+        .where((option) => option.toLowerCase().contains(normalizedQuery))
+        .toList();
   }
 
   Future<void> _pickDate() async {
@@ -149,32 +286,30 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
       ),
       bottomNavigationBar: Container(
         color: AppColors.card,
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.m,
-          AppSpacing.s,
-          AppSpacing.m,
-          AppSpacing.s,
-        ),
+        padding: const EdgeInsets.only(top: AppSpacing.s),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _publishRide,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.accent,
-                  foregroundColor: AppColors.accentForeground,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _publishRide,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: AppColors.accentForeground,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                    ),
                   ),
-                ),
-                icon: const Icon(Icons.arrow_forward_ios, size: 16),
-                label: const Text(
-                  'Publish Ride',
-                  style: TextStyle(fontWeight: FontWeight.w700),
+                  icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                  label: const Text(
+                    'Publish Ride',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ),
               ),
             ),
@@ -199,12 +334,56 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                 child: Column(
                   children: [
                     _locationAutocompleteField(
+                      fieldKey: _originFieldKey,
                       label: 'Pickup Location',
                       hint: 'e.g. Campus Uniandes - Main Gate',
                       icon: Icons.location_pin,
                       onChanged: (value) => _origin = value,
                       validatorText: 'Pickup location is required.',
+                      suggestions: _locationSuggestionsFor,
+                      suffixIcon: _isResolvingOriginFromGps
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                          : IconButton(
+                              tooltip: 'Use current location',
+                              onPressed: _useCurrentLocationAsOrigin,
+                              icon: const Icon(
+                                Icons.my_location,
+                                color: AppColors.secondary,
+                              ),
+                            ),
                     ),
+                    if (_originLocationError != null) ...[
+                      const SizedBox(height: AppSpacing.s),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.info_outline,
+                            size: 16,
+                            color: AppColors.error,
+                          ),
+                          const SizedBox(width: AppSpacing.xs),
+                          Expanded(
+                            child: Text(
+                              _originLocationError!,
+                              style: const TextStyle(
+                                color: AppColors.error,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: AppSpacing.m),
                     _locationAutocompleteField(
                       label: 'Destination',
@@ -212,6 +391,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                       icon: Icons.place_outlined,
                       onChanged: (value) => _destination = value,
                       validatorText: 'Destination is required.',
+                      suggestions: _locationSuggestionsFor,
                     ),
                   ],
                 ),
@@ -374,13 +554,17 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   }
 
   Widget _locationAutocompleteField({
+    GlobalKey<FormFieldState<String>>? fieldKey,
     required String label,
     required String hint,
     required IconData icon,
     required ValueChanged<String> onChanged,
     required String validatorText,
+    required List<String> Function(String query) suggestions,
+    Widget? suffixIcon,
   }) {
     return FormField<String>(
+      key: fieldKey,
       initialValue: '',
       validator: (value) {
         if (value == null || value.trim().isEmpty) {
@@ -398,13 +582,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
             Autocomplete<String>(
               initialValue: TextEditingValue(text: currentValue),
               optionsBuilder: (textEditingValue) {
-                final query = textEditingValue.text.trim().toLowerCase();
-                if (query.isEmpty) {
-                  return _campusLocations;
-                }
-                return _campusLocations.where(
-                  (option) => option.toLowerCase().contains(query),
-                );
+                return suggestions(textEditingValue.text);
               },
               onSelected: (value) {
                 field.didChange(value);
@@ -463,6 +641,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                         hint: hint,
                         icon: null,
                         errorText: field.errorText,
+                        suffixIcon: suffixIcon,
                       ),
                       onChanged: (value) {
                         field.didChange(value);
@@ -645,11 +824,15 @@ class _FieldLabel extends StatelessWidget {
       children: [
         Icon(icon, size: 18, color: AppColors.secondary),
         const SizedBox(width: AppSpacing.s),
-        Text(
-          text,
-          style: const TextStyle(
-            color: AppColors.foreground,
-            fontWeight: FontWeight.w600,
+        Flexible(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.foreground,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ],
