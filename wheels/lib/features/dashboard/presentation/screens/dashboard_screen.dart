@@ -46,7 +46,7 @@ class DashboardScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 14),
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: _UpdatesSection(),
           ),
@@ -517,8 +517,9 @@ class _UpdatesSection extends StatelessWidget {
           iconBg: AppColors.accent,
           title: 'Driver arriving soon',
           subtitle: 'Carlos is 3 minutes away from pickup',
-          trailing: 'Now',
           highlight: true,
+          actionLabel: 'Quick Pay',
+          onAction: () => context.go(AppRoutes.payment),
         ),
         const SizedBox(height: 10),
         _UpdateCard(
@@ -540,8 +541,10 @@ class _UpdateCard extends StatelessWidget {
   final Color? iconColor;
   final String title;
   final String subtitle;
-  final String trailing;
+  final String? trailing;
   final bool highlight;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   const _UpdateCard({
     required this.icon,
@@ -549,8 +552,10 @@ class _UpdateCard extends StatelessWidget {
     this.iconColor,
     required this.title,
     required this.subtitle,
-    required this.trailing,
+    this.trailing,
     this.highlight = false,
+    this.actionLabel,
+    this.onAction,
   });
 
   @override
@@ -598,13 +603,54 @@ class _UpdateCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Text(
-            trailing,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w700,
+          if (actionLabel != null && onAction != null)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF5DD6A5), Color(0xFF58C890)],
+                ),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onAction,
+                  borderRadius: BorderRadius.circular(999),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.credit_card_rounded,
+                          color: AppColors.primaryForeground,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          actionLabel!,
+                          style: const TextStyle(
+                            color: AppColors.primaryForeground,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            )
+          else if (trailing != null)
+            Text(
+              trailing!,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
         ],
       ),
     );
