@@ -1,41 +1,204 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../router/app_routes.dart';
-import '../../../../shared/widgets/app_button.dart';
 import '../../../../theme/app_colors.dart';
+import '../../../../theme/app_spacing.dart';
+import '../../data/datasources/auth_remote_datasource.dart';
+import '../../domain/entities/auth_entity.dart';
+import '../providers/auth_providers.dart';
+import '../widgets/auth_widgets.dart';
 
-class RegisterScreen extends StatefulWidget {
+class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
-  final _fullNameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _passwordController = TextEditingController();
+class _RegisterScreenState extends ConsumerState<RegisterScreen> {
+  final _registerFormKey = GlobalKey<FormState>();
+  final _loginFormKey = GlobalKey<FormState>();
+
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _registerUsernameController = TextEditingController();
+  final _registerPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
+  final _loginUsernameController = TextEditingController();
+  final _loginPasswordController = TextEditingController();
+
+  int _selectedModeIndex = 0;
+  UserRole? _selectedRole = UserRole.passenger;
+  bool _isRegisterLoading = false;
+  bool _isLoginLoading = false;
 
   @override
   void dispose() {
-    _fullNameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    _passwordController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _registerUsernameController.dispose();
+    _registerPasswordController.dispose();
     _confirmPasswordController.dispose();
+    _loginUsernameController.dispose();
+    _loginPasswordController.dispose();
     super.dispose();
+  }
+
+  bool get _isRegisterValid {
+    return _firstNameController.text.trim().isNotEmpty &&
+        _lastNameController.text.trim().isNotEmpty &&
+        _isValidUsername(_registerUsernameController.text) &&
+        _registerPasswordController.text.length >= 6 &&
+        _confirmPasswordController.text == _registerPasswordController.text &&
+        _selectedRole != null;
+  }
+
+  bool get _isLoginValid {
+    return _isValidUsername(_loginUsernameController.text) &&
+        _loginPasswordController.text.length >= 6;
+  }
+
+  String get _constructedRegisterEmail {
+    final username = _registerUsernameController.text.trim();
+    return username.isEmpty ? '' : buildUniversityEmail(username);
+  }
+
+  String get _constructedLoginEmail {
+    final username = _loginUsernameController.text.trim();
+    return username.isEmpty ? '' : buildUniversityEmail(username);
+  }
+
+  bool _isValidUsername(String value) {
+    final trimmed = value.trim();
+    return trimmed.isNotEmpty &&
+        !trimmed.contains(' ') &&
+        !trimmed.contains('@');
+  }
+
+  Future<void> _submitRegister() async {
+    final formState = _registerFormKey.currentState;
+    if (formState == null || !formState.validate()) {
+      return;
+    }
+    if (_selectedRole == null) {
+      _showSnackBar('Please choose Driver or Passenger before registering.');
+      return;
+    }
+
+    setState(() {
+      _isRegisterLoading = true;
+    });
+
+    try {
+      final role = _selectedRole!;
+      final authEntity = await ref
+          .read(authRepositoryProvider)
+          .registerWithUniversityEmail(
+            firstName: _firstNameController.text.trim(),
+            lastName: _lastNameController.text.trim(),
+            username: _registerUsernameController.text.trim(),
+            password: _registerPasswordController.text,
+            role: _roleStorageValue(role),
+          );
+
+      if (!mounted) return;
+      _completeAuth(authEntity, role);
+      _showSnackBar('Welcome to Wheels, ${_firstNameController.text.trim()}!');
+      context.go(AppRoutes.dashboard);
+    } on AuthFailure catch (error) {
+      _showSnackBar(error.message);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRegisterLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _submitLogin() async {
+    final formState = _loginFormKey.currentState;
+    if (formState == null || !formState.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isLoginLoading = true;
+    });
+
+    try {
+      final authEntity = await ref
+          .read(authRepositoryProvider)
+          .signInWithUniversityEmail(
+            username: _loginUsernameController.text.trim(),
+            password: _loginPasswordController.text,
+          );
+
+      if (!mounted) return;
+      final role = authEntity.role == 'driver'
+          ? UserRole.driver
+          : UserRole.passenger;
+      _completeAuth(authEntity, role);
+      _showSnackBar('Welcome back!');
+      context.go(AppRoutes.dashboard);
+    } on AuthFailure catch (error) {
+      _showSnackBar(error.message);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoginLoading = false;
+        });
+      }
+    }
+  }
+
+  void _completeAuth(AuthEntity authEntity, UserRole role) {
+    ref.read(authUserProvider.notifier).state = authEntity;
+    ref.read(currentUserRoleProvider.notifier).state = role;
+  }
+
+  void _continueWithDevAccess() {
+    final role = _selectedRole ?? UserRole.passenger;
+    _completeAuth(
+      AuthEntity(
+        uid: 'dev-user',
+        email: 'dev@uniandes.edu.co',
+        role: _roleStorageValue(role),
+        fullName: 'Dev Access',
+      ),
+      role,
+    );
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Dev access enabled. You can keep exploring the app.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    context.go(AppRoutes.dashboard);
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      );
+  }
+
+  static String _roleStorageValue(UserRole role) {
+    return role == UserRole.driver ? 'driver' : 'passenger';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: const Color(0xFFF3F6FB),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -43,285 +206,103 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: InkWell(
-                      onTap: () => context.go(AppRoutes.login),
-                      borderRadius: BorderRadius.circular(12),
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.chevron_left, color: AppColors.textPrimary),
-                            SizedBox(width: 4),
-                            Text(
-                              'Back',
-                              style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  AuthHeader(
+                    onBack: () {
+                      if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.go(AppRoutes.login);
+                      }
+                    },
+                    title: 'University Access',
+                    subtitle:
+                        'Register with your Uniandes email to join the trusted student ride community.',
                   ),
-
-                  const SizedBox(height: 12),
-
-                  Center(
-                    child: Container(
-                      width: 74,
-                      height: 74,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(22),
-                        boxShadow: [
-                          BoxShadow(
-                            blurRadius: 22,
-                            color: Colors.black.withValues(alpha: 0.10),
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Icon(Icons.add, color: Color(0xFF22C55E), size: 34),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  const Center(
-                    child: Text(
-                      'Create account',
-                      style: TextStyle(
-                        fontSize: 34,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                        letterSpacing: -0.6,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  const Center(
-                    child: Text(
-                      'Join Wheels with your university information',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(22),
-                      boxShadow: [
-                        BoxShadow(
-                          blurRadius: 20,
-                          color: Colors.black.withValues(alpha: 0.05),
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
+                  const SizedBox(height: AppSpacing.l),
+                  const AuthInfoCard(),
+                  const SizedBox(height: AppSpacing.l),
+                  AuthFormShell(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Full name',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _InputField(
-                          controller: _fullNameController,
-                          hintText: 'Enter your full name',
-                          prefixIcon: Icons.person_outline,
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        const Text(
-                          'Uniandes email',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _InputField(
-                          controller: _emailController,
-                          hintText: 'user@uniandes.edu.co',
-                          prefixIcon: Icons.mail_outline,
-                          keyboardType: TextInputType.emailAddress,
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        const Text(
-                          'Phone number',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _InputField(
-                          controller: _phoneController,
-                          hintText: 'Enter your phone number',
-                          prefixIcon: Icons.phone_outlined,
-                          keyboardType: TextInputType.phone,
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        const Text(
-                          'Password',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _InputField(
-                          controller: _passwordController,
-                          hintText: 'Create a password',
-                          prefixIcon: Icons.lock_outline,
-                          obscureText: _obscurePassword,
-                          suffixIcon: IconButton(
-                            onPressed: () {
-                              setState(() {
-                                _obscurePassword = !_obscurePassword;
-                              });
-                            },
-                            icon: Icon(
-                              _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        const Text(
-                          'Confirm password',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _InputField(
-                          controller: _confirmPasswordController,
-                          hintText: 'Repeat your password',
-                          prefixIcon: Icons.lock_outline,
-                          obscureText: _obscureConfirmPassword,
-                          suffixIcon: IconButton(
-                            onPressed: () {
-                              setState(() {
-                                _obscureConfirmPassword = !_obscureConfirmPassword;
-                              });
-                            },
-                            icon: Icon(
-                              _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 22),
-
-                        AppButton(
-                          label: 'Create account',
-                          onPressed: () {
-                            context.go(AppRoutes.dashboard);
+                        AuthModeToggle(
+                          selectedIndex: _selectedModeIndex,
+                          onChanged: (index) {
+                            setState(() {
+                              _selectedModeIndex = index;
+                            });
                           },
                         ),
+                        const SizedBox(height: AppSpacing.xl),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 220),
+                          child: _selectedModeIndex == 0
+                              ? RegisterForm(
+                                  key: const ValueKey('register-form'),
+                                  formKey: _registerFormKey,
+                                  firstNameController: _firstNameController,
+                                  lastNameController: _lastNameController,
+                                  usernameController:
+                                      _registerUsernameController,
+                                  passwordController:
+                                      _registerPasswordController,
+                                  confirmPasswordController:
+                                      _confirmPasswordController,
+                                  selectedRole: _selectedRole,
+                                  onRoleSelected: (role) {
+                                    setState(() {
+                                      _selectedRole = role;
+                                    });
+                                  },
+                                  onChanged: () => setState(() {}),
+                                  onSubmit: _submitRegister,
+                                  isLoading: _isRegisterLoading,
+                                  isValid: _isRegisterValid,
+                                  constructedEmail: _constructedRegisterEmail,
+                                )
+                              : LoginForm(
+                                  key: const ValueKey('login-form'),
+                                  formKey: _loginFormKey,
+                                  usernameController: _loginUsernameController,
+                                  passwordController: _loginPasswordController,
+                                  onChanged: () => setState(() {}),
+                                  onSubmit: _submitLogin,
+                                  isLoading: _isLoginLoading,
+                                  isValid: _isLoginValid,
+                                  constructedEmail: _constructedLoginEmail,
+                                ),
+                        ),
                       ],
                     ),
                   ),
-
-                  const SizedBox(height: 18),
-
+                  const SizedBox(height: AppSpacing.m),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text(
-                        'Already have an account?',
-                        style: TextStyle(color: AppColors.textSecondary),
+                      const Expanded(
+                        child: Text(
+                          'Need to reset your password?',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
                       ),
                       TextButton(
-                        onPressed: () => context.go(AppRoutes.login),
-                        child: const Text('Login'),
+                        onPressed: () => context.push(AppRoutes.forgotPassword),
+                        child: const Text('Forgot password'),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: AppSpacing.s),
+                  Center(
+                    child: DevAccessButton(onPressed: _continueWithDevAccess),
                   ),
                 ],
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _InputField extends StatelessWidget {
-  final TextEditingController controller;
-  final String hintText;
-  final IconData prefixIcon;
-  final Widget? suffixIcon;
-  final bool obscureText;
-  final TextInputType? keyboardType;
-
-  const _InputField({
-    required this.controller,
-    required this.hintText,
-    required this.prefixIcon,
-    this.suffixIcon,
-    this.obscureText = false,
-    this.keyboardType,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      decoration: InputDecoration(
-        hintText: hintText,
-        hintStyle: const TextStyle(color: AppColors.textSecondary),
-        prefixIcon: Icon(prefixIcon, color: AppColors.textSecondary),
-        suffixIcon: suffixIcon,
-        filled: true,
-        fillColor: const Color(0xFFF8FAFC),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
         ),
       ),
     );

@@ -166,7 +166,7 @@ class _LoginBody extends ConsumerWidget {
         // Primary button: usando tu AppButton (quedará con colorScheme.primary)
         AppButton(
           label: 'Continue with University Email',
-          onPressed: () => context.go(AppRoutes.dashboard),
+          onPressed: () => context.push(AppRoutes.register),
         ),
 
         const SizedBox(height: 12),
