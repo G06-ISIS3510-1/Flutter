@@ -9,9 +9,7 @@ class WheelsApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ProviderScope(
-      child: _WheelsAppView(),
-    );
+    return const ProviderScope(child: _WheelsAppView());
   }
 }
 
