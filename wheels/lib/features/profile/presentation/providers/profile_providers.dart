@@ -29,11 +29,13 @@ class ProfileMetricData {
     required this.value,
     required this.label,
     required this.valueColor,
+    this.route,
   });
 
   final String value;
   final String label;
   final Color valueColor;
+  final String? route;
 }
 
 class ProfileContactData {
@@ -89,6 +91,7 @@ const _mockProfileData = ProfileViewData(
       value: '5',
       label: 'Rating',
       valueColor: AppColors.warning,
+      route: AppRoutes.reviews,
     ),
     ProfileMetricData(
       value: '142',
@@ -128,7 +131,6 @@ const _mockProfileData = ProfileViewData(
           title: 'Rewards & Points',
           subtitle: 'Redeem your 142 points',
           icon: Icons.workspace_premium_outlined,
-          route: AppRoutes.reviews,
         ),
       ],
     ),
