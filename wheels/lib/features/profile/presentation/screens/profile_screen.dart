@@ -267,7 +267,12 @@ class _MetricsGrid extends StatelessWidget {
             for (final metric in metrics)
               SizedBox(
                 width: itemWidth,
-                child: _MetricCard(metric: metric),
+                child: _MetricCard(
+                  metric: metric,
+                  onTap: metric.route == null
+                      ? null
+                      : () => context.go(metric.route!),
+                ),
               ),
           ],
         );
@@ -277,38 +282,49 @@ class _MetricsGrid extends StatelessWidget {
 }
 
 class _MetricCard extends StatelessWidget {
-  const _MetricCard({required this.metric});
+  const _MetricCard({required this.metric, this.onTap});
 
   final ProfileMetricData metric;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF6F8FC),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        children: [
-          Text(
-            metric.value,
-            style: TextStyle(
-              color: metric.valueColor,
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-            ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF6F8FC),
+            borderRadius: BorderRadius.circular(20),
+            border: onTap == null
+                ? null
+                : Border.all(color: const Color(0xFFDDE8F4), width: 1.2),
           ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            metric.label,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
+          child: Column(
+            children: [
+              Text(
+                metric.value,
+                style: TextStyle(
+                  color: metric.valueColor,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                metric.label,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
