@@ -98,6 +98,71 @@ class AuthService {
     }
   }
 
+  Future<AuthEntity?> restoreSession() async {
+    final currentUser = _firebaseAuth.currentUser;
+    if (currentUser == null) {
+      return null;
+    }
+
+    try {
+      await currentUser.reload();
+      final refreshedUser = _firebaseAuth.currentUser;
+      if (refreshedUser == null) {
+        return null;
+      }
+
+      return _buildAuthEntityFromUser(refreshedUser);
+    } on firebase_auth.FirebaseAuthException catch (error) {
+      if (_invalidSessionCodes.contains(error.code)) {
+        await _firebaseAuth.signOut();
+        return null;
+      }
+      throw AuthFailure(_mapFirebaseAuthError(error));
+    }
+  }
+
+  Stream<AuthEntity?> watchSession() {
+    return _firebaseAuth.authStateChanges().asyncMap((user) async {
+      if (user == null) {
+        return null;
+      }
+
+      try {
+        return await _buildAuthEntityFromUser(user);
+      } on AuthFailure {
+        return AuthEntity(
+          uid: user.uid,
+          email: user.email ?? '',
+          role: 'passenger',
+          fullName: user.displayName ?? '',
+        );
+      }
+    });
+  }
+
+  Future<void> signOut() {
+    return _firebaseAuth.signOut();
+  }
+
+  Future<AuthEntity> _buildAuthEntityFromUser(firebase_auth.User user) async {
+    final snapshot = await _firestore.collection('users').doc(user.uid).get();
+    final data = snapshot.data() ?? <String, dynamic>{};
+
+    return AuthEntity(
+      uid: user.uid,
+      email: user.email ?? '',
+      role: (data['role'] as String?) ?? 'passenger',
+      fullName: (data['fullName'] as String?) ?? user.displayName ?? '',
+    );
+  }
+
+  static const Set<String> _invalidSessionCodes = <String>{
+    'user-disabled',
+    'user-not-found',
+    'invalid-user-token',
+    'user-token-expired',
+  };
+
   String _mapFirebaseAuthError(firebase_auth.FirebaseAuthException error) {
     switch (error.code) {
       case 'email-already-in-use':

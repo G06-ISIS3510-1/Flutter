@@ -11,7 +11,9 @@ import '../providers/auth_providers.dart';
 import '../widgets/auth_widgets.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
-  const RegisterScreen({super.key});
+  const RegisterScreen({this.initialModeIndex = 0, super.key});
+
+  final int initialModeIndex;
 
   @override
   ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
@@ -34,6 +36,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   UserRole? _selectedRole = UserRole.passenger;
   bool _isRegisterLoading = false;
   bool _isLoginLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedModeIndex = widget.initialModeIndex.clamp(0, 1);
+  }
 
   @override
   void dispose() {
