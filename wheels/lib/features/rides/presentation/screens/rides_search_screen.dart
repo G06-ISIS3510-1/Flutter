@@ -11,8 +11,9 @@ import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
-import '../mock/rides_mock_data.dart';
+import '../../domain/entities/rides_entity.dart';
 import '../models/ride_listing.dart';
+import '../providers/rides_providers.dart';
 
 class RidesSearchScreen extends ConsumerStatefulWidget {
   const RidesSearchScreen({super.key});
@@ -38,13 +39,11 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
 
   DateTime _selectedDate = DateTime.now();
   RideSortOption _sort = RideSortOption.earliest;
-  List<RideListing> _results = <RideListing>[];
 
   @override
   void initState() {
     super.initState();
     _dateController.text = _formatDate(_selectedDate);
-    _runSearch();
   }
 
   @override
@@ -72,50 +71,6 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
       _selectedDate = DateTime(picked.year, picked.month, picked.day);
       _dateController.text = _formatDate(_selectedDate);
     });
-    _runSearch();
-  }
-
-  void _runSearch() {
-    final source = buildMockRides(_selectedDate);
-    final selectedDay = DateTime(
-      _selectedDate.year,
-      _selectedDate.month,
-      _selectedDate.day,
-    );
-    final originQuery = _originController.text.trim().toLowerCase();
-    final destinationQuery = _destinationController.text.trim().toLowerCase();
-
-    final filtered = source.where((ride) {
-      final rideDay = DateTime(
-        ride.departureDateTime.year,
-        ride.departureDateTime.month,
-        ride.departureDateTime.day,
-      );
-      if (rideDay != selectedDay) {
-        return false;
-      }
-      final originMatch =
-          originQuery.isEmpty ||
-          ride.origin.toLowerCase().contains(originQuery);
-      final destinationMatch =
-          destinationQuery.isEmpty ||
-          ride.destination.toLowerCase().contains(destinationQuery);
-      return originMatch && destinationMatch;
-    }).toList();
-
-    filtered.sort(
-      (a, b) => switch (_sort) {
-        RideSortOption.earliest => a.departureDateTime.compareTo(
-          b.departureDateTime,
-        ),
-        RideSortOption.cheapest => a.pricePerSeat.compareTo(b.pricePerSeat),
-        RideSortOption.highestRated => b.rating.compareTo(a.rating),
-      },
-    );
-
-    setState(() {
-      _results = filtered;
-    });
   }
 
   String _formatDate(DateTime value) {
@@ -127,6 +82,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   @override
   Widget build(BuildContext context) {
     final role = ref.watch(currentUserRoleProvider);
+    final ridesAsync = ref.watch(availableRidesProvider);
 
     return AppScaffold(
       title: 'Rides',
@@ -150,21 +106,74 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
             const SizedBox(height: AppSpacing.m),
             _sortBar(),
             const SizedBox(height: AppSpacing.l),
-            _sectionTitle('Available Drivers', '${_results.length} rides'),
-            const SizedBox(height: AppSpacing.s),
-            if (_results.isEmpty) _emptyState(),
-            for (final ride in _results) ...[
-              _RideResultCard(
-                ride: ride,
-                onTap: () => context.go(AppRoutes.rideDetailsById(ride.id)),
+            ridesAsync.when(
+              data: (rides) {
+                final results = _applyFilters(rides);
+                return Column(
+                  children: [
+                    _sectionTitle('Available Drivers', '${results.length} rides'),
+                    const SizedBox(height: AppSpacing.s),
+                    if (results.isEmpty) _emptyState(),
+                    for (final ride in results) ...[
+                      _RideResultCard(
+                        ride: ride,
+                        onTap: () => context.go(AppRoutes.rideDetailsById(ride.id)),
+                      ),
+                      const SizedBox(height: AppSpacing.m),
+                    ],
+                  ],
+                );
+              },
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                child: Center(child: CircularProgressIndicator()),
               ),
-              const SizedBox(height: AppSpacing.m),
-            ],
+              error: (error, _) => _loadError(error),
+            ),
             const SizedBox(height: AppSpacing.s),
           ],
         ),
       ),
     );
+  }
+
+  List<RidesEntity> _applyFilters(List<RidesEntity> rides) {
+    final selectedDay = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+    );
+    final originQuery = _originController.text.trim().toLowerCase();
+    final destinationQuery = _destinationController.text.trim().toLowerCase();
+
+    final filtered = rides.where((ride) {
+      final rideDay = DateTime(
+        ride.departureAt.year,
+        ride.departureAt.month,
+        ride.departureAt.day,
+      );
+      if (rideDay != selectedDay) {
+        return false;
+      }
+
+      final originMatch =
+          originQuery.isEmpty ||
+          ride.origin.toLowerCase().contains(originQuery);
+      final destinationMatch =
+          destinationQuery.isEmpty ||
+          ride.destination.toLowerCase().contains(destinationQuery);
+      return originMatch && destinationMatch;
+    }).toList();
+
+    filtered.sort(
+      (a, b) => switch (_sort) {
+        RideSortOption.earliest => a.departureAt.compareTo(b.departureAt),
+        RideSortOption.cheapest => a.pricePerSeat.compareTo(b.pricePerSeat),
+        RideSortOption.highestRated => b.driverRating.compareTo(a.driverRating),
+      },
+    );
+
+    return filtered;
   }
 
   Widget _searchCard() {
@@ -220,7 +229,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: _runSearch,
+              onPressed: () => setState(() {}),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.accent,
                 foregroundColor: AppColors.accentForeground,
@@ -283,7 +292,6 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
                       setState(() {
                         _sort = option;
                       });
-                      _runSearch();
                     },
                   ),
                 );
@@ -349,6 +357,37 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     );
   }
 
+  Widget _loadError(Object error) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.l),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        boxShadow: AppShadows.sm,
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.error_outline, size: 64, color: AppColors.error),
+          const SizedBox(height: AppSpacing.s),
+          const Text(
+            'We could not load rides',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+              color: AppColors.foreground,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            error.toString(),
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _autocompleteField({
     required TextEditingController controller,
     required String label,
@@ -400,7 +439,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
 class _RideResultCard extends StatefulWidget {
   const _RideResultCard({required this.ride, required this.onTap});
 
-  final RideListing ride;
+  final RidesEntity ride;
   final VoidCallback onTap;
 
   @override
@@ -470,7 +509,7 @@ class _RideResultCardState extends State<_RideResultCard> {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                '${widget.ride.rating} (${widget.ride.reviewCount})',
+                                '${widget.ride.driverRating.toStringAsFixed(1)} (${widget.ride.reviewCount})',
                                 style: const TextStyle(
                                   color: AppColors.textSecondary,
                                   fontWeight: FontWeight.w600,
@@ -554,8 +593,8 @@ class _RideResultCardState extends State<_RideResultCard> {
                     Expanded(
                       child: _metric(
                         Icons.event_seat_outlined,
-                        '${widget.ride.seatsLeft}/4',
-                        '${widget.ride.seatsLeft} seats left',
+                        '${widget.ride.availableSeats}/${widget.ride.totalSeats}',
+                        '${widget.ride.availableSeats} seats left',
                       ),
                     ),
                     Expanded(
