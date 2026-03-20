@@ -70,11 +70,133 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
   }
 
   void _endRide() {
+    _openPassengerReviewFlow();
+  }
+
+  Future<void> _openPassengerReviewFlow() async {
+    final ratings = <String, int>{
+      for (final passenger in _passengers) passenger['name'] as String: 5,
+    };
+
+    final submitted = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.m,
+                AppSpacing.m,
+                AppSpacing.m,
+                AppSpacing.l,
+              ),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Center(
+                      child: SizedBox(
+                        width: 44,
+                        child: Divider(thickness: 4, color: AppColors.border),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.s),
+                    const Text(
+                      'Rate your passengers',
+                      style: TextStyle(
+                        color: AppColors.foreground,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.s),
+                    const Text(
+                      'Before finishing the ride, tell us how each passenger behaved during the trip.',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.m),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: _passengers.map((passenger) {
+                            final name = passenger['name'] as String;
+                            final faculty = passenger['faculty'] as String;
+                            final rating = ratings[name] ?? 5;
+                            return Padding(
+                              padding: const EdgeInsets.only(
+                                bottom: AppSpacing.s,
+                              ),
+                              child: _PassengerReviewTile(
+                                name: name,
+                                faculty: faculty,
+                                rating: rating,
+                                onRatingChanged: (value) {
+                                  setModalState(() {
+                                    ratings[name] = value;
+                                  });
+                                },
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.m),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                          ),
+                        ),
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: const Text(
+                          'Submit ratings and finish ride',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.s),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text('Go back'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (submitted != true || !mounted) {
+      return;
+    }
+
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
         const SnackBar(
-          content: Text('Viaje finalizado correctamente.'),
+          content: Text('Ride finished and passenger ratings submitted.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -225,6 +347,68 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PassengerReviewTile extends StatelessWidget {
+  const _PassengerReviewTile({
+    required this.name,
+    required this.faculty,
+    required this.rating,
+    required this.onRatingChanged,
+  });
+
+  final String name;
+  final String faculty;
+  final int rating;
+  final ValueChanged<int> onRatingChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            name,
+            style: const TextStyle(
+              color: AppColors.foreground,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            faculty,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          Wrap(
+            spacing: 4,
+            children: List.generate(5, (index) {
+              final starValue = index + 1;
+              return IconButton(
+                onPressed: () => onRatingChanged(starValue),
+                icon: Icon(
+                  starValue <= rating
+                      ? Icons.star_rounded
+                      : Icons.star_outline_rounded,
+                  color: const Color(0xFFF59E0B),
+                ),
+              );
+            }),
+          ),
+        ],
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../features/auth/presentation/providers/auth_providers.dart';
+import '../../../../features/payments/presentation/providers/payment_provider.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
@@ -500,37 +501,52 @@ class _UpdatesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Updates',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 10),
-        _UpdateCard(
-          icon: Icons.near_me,
-          iconBg: AppColors.accent,
-          title: 'Driver arriving soon',
-          subtitle: 'Carlos is 3 minutes away from pickup',
-          highlight: true,
-          actionLabel: 'Quick Pay',
-          onAction: () => context.go(AppRoutes.payment),
-        ),
-        const SizedBox(height: 10),
-        _UpdateCard(
-          icon: Icons.star_border,
-          iconBg: AppColors.border,
-          iconColor: AppColors.secondary,
-          title: 'You earned punctuality points!',
-          subtitle: '+5 points for being on time',
-          trailing: '5m',
-        ),
-      ],
+    return Consumer(
+      builder: (context, ref, child) {
+        final paymentRecordAsync = ref.watch(
+          paymentRecordStreamProvider('ride_123'),
+        );
+        final isRidePaid =
+            paymentRecordAsync.valueOrNull?.status.trim().toLowerCase() ==
+            'approved';
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Updates',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 10),
+            _UpdateCard(
+              icon: isRidePaid ? Icons.check_circle_rounded : Icons.near_me,
+              iconBg: isRidePaid ? const Color(0xFFD1FAE5) : AppColors.accent,
+              iconColor: isRidePaid ? AppColors.accentHover : Colors.white,
+              title: isRidePaid ? 'Ride already paid' : 'Driver arriving soon',
+              subtitle: isRidePaid
+                  ? 'This ride was already paid successfully.'
+                  : 'Carlos is 3 minutes away from pickup',
+              highlight: true,
+              actionLabel: isRidePaid ? null : 'Quick Pay',
+              onAction: isRidePaid ? null : () => context.go(AppRoutes.payment),
+              trailing: isRidePaid ? 'Paid' : null,
+            ),
+            const SizedBox(height: 10),
+            const _UpdateCard(
+              icon: Icons.star_border,
+              iconBg: AppColors.border,
+              iconColor: AppColors.secondary,
+              title: 'You earned punctuality points!',
+              subtitle: '+5 points for being on time',
+              trailing: '5m',
+            ),
+          ],
+        );
+      },
     );
   }
 }
