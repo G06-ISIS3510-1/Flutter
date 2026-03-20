@@ -7,10 +7,10 @@ import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../shared/widgets/app_gradient_header.dart';
-import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
+import '../../../../theme/app_theme_palette.dart';
 import '../mock/rides_mock_data.dart';
 import '../models/ride_listing.dart';
 
@@ -126,12 +126,13 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final role = ref.watch(currentUserRoleProvider);
 
     return AppScaffold(
       title: 'Rides',
       showAppBar: false,
-      backgroundColor: AppColors.muted,
+      backgroundColor: palette.background,
       scrollableHeader: AppGradientHeader(
         title: 'Find a Ride',
         subtitle: 'Available rides from your university',
@@ -168,10 +169,11 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   }
 
   Widget _searchCard() {
+    final palette = context.palette;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.m),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(AppRadius.sm),
         boxShadow: AppShadows.sm,
       ),
@@ -182,7 +184,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
             label: 'Origin',
             hint: 'Where are you leaving from?',
             icon: Icons.my_location,
-            iconColor: AppColors.primary,
+            iconColor: palette.primary,
           ),
           const SizedBox(height: AppSpacing.s),
           _autocompleteField(
@@ -190,7 +192,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
             label: 'Destination',
             hint: 'Where are you going?',
             icon: Icons.place_outlined,
-            iconColor: AppColors.accent,
+            iconColor: palette.accent,
           ),
           const SizedBox(height: AppSpacing.s),
           TextField(
@@ -200,16 +202,16 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
             decoration: InputDecoration(
               labelText: 'Date',
               hintText: 'Select trip date',
-              prefixIcon: const Icon(
+              prefixIcon: Icon(
                 Icons.calendar_today_outlined,
-                color: AppColors.secondary,
+                color: palette.secondary,
               ),
-              suffixIcon: const Icon(
+              suffixIcon: Icon(
                 Icons.keyboard_arrow_down,
-                color: AppColors.textSecondary,
+                color: palette.textSecondary,
               ),
               filled: true,
-              fillColor: AppColors.input,
+              fillColor: palette.input,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide.none,
@@ -222,8 +224,8 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
             child: ElevatedButton.icon(
               onPressed: _runSearch,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.accent,
-                foregroundColor: AppColors.accentForeground,
+                backgroundColor: palette.accent,
+                foregroundColor: palette.accentForeground,
                 minimumSize: const Size(double.infinity, 50),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -242,14 +244,15 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   }
 
   Widget _sortBar() {
+    final palette = context.palette;
     return Row(
       children: [
-        const Icon(Icons.filter_list, color: AppColors.primary),
+        Icon(Icons.filter_list, color: palette.primary),
         const SizedBox(width: AppSpacing.s),
-        const Text(
+        Text(
           'Sort by:',
           style: TextStyle(
-            color: AppColors.foreground,
+            color: palette.textPrimary,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -268,15 +271,19 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
                       option.icon,
                       size: 16,
                       color: selected
-                          ? AppColors.primaryForeground
-                          : AppColors.primary,
+                          ? palette.primaryForeground
+                          : palette.primary,
                     ),
                     selected: selected,
-                    selectedColor: AppColors.primary,
+                    backgroundColor: palette.card,
+                    selectedColor: palette.primary,
+                    side: BorderSide(
+                      color: selected ? palette.primary : palette.border,
+                    ),
                     labelStyle: TextStyle(
                       color: selected
-                          ? AppColors.primaryForeground
-                          : AppColors.primary,
+                          ? palette.primaryForeground
+                          : palette.primary,
                       fontWeight: FontWeight.w600,
                     ),
                     onSelected: (_) {
@@ -296,21 +303,22 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   }
 
   Widget _sectionTitle(String left, String right) {
+    final palette = context.palette;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           left,
-          style: const TextStyle(
-            color: AppColors.foreground,
+          style: TextStyle(
+            color: palette.textPrimary,
             fontWeight: FontWeight.w700,
             fontSize: 20,
           ),
         ),
         Text(
           right,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
+          style: TextStyle(
+            color: palette.textSecondary,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -319,30 +327,31 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   }
 
   Widget _emptyState() {
+    final palette = context.palette;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.l),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(AppRadius.sm),
         boxShadow: AppShadows.sm,
       ),
-      child: const Column(
+      child: Column(
         children: [
-          Icon(Icons.route, size: 64, color: AppColors.secondary),
-          SizedBox(height: AppSpacing.s),
+          Icon(Icons.route, size: 64, color: palette.secondary),
+          const SizedBox(height: AppSpacing.s),
           Text(
             'No rides found',
             style: TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 18,
-              color: AppColors.foreground,
+              color: palette.textPrimary,
             ),
           ),
-          SizedBox(height: AppSpacing.xs),
+          const SizedBox(height: AppSpacing.xs),
           Text(
             'Try changing origin, destination or date.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: palette.textSecondary),
           ),
         ],
       ),
@@ -356,6 +365,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     required IconData icon,
     required Color iconColor,
   }) {
+    final palette = context.palette;
     return Autocomplete<String>(
       optionsBuilder: (textEditingValue) {
         final query = textEditingValue.text.toLowerCase().trim();
@@ -385,7 +395,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
             hintText: hint,
             prefixIcon: Icon(icon, color: iconColor),
             filled: true,
-            fillColor: AppColors.input,
+            fillColor: palette.input,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide.none,
@@ -412,7 +422,8 @@ class _RideResultCardState extends State<_RideResultCard> {
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = _hovered ? AppColors.secondary : Colors.transparent;
+    final palette = context.palette;
+    final borderColor = _hovered ? palette.secondary : palette.border;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -424,7 +435,7 @@ class _RideResultCardState extends State<_RideResultCard> {
           duration: const Duration(milliseconds: 160),
           padding: const EdgeInsets.all(AppSpacing.m),
           decoration: BoxDecoration(
-            color: AppColors.card,
+            color: palette.card,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: borderColor),
             boxShadow: AppShadows.sm,
@@ -438,11 +449,11 @@ class _RideResultCardState extends State<_RideResultCard> {
                 Row(
                   children: [
                     CircleAvatar(
-                      backgroundColor: AppColors.primary,
+                      backgroundColor: palette.primary,
                       child: Text(
                         widget.ride.driverInitials,
-                        style: const TextStyle(
-                          color: AppColors.primaryForeground,
+                        style: TextStyle(
+                          color: palette.primaryForeground,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -454,10 +465,10 @@ class _RideResultCardState extends State<_RideResultCard> {
                         children: [
                           Text(
                             widget.ride.driverName,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 18,
-                              color: AppColors.foreground,
+                              color: palette.textPrimary,
                             ),
                           ),
                           const SizedBox(height: AppSpacing.xs),
@@ -471,23 +482,23 @@ class _RideResultCardState extends State<_RideResultCard> {
                               const SizedBox(width: 4),
                               Text(
                                 '${widget.ride.rating} (${widget.ride.reviewCount})',
-                                style: const TextStyle(
-                                  color: AppColors.textSecondary,
+                                style: TextStyle(
+                                  color: palette.textSecondary,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
                               if (widget.ride.verifiedByUniversity) ...[
                                 const SizedBox(width: AppSpacing.s),
-                                const Icon(
+                                Icon(
                                   Icons.verified,
                                   size: 16,
-                                  color: AppColors.accent,
+                                  color: palette.accent,
                                 ),
                                 const SizedBox(width: 4),
-                                const Text(
+                                Text(
                                   'Verified',
                                   style: TextStyle(
-                                    color: AppColors.accent,
+                                    color: palette.accent,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
@@ -502,16 +513,18 @@ class _RideResultCardState extends State<_RideResultCard> {
                       children: [
                         Text(
                           widget.ride.priceLabel,
-                          style: const TextStyle(
-                            color: AppColors.primary,
+                          style: TextStyle(
+                            color: palette.textPrimary,
                             fontSize: 34,
                             fontWeight: FontWeight.w800,
                             height: 1,
                           ),
                         ),
-                        const Text(
+                        Text(
                           'per seat',
-                          style: TextStyle(color: AppColors.textSecondary),
+                          style: TextStyle(
+                            color: palette.textPrimary.withValues(alpha: 0.82),
+                          ),
                         ),
                       ],
                     ),
@@ -522,20 +535,21 @@ class _RideResultCardState extends State<_RideResultCard> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(AppSpacing.s),
                   decoration: BoxDecoration(
-                    color: AppColors.input,
+                    color: palette.input,
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: palette.border.withValues(alpha: 0.65)),
                   ),
                   child: Column(
                     children: [
                       _routeRow(
                         icon: Icons.trip_origin,
-                        iconColor: AppColors.secondary,
+                        iconColor: palette.secondary,
                         text: widget.ride.origin,
                       ),
                       const SizedBox(height: AppSpacing.s),
                       _routeRow(
                         icon: Icons.place_outlined,
-                        iconColor: AppColors.primary,
+                        iconColor: palette.primary,
                         text: widget.ride.destination,
                       ),
                     ],
@@ -576,24 +590,25 @@ class _RideResultCardState extends State<_RideResultCard> {
   }
 
   Widget _metric(IconData icon, String strong, String detail) {
+    final palette = context.palette;
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.s),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: AppColors.textSecondary),
+          Icon(icon, size: 16, color: palette.textSecondary),
           const SizedBox(height: 4),
           Text(
             strong,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w700,
-              color: AppColors.foreground,
+              color: palette.textPrimary,
             ),
           ),
           Text(
             detail,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: palette.textSecondary,
               fontSize: 12,
             ),
           ),
@@ -607,6 +622,7 @@ class _RideResultCardState extends State<_RideResultCard> {
     required Color iconColor,
     required String text,
   }) {
+    final palette = context.palette;
     return Row(
       children: [
         Icon(icon, size: 14, color: iconColor),
@@ -614,15 +630,15 @@ class _RideResultCardState extends State<_RideResultCard> {
         Expanded(
           child: Text(
             text,
-            style: const TextStyle(
-              color: AppColors.foreground,
+            style: TextStyle(
+              color: palette.textPrimary,
               fontWeight: FontWeight.w600,
             ),
           ),
         ),
-        const Icon(
+        Icon(
           Icons.arrow_forward,
-          color: AppColors.textSecondary,
+          color: palette.textSecondary,
           size: 14,
         ),
       ],

@@ -9,6 +9,7 @@ import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
+import '../../../../theme/app_theme_palette.dart';
 import '../providers/profile_providers.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -22,7 +23,7 @@ class ProfileScreen extends ConsumerWidget {
     return AppScaffold(
       title: 'Profile',
       showAppBar: false,
-      backgroundColor: const Color(0xFFF3F6FB),
+      backgroundColor: context.palette.background,
       maxScrollableWidth: 440,
       scrollableHeader: const _ProfileHeader(),
       bottomNavigationBar: AppBottomNav(
@@ -65,6 +66,8 @@ class _ProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       height: 210,
       width: double.infinity,
@@ -80,11 +83,11 @@ class _ProfileHeader extends StatelessWidget {
           bottomRight: Radius.circular(34),
         ),
       ),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          Text(
+          const Text(
             'Profile',
             style: TextStyle(
               color: AppColors.primaryForeground,
@@ -93,11 +96,11 @@ class _ProfileHeader extends StatelessWidget {
               letterSpacing: -0.8,
             ),
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           Text(
             'Manage your account and preferences',
             style: TextStyle(
-              color: Color(0xFFE3ECF8),
+              color: palette.primaryForeground.withValues(alpha: 0.82),
               fontSize: 16,
               fontWeight: FontWeight.w500,
             ),
@@ -115,10 +118,12 @@ class _ProfileOverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(34),
         boxShadow: AppShadows.xl,
       ),
@@ -137,8 +142,8 @@ class _ProfileOverviewCard extends StatelessWidget {
                     children: [
                       Text(
                         profile.fullName,
-                        style: const TextStyle(
-                          color: AppColors.primary,
+                        style: TextStyle(
+                          color: palette.textPrimary,
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
                           letterSpacing: -0.4,
@@ -166,8 +171,8 @@ class _ProfileOverviewCard extends StatelessWidget {
                       const SizedBox(height: 12),
                       Text(
                         profile.memberSince,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
+                        style: TextStyle(
+                          color: palette.textSecondary,
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                         ),
@@ -289,6 +294,8 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -297,11 +304,11 @@ class _MetricCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 18),
           decoration: BoxDecoration(
-            color: const Color(0xFFF6F8FC),
+            color: palette.cardSecondary,
             borderRadius: BorderRadius.circular(20),
             border: onTap == null
                 ? null
-                : Border.all(color: const Color(0xFFDDE8F4), width: 1.2),
+                : Border.all(color: palette.border, width: 1.2),
           ),
           child: Column(
             children: [
@@ -316,8 +323,8 @@ class _MetricCard extends StatelessWidget {
               const SizedBox(height: AppSpacing.xs),
               Text(
                 metric.label,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: palette.textSecondary,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
@@ -337,10 +344,11 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Text(
       label,
-      style: const TextStyle(
-        color: Color(0xFF59749B),
+      style: TextStyle(
+        color: palette.textSecondary,
         fontSize: 18,
         fontWeight: FontWeight.w700,
       ),
@@ -355,9 +363,10 @@ class _ContactCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(30),
         boxShadow: AppShadows.lg,
       ),
@@ -366,9 +375,9 @@ class _ContactCard extends StatelessWidget {
           for (var index = 0; index < items.length; index++) ...[
             _ContactRow(item: items[index]),
             if (index != items.length - 1)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(horizontal: 30),
-                child: Divider(height: 1, color: AppColors.border),
+                child: Divider(height: 1, color: palette.border),
               ),
           ],
         ],
@@ -384,6 +393,7 @@ class _ContactRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
       child: Row(
@@ -396,8 +406,8 @@ class _ContactRow extends StatelessWidget {
               children: [
                 Text(
                   item.label,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
+                  style: TextStyle(
+                    color: palette.textSecondary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -405,8 +415,8 @@ class _ContactRow extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   item.value,
-                  style: const TextStyle(
-                    color: AppColors.primary,
+                  style: TextStyle(
+                    color: palette.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
@@ -414,9 +424,9 @@ class _ContactRow extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(
+          Icon(
             Icons.chevron_right_rounded,
-            color: Color(0xFF70819C),
+            color: palette.textSecondary,
             size: 30,
           ),
         ],
@@ -432,9 +442,10 @@ class _MenuSectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(30),
         boxShadow: AppShadows.lg,
       ),
@@ -443,7 +454,7 @@ class _MenuSectionCard extends StatelessWidget {
           for (var index = 0; index < items.length; index++) ...[
             _MenuRow(item: items[index]),
             if (index != items.length - 1)
-              const Divider(height: 1, color: AppColors.border),
+              Divider(height: 1, color: palette.border),
           ],
         ],
       ),
@@ -458,6 +469,7 @@ class _MenuRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final onTap = item.route == null ? null : () => context.go(item.route!);
 
     return InkWell(
@@ -475,8 +487,8 @@ class _MenuRow extends StatelessWidget {
                 children: [
                   Text(
                     item.title,
-                    style: const TextStyle(
-                      color: AppColors.primary,
+                    style: TextStyle(
+                      color: palette.textPrimary,
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
                     ),
@@ -484,8 +496,8 @@ class _MenuRow extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     item.subtitle,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
+                    style: TextStyle(
+                      color: palette.textSecondary,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -497,8 +509,8 @@ class _MenuRow extends StatelessWidget {
             Icon(
               Icons.chevron_right_rounded,
               color: item.route == null
-                  ? const Color(0xFFB7C2D3)
-                  : const Color(0xFF70819C),
+                  ? palette.border
+                  : palette.textSecondary,
               size: 30,
             ),
           ],
@@ -515,21 +527,22 @@ class _LeadingIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       width: 58,
       height: 58,
       decoration: BoxDecoration(
-        color: const Color(0xFFEAF2FD),
+        color: palette.secondarySoft,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.04),
+            color: palette.shadow.withValues(alpha: 0.4),
             blurRadius: 10,
             offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: Icon(icon, color: AppColors.secondary, size: 28),
+      child: Icon(icon, color: palette.secondary, size: 28),
     );
   }
 }

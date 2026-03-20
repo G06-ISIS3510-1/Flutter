@@ -6,7 +6,9 @@ import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
-import '../../../../theme/app_colors.dart';
+import '../../../../shared/widgets/app_theme_drawer.dart';
+import '../../../../theme/app_shadows.dart';
+import '../../../../theme/app_theme_palette.dart';
 import '../../../rides/presentation/mock/driver_active_ride_mock.dart';
 import '../providers/dashboard_providers.dart';
 
@@ -15,6 +17,7 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.palette;
     final summary = ref.watch(dashboardSummaryProvider);
     final role = ref.watch(currentUserRoleProvider);
     final canOpenActiveRide = role == UserRole.driver;
@@ -22,9 +25,10 @@ class DashboardScreen extends ConsumerWidget {
     return AppScaffold(
       title: 'Dashboard',
       showAppBar: false,
-      backgroundColor: AppColors.background,
+      backgroundColor: palette.background,
       maxScrollableWidth: 440,
-      scrollableHeader: const _Header(),
+      scrollableHeader: const _DashboardHeader(),
+      drawer: const AppNavigationDrawer(),
       bottomNavigationBar: AppBottomNav(
         currentTab: AppBottomNavTab.home,
         role: role,
@@ -38,7 +42,7 @@ class DashboardScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 14),
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: _CurrentRideCard(
               onTap: canOpenActiveRide
                   ? () => context.go(AppRoutes.activeRide)
@@ -46,7 +50,7 @@ class DashboardScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 14),
-          Padding(
+          const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: _UpdatesSection(),
           ),
@@ -55,7 +59,7 @@ class DashboardScreen extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
               summary,
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: palette.textSecondary),
             ),
           ),
           const SizedBox(height: 16),
@@ -64,18 +68,19 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 }
-/* ---------- UI widgets ---------- */
 
-class _Header extends StatelessWidget {
-  const _Header();
+class _DashboardHeader extends StatelessWidget {
+  const _DashboardHeader();
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
-      decoration: const BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: palette.primary,
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(26),
           bottomRight: Radius.circular(26),
         ),
@@ -84,25 +89,32 @@ class _Header extends StatelessWidget {
         children: [
           Row(
             children: [
-              _CircleIconButton(icon: Icons.menu, onTap: () {}),
+              Builder(
+                builder: (context) {
+                  return _CircleIconButton(
+                    icon: Icons.menu,
+                    onTap: () => Scaffold.of(context).openDrawer(),
+                  );
+                },
+              ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Welcome back',
                       style: TextStyle(
-                        color: Colors.white70,
+                        color: palette.primaryForeground.withValues(alpha: 0.8),
                         fontSize: 13,
                         height: 1.1,
                       ),
                     ),
-                    SizedBox(height: 2),
+                    const SizedBox(height: 2),
                     Text(
-                      'María',
+                      'Maria',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: palette.primaryForeground,
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
                         height: 1.1,
@@ -114,10 +126,7 @@ class _Header extends StatelessWidget {
               _BellButton(onTap: () => context.go(AppRoutes.notifications)),
             ],
           ),
-
           const SizedBox(height: 14),
-
-          // ✅ Stats dentro del header como el mockup
           const _StatsRow(),
         ],
       ),
@@ -130,43 +139,45 @@ class _StatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Row(
-      children: const [
-        Expanded(
-          child: _StatCard(value: '12', label: 'Rides'),
-        ),
-        SizedBox(width: 10),
+      children: [
+        const Expanded(child: _StatCard(value: '12', label: 'Rides')),
+        const SizedBox(width: 10),
         Expanded(
           child: _StatCard(
             value: '98%',
-            label: 'Score', // ✅ mockup
-            valueColor: AppColors.accent,
+            label: 'Score',
+            valueColor: palette.accent,
           ),
         ),
-        SizedBox(width: 10),
-        Expanded(
-          child: _StatCard(value: '4.9', label: 'Rating'),
-        ), // ✅ mockup
+        const SizedBox(width: 10),
+        const Expanded(child: _StatCard(value: '4.9', label: 'Rating')),
       ],
     );
   }
 }
 
 class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.value,
+    required this.label,
+    this.valueColor,
+  });
+
   final String value;
   final String label;
   final Color? valueColor;
 
-  const _StatCard({required this.value, required this.label, this.valueColor});
-
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(
-          alpha: 0.18,
-        ), // ✅ más visible como mockup
+        color: palette.primaryForeground.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -174,7 +185,7 @@ class _StatCard extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              color: valueColor ?? AppColors.primaryForeground,
+              color: valueColor ?? palette.primaryForeground,
               fontSize: 22,
               fontWeight: FontWeight.w900,
               height: 1.1,
@@ -183,8 +194,8 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
-              color: Colors.white70,
+            style: TextStyle(
+              color: palette.primaryForeground.withValues(alpha: 0.8),
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -200,25 +211,21 @@ class _MapCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
-      height: 200, // ✅ más compacto como el mockup
+      height: 200,
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            blurRadius: 20,
-            color: Colors.black.withValues(alpha: 0.06),
-            offset: const Offset(0, 10),
-          ),
-        ],
+        boxShadow: AppShadows.lg,
       ),
       child: Stack(
         children: [
           Positioned.fill(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(22),
-              child: CustomPaint(painter: _GridPainter()),
+              child: CustomPaint(painter: _GridPainter(palette: palette)),
             ),
           ),
           Positioned(
@@ -227,25 +234,19 @@ class _MapCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: AppColors.card,
+                color: palette.card,
                 borderRadius: BorderRadius.circular(999),
-                boxShadow: [
-                  BoxShadow(
-                    blurRadius: 18,
-                    color: Colors.black.withValues(alpha: 0.08),
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+                boxShadow: AppShadows.sm,
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(Icons.schedule, size: 18, color: AppColors.accent),
-                  SizedBox(width: 8),
+                  Icon(Icons.schedule, size: 18, color: palette.accent),
+                  const SizedBox(width: 8),
                   Text(
                     '3 min away',
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
+                      color: palette.textPrimary,
                     ),
                   ),
                 ],
@@ -258,18 +259,12 @@ class _MapCard extends StatelessWidget {
                 width: 70,
                 height: 70,
                 decoration: BoxDecoration(
-                  color: AppColors.card,
+                  color: palette.card,
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: AppColors.accent, width: 4),
-                  boxShadow: [
-                    BoxShadow(
-                      blurRadius: 18,
-                      color: Colors.black.withValues(alpha: 0.10),
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
+                  border: Border.all(color: palette.accent, width: 4),
+                  boxShadow: AppShadows.lg,
                 ),
-                child: const Icon(Icons.near_me, color: AppColors.primary),
+                child: Icon(Icons.near_me, color: palette.primary),
               ),
             ),
           ),
@@ -280,17 +275,11 @@ class _MapCard extends StatelessWidget {
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: AppColors.card,
+                color: palette.card,
                 borderRadius: BorderRadius.circular(999),
-                boxShadow: [
-                  BoxShadow(
-                    blurRadius: 16,
-                    color: Colors.black.withValues(alpha: 0.10),
-                    offset: const Offset(0, 10),
-                  ),
-                ],
+                boxShadow: AppShadows.sm,
               ),
-              child: const Icon(Icons.near_me, color: AppColors.primary),
+              child: Icon(Icons.near_me, color: palette.primary),
             ),
           ),
         ],
@@ -306,33 +295,28 @@ class _CurrentRideCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final ride = DriverActiveRideMock.ride;
 
     final content = Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            blurRadius: 20,
-            color: Colors.black.withValues(alpha: 0.06),
-            offset: const Offset(0, 10),
-          ),
-        ],
+        boxShadow: AppShadows.lg,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
                   'Current Ride',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w900,
-                    color: AppColors.textPrimary,
+                    color: palette.textPrimary,
                   ),
                 ),
               ),
@@ -342,13 +326,13 @@ class _CurrentRideCard extends StatelessWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFD1FAE5),
+                  color: palette.accentSoft,
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: const Text(
+                child: Text(
                   'Active',
                   style: TextStyle(
-                    color: AppColors.accentHover,
+                    color: palette.accent,
                     fontWeight: FontWeight.w800,
                     fontSize: 12,
                   ),
@@ -363,16 +347,15 @@ class _CurrentRideCard extends StatelessWidget {
                 width: 54,
                 height: 54,
                 decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
+                  color: palette.primaryLight,
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: Center(
-                  child: Text(
-                    '${ride['driverInitials']}',
-                    style: TextStyle(
-                      color: AppColors.primaryForeground,
-                      fontWeight: FontWeight.w900,
-                    ),
+                alignment: Alignment.center,
+                child: Text(
+                  '${ride['driverInitials']}',
+                  style: TextStyle(
+                    color: palette.primaryForeground,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
@@ -385,25 +368,29 @@ class _CurrentRideCard extends StatelessWidget {
                       '${ride['driverName']}',
                       style: TextStyle(
                         fontWeight: FontWeight.w900,
-                        color: AppColors.textPrimary,
+                        color: palette.textPrimary,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(Icons.star, size: 16, color: Color(0xFFF59E0B)),
-                        SizedBox(width: 4),
+                        const Icon(Icons.star, size: 16, color: Color(0xFFF59E0B)),
+                        const SizedBox(width: 4),
                         Text(
                           '${ride['driverRating']}',
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
-                            color: AppColors.textSecondary,
+                            color: palette.textSecondary,
                           ),
                         ),
-                        SizedBox(width: 10),
-                        Text(
-                          '${ride['carModel']}',
-                          style: TextStyle(color: AppColors.textSecondary),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '${ride['carModel']}',
+                            style: TextStyle(color: palette.textSecondary),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                     ),
@@ -422,29 +409,29 @@ class _CurrentRideCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Divider(color: Colors.black.withValues(alpha: 0.06)),
+          Divider(color: palette.border),
           const SizedBox(height: 10),
           _InfoRow(
             icon: Icons.circle,
-            iconColor: Color(0xFF3B82F6),
+            iconColor: const Color(0xFF3B82F6),
             label: 'Pickup',
             value: '${ride['origin']}',
           ),
           const SizedBox(height: 10),
           _InfoRow(
             icon: Icons.location_on_outlined,
-            iconColor: AppColors.textSecondary,
+            iconColor: palette.textSecondary,
             label: 'Destination',
             value: '${ride['destination']}',
           ),
           const SizedBox(height: 12),
           Row(
-            children: const [
+            children: [
               Expanded(
                 child: Text(
                   'Trip Progress',
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: palette.textSecondary,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -452,7 +439,7 @@ class _CurrentRideCard extends StatelessWidget {
               Text(
                 '45%',
                 style: TextStyle(
-                  color: AppColors.textPrimary,
+                  color: palette.textPrimary,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -461,11 +448,11 @@ class _CurrentRideCard extends StatelessWidget {
           const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
-            child: const LinearProgressIndicator(
+            child: LinearProgressIndicator(
               value: 0.45,
               minHeight: 8,
-              backgroundColor: AppColors.border,
-              valueColor: AlwaysStoppedAnimation(AppColors.accent),
+              backgroundColor: palette.border,
+              valueColor: AlwaysStoppedAnimation(palette.accent),
             ),
           ),
           const SizedBox(height: 14),
@@ -477,7 +464,7 @@ class _CurrentRideCard extends StatelessWidget {
                   value: '${ride['distance']}',
                 ),
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Expanded(
                 child: _MiniMetric(title: 'Fare', value: '${ride['fare']}'),
               ),
@@ -500,21 +487,23 @@ class _UpdatesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Updates',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w900,
-            color: AppColors.textPrimary,
+            color: palette.textPrimary,
           ),
         ),
         const SizedBox(height: 10),
         _UpdateCard(
           icon: Icons.near_me,
-          iconBg: AppColors.accent,
+          iconBg: palette.accent,
           title: 'Driver arriving soon',
           subtitle: 'Carlos is 3 minutes away from pickup',
           highlight: true,
@@ -524,8 +513,8 @@ class _UpdatesSection extends StatelessWidget {
         const SizedBox(height: 10),
         _UpdateCard(
           icon: Icons.star_border,
-          iconBg: AppColors.border,
-          iconColor: AppColors.secondary,
+          iconBg: palette.border,
+          iconColor: palette.secondary,
           title: 'You earned punctuality points!',
           subtitle: '+5 points for being on time',
           trailing: '5m',
@@ -536,16 +525,6 @@ class _UpdatesSection extends StatelessWidget {
 }
 
 class _UpdateCard extends StatelessWidget {
-  final IconData icon;
-  final Color iconBg;
-  final Color? iconColor;
-  final String title;
-  final String subtitle;
-  final String? trailing;
-  final bool highlight;
-  final String? actionLabel;
-  final VoidCallback? onAction;
-
   const _UpdateCard({
     required this.icon,
     required this.iconBg,
@@ -558,17 +537,27 @@ class _UpdateCard extends StatelessWidget {
     this.onAction,
   });
 
+  final IconData icon;
+  final Color iconBg;
+  final Color? iconColor;
+  final String title;
+  final String subtitle;
+  final String? trailing;
+  final bool highlight;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: highlight ? const Color(0xFFECFDF5) : Colors.white,
+        color: highlight ? palette.accentSoft : palette.card,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: highlight
-              ? const Color(0xFFBBF7D0)
-              : Colors.black.withValues(alpha: 0.06),
+          color: highlight ? palette.accent.withValues(alpha: 0.35) : palette.border,
         ),
       ),
       child: Row(
@@ -580,7 +569,7 @@ class _UpdateCard extends StatelessWidget {
               color: iconBg,
               borderRadius: BorderRadius.circular(999),
             ),
-            child: Icon(icon, color: iconColor ?? Colors.white),
+            child: Icon(icon, color: iconColor ?? palette.primaryForeground),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -589,15 +578,15 @@ class _UpdateCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w900,
-                    color: AppColors.textPrimary,
+                    color: palette.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: const TextStyle(color: AppColors.textSecondary),
+                  style: TextStyle(color: palette.textSecondary),
                 ),
               ],
             ),
@@ -606,8 +595,8 @@ class _UpdateCard extends StatelessWidget {
           if (actionLabel != null && onAction != null)
             DecoratedBox(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF5DD6A5), Color(0xFF58C890)],
+                gradient: LinearGradient(
+                  colors: [palette.accent, palette.accent.withBlue(140)],
                 ),
                 borderRadius: BorderRadius.circular(999),
               ),
@@ -626,14 +615,14 @@ class _UpdateCard extends StatelessWidget {
                       children: [
                         const Icon(
                           Icons.credit_card_rounded,
-                          color: AppColors.primaryForeground,
+                          color: Colors.white,
                           size: 18,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           actionLabel!,
                           style: const TextStyle(
-                            color: AppColors.primaryForeground,
+                            color: Colors.white,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -646,8 +635,8 @@ class _UpdateCard extends StatelessWidget {
           else if (trailing != null)
             Text(
               trailing!,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
+              style: TextStyle(
+                color: palette.textSecondary,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -658,34 +647,36 @@ class _UpdateCard extends StatelessWidget {
 }
 
 class _MiniMetric extends StatelessWidget {
+  const _MiniMetric({required this.title, required this.value});
+
   final String title;
   final String value;
 
-  const _MiniMetric({required this.title, required this.value});
-
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
-        color: AppColors.input,
+        color: palette.input,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
+        border: Border.all(color: palette.border),
       ),
       child: Column(
         children: [
           Text(
             title,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: palette.textSecondary,
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: palette.textPrimary,
               fontWeight: FontWeight.w900,
               fontSize: 16,
             ),
@@ -697,11 +688,6 @@ class _MiniMetric extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String label;
-  final String value;
-
   const _InfoRow({
     required this.icon,
     required this.iconColor,
@@ -709,8 +695,15 @@ class _InfoRow extends StatelessWidget {
     required this.value,
   });
 
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final String value;
+
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -722,16 +715,16 @@ class _InfoRow extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: palette.textSecondary,
                   fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
+                style: TextStyle(
+                  color: palette.textPrimary,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -744,13 +737,15 @@ class _InfoRow extends StatelessWidget {
 }
 
 class _SmallActionButton extends StatelessWidget {
+  const _SmallActionButton({required this.icon, required this.onTap});
+
   final IconData icon;
   final VoidCallback onTap;
 
-  const _SmallActionButton({required this.icon, required this.onTap});
-
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
@@ -758,23 +753,25 @@ class _SmallActionButton extends StatelessWidget {
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
+          color: palette.surfaceMuted,
           borderRadius: BorderRadius.circular(999),
         ),
-        child: Icon(icon, color: AppColors.primary),
+        child: Icon(icon, color: palette.primary),
       ),
     );
   }
 }
 
 class _CircleIconButton extends StatelessWidget {
+  const _CircleIconButton({required this.icon, required this.onTap});
+
   final IconData icon;
   final VoidCallback onTap;
 
-  const _CircleIconButton({required this.icon, required this.onTap});
-
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
@@ -782,22 +779,24 @@ class _CircleIconButton extends StatelessWidget {
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.18),
+          color: palette.primaryForeground.withValues(alpha: 0.18),
           borderRadius: BorderRadius.circular(999),
         ),
-        child: Icon(icon, color: AppColors.primaryForeground),
+        child: Icon(icon, color: palette.primaryForeground),
       ),
     );
   }
 }
 
 class _BellButton extends StatelessWidget {
-  final VoidCallback onTap;
-
   const _BellButton({required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
@@ -807,12 +806,12 @@ class _BellButton extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
+              color: palette.primaryForeground.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(999),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.notifications_none,
-              color: AppColors.primaryForeground,
+              color: palette.primaryForeground,
             ),
           ),
           Positioned(
@@ -822,9 +821,9 @@ class _BellButton extends StatelessWidget {
               width: 10,
               height: 10,
               decoration: BoxDecoration(
-                color: AppColors.accent,
+                color: palette.accent,
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: AppColors.primary, width: 2),
+                border: Border.all(color: palette.primary, width: 2),
               ),
             ),
           ),
@@ -834,15 +833,18 @@ class _BellButton extends StatelessWidget {
   }
 }
 
-/* ✅ Bottom nav estilo mockup (círculo oscuro activo) */
 class _GridPainter extends CustomPainter {
+  const _GridPainter({required this.palette});
+
+  final AppThemePalette palette;
+
   @override
   void paint(Canvas canvas, Size size) {
-    final bg = Paint()..color = AppColors.input;
+    final bg = Paint()..color = palette.input;
     canvas.drawRect(Offset.zero & size, bg);
 
     final gridPaint = Paint()
-      ..color = AppColors.border
+      ..color = palette.border
       ..strokeWidth = 1;
 
     const step = 46.0;
@@ -854,7 +856,7 @@ class _GridPainter extends CustomPainter {
     }
 
     final pathPaint = Paint()
-      ..color = const Color(0xFF94A3B8)
+      ..color = palette.textSecondary.withValues(alpha: 0.75)
       ..strokeWidth = 4
       ..style = PaintingStyle.stroke;
 
@@ -869,24 +871,33 @@ class _GridPainter extends CustomPainter {
 
     const dash = 10.0;
     const gap = 8.0;
-    for (final m in path.computeMetrics()) {
-      double dist = 0;
-      while (dist < m.length) {
-        canvas.drawPath(m.extractPath(dist, dist + dash), pathPaint);
-        dist += dash + gap;
+    for (final metric in path.computeMetrics()) {
+      double distance = 0;
+      while (distance < metric.length) {
+        canvas.drawPath(
+          metric.extractPath(distance, distance + dash),
+          pathPaint,
+        );
+        distance += dash + gap;
       }
     }
 
-    final dot = Paint()..color = AppColors.secondary;
-    canvas.drawCircle(Offset(size.width * 0.27, size.height * 0.78), 5, dot);
+    final pickupDot = Paint()..color = palette.secondary;
+    canvas.drawCircle(Offset(size.width * 0.27, size.height * 0.78), 5, pickupDot);
 
-    final dot2 = Paint()..color = AppColors.accent;
-    canvas.drawCircle(Offset(size.width * 0.58, size.height * 0.48), 8, dot2);
+    final rideDot = Paint()..color = palette.accent;
+    canvas.drawCircle(Offset(size.width * 0.58, size.height * 0.48), 8, rideDot);
 
-    final dot3 = Paint()..color = const Color(0xFF0F172A);
-    canvas.drawCircle(Offset(size.width * 0.83, size.height * 0.36), 6, dot3);
+    final destinationDot = Paint()..color = palette.textPrimary;
+    canvas.drawCircle(
+      Offset(size.width * 0.83, size.height * 0.36),
+      6,
+      destinationDot,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _GridPainter oldDelegate) {
+    return oldDelegate.palette != palette;
+  }
 }
