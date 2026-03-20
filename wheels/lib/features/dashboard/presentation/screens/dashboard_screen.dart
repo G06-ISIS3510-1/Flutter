@@ -8,8 +8,10 @@ import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../shared/widgets/app_theme_drawer.dart';
 import '../../../../theme/app_shadows.dart';
+import '../../../../theme/app_spacing.dart';
 import '../../../../theme/app_theme_palette.dart';
-import '../../../rides/presentation/mock/driver_active_ride_mock.dart';
+import '../../../rides/presentation/models/ride_listing.dart';
+import '../../../rides/presentation/providers/rides_providers.dart';
 import '../providers/dashboard_providers.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -20,14 +22,21 @@ class DashboardScreen extends ConsumerWidget {
     final palette = context.palette;
     final summary = ref.watch(dashboardSummaryProvider);
     final role = ref.watch(currentUserRoleProvider);
-    final canOpenActiveRide = role == UserRole.driver;
+    final user = ref.watch(authUserProvider);
+    final fullName = (user?.fullName.trim().isNotEmpty ?? false)
+        ? user!.fullName.trim()
+        : 'Wheels User';
+    final firstName = fullName.split(RegExp(r'\s+')).first;
 
     return AppScaffold(
       title: 'Dashboard',
       showAppBar: false,
       backgroundColor: palette.background,
       maxScrollableWidth: 440,
-      scrollableHeader: const _DashboardHeader(),
+      scrollableHeader: _DashboardHeader(
+        firstName: firstName,
+        email: user?.email ?? 'No email available',
+      ),
       drawer: const AppNavigationDrawer(),
       bottomNavigationBar: AppBottomNav(
         currentTab: AppBottomNavTab.home,
@@ -35,34 +44,30 @@ class DashboardScreen extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpacing.s),
           const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.m),
             child: _MapCard(),
           ),
-          const SizedBox(height: 14),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _CurrentRideCard(
-              onTap: canOpenActiveRide
-                  ? () => context.go(AppRoutes.activeRide)
-                  : null,
-            ),
-          ),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpacing.m),
           const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.m),
+            child: _CurrentRideCard(),
+          ),
+          const SizedBox(height: AppSpacing.m),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.m),
             child: _UpdatesSection(),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.s),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
             child: Text(
               summary,
               style: TextStyle(color: palette.textSecondary),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.l),
         ],
       ),
     );
@@ -70,14 +75,22 @@ class DashboardScreen extends ConsumerWidget {
 }
 
 class _DashboardHeader extends StatelessWidget {
-  const _DashboardHeader();
+  const _DashboardHeader({required this.firstName, required this.email});
+
+  final String firstName;
+  final String email;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.m,
+        AppSpacing.m,
+        AppSpacing.m,
+        AppSpacing.l,
+      ),
       decoration: BoxDecoration(
         color: palette.primary,
         borderRadius: const BorderRadius.only(
@@ -97,7 +110,7 @@ class _DashboardHeader extends StatelessWidget {
                   );
                 },
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpacing.s),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -107,26 +120,37 @@ class _DashboardHeader extends StatelessWidget {
                       style: TextStyle(
                         color: palette.primaryForeground.withValues(alpha: 0.8),
                         fontSize: 13,
-                        height: 1.1,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Maria',
+                      firstName,
                       style: TextStyle(
                         color: palette.primaryForeground,
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
-                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.primaryForeground.withValues(alpha: 0.72),
+                        fontSize: 12,
                       ),
                     ),
                   ],
                 ),
               ),
-              _BellButton(onTap: () => context.go(AppRoutes.notifications)),
+              _CircleIconButton(
+                icon: Icons.notifications_none,
+                onTap: () => context.go(AppRoutes.notifications),
+              ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpacing.m),
           const _StatsRow(),
         ],
       ),
@@ -144,7 +168,7 @@ class _StatsRow extends StatelessWidget {
     return Row(
       children: [
         const Expanded(child: _StatCard(value: '12', label: 'Rides')),
-        const SizedBox(width: 10),
+        const SizedBox(width: AppSpacing.s),
         Expanded(
           child: _StatCard(
             value: '98%',
@@ -152,7 +176,7 @@ class _StatsRow extends StatelessWidget {
             valueColor: palette.accent,
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: AppSpacing.s),
         const Expanded(child: _StatCard(value: '4.9', label: 'Rating')),
       ],
     );
@@ -175,7 +199,7 @@ class _StatCard extends StatelessWidget {
     final palette = context.palette;
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.m),
       decoration: BoxDecoration(
         color: palette.primaryForeground.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(16),
@@ -186,9 +210,8 @@ class _StatCard extends StatelessWidget {
             value,
             style: TextStyle(
               color: valueColor ?? palette.primaryForeground,
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              height: 1.1,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 4),
@@ -243,7 +266,7 @@ class _MapCard extends StatelessWidget {
                   Icon(Icons.schedule, size: 18, color: palette.accent),
                   const SizedBox(width: 8),
                   Text(
-                    '3 min away',
+                    'Campus rides',
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
                       color: palette.textPrimary,
@@ -268,226 +291,189 @@ class _MapCard extends StatelessWidget {
               ),
             ),
           ),
-          Positioned(
-            right: 16,
-            bottom: 16,
-            child: Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: palette.card,
-                borderRadius: BorderRadius.circular(999),
-                boxShadow: AppShadows.sm,
-              ),
-              child: Icon(Icons.near_me, color: palette.primary),
-            ),
-          ),
         ],
       ),
     );
   }
 }
 
-class _CurrentRideCard extends StatelessWidget {
-  const _CurrentRideCard({this.onTap});
-
-  final VoidCallback? onTap;
+class _CurrentRideCard extends ConsumerWidget {
+  const _CurrentRideCard();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.palette;
-    final ride = DriverActiveRideMock.ride;
+    final rideAsync = ref.watch(currentDriverRideProvider);
+    final role = ref.watch(currentUserRoleProvider);
 
-    final content = Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: palette.card,
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: AppShadows.lg,
+    if (role != UserRole.driver) {
+      return _InfoCard(
+        title: 'Passenger Home',
+        subtitle: 'Search available rides and apply with your account.',
+        actionLabel: 'Search Rides',
+        onAction: () => context.go(AppRoutes.rides),
+      );
+    }
+
+    return rideAsync.when(
+      loading: () => const _LoadingCard(title: 'Current Ride'),
+      error: (error, _) => _InfoCard(
+        title: 'Current Ride',
+        subtitle: error.toString(),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Current Ride',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    color: palette.textPrimary,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: palette.accentSoft,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  'Active',
-                  style: TextStyle(
-                    color: palette.accent,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  color: palette.primaryLight,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  '${ride['driverInitials']}',
-                  style: TextStyle(
-                    color: palette.primaryForeground,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      data: (ride) {
+        if (ride == null) {
+          return _InfoCard(
+            title: 'Current Ride',
+            subtitle: 'You do not have an active ride yet.',
+            actionLabel: 'Create Ride',
+            onAction: () => context.go(AppRoutes.createRide),
+          );
+        }
+
+        return GestureDetector(
+          onTap: () => context.go(AppRoutes.activeRideById(ride.id)),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: palette.card,
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: AppShadows.lg,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Text(
-                      '${ride['driverName']}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        color: palette.textPrimary,
+                    Expanded(
+                      child: Text(
+                        'Current Ride',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: palette.textPrimary,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.star, size: 16, color: Color(0xFFF59E0B)),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${ride['driverRating']}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: palette.textSecondary,
-                          ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: palette.accentSoft,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        ride.isInProgress ? 'In Progress' : 'Open',
+                        style: TextStyle(
+                          color: palette.accent,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            '${ride['carModel']}',
-                            style: TextStyle(color: palette.textSecondary),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              _SmallActionButton(
-                icon: Icons.chat_bubble_outline,
-                onTap: () => context.go(
-                  AppRoutes.groupChatByTripId('dashboard-active-trip'),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 27,
+                      backgroundColor: palette.primaryLight,
+                      child: Text(
+                        ride.driverInitials,
+                        style: TextStyle(
+                          color: palette.primaryForeground,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            ride.driverName,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: palette.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${ride.availableSeats}/${ride.totalSeats} seats left',
+                            style: TextStyle(color: palette.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _SmallActionButton(
+                      icon: Icons.chat_bubble_outline,
+                      onTap: () => context.go(AppRoutes.groupChatByTripId(ride.id)),
+                    ),
+                    const SizedBox(width: 8),
+                    _SmallActionButton(
+                      icon: Icons.arrow_forward_outlined,
+                      onTap: () => context.go(AppRoutes.activeRideById(ride.id)),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              _SmallActionButton(icon: Icons.call_outlined, onTap: () {}),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Divider(color: palette.border),
-          const SizedBox(height: 10),
-          _InfoRow(
-            icon: Icons.circle,
-            iconColor: const Color(0xFF3B82F6),
-            label: 'Pickup',
-            value: '${ride['origin']}',
-          ),
-          const SizedBox(height: 10),
-          _InfoRow(
-            icon: Icons.location_on_outlined,
-            iconColor: palette.textSecondary,
-            label: 'Destination',
-            value: '${ride['destination']}',
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Trip Progress',
-                  style: TextStyle(
-                    color: palette.textSecondary,
-                    fontWeight: FontWeight.w700,
-                  ),
+                const SizedBox(height: 12),
+                Divider(color: palette.border),
+                const SizedBox(height: 10),
+                _InfoRow(
+                  icon: Icons.trip_origin,
+                  iconColor: palette.secondary,
+                  label: 'Origin',
+                  value: ride.origin,
                 ),
-              ),
-              Text(
-                '45%',
-                style: TextStyle(
-                  color: palette.textPrimary,
-                  fontWeight: FontWeight.w900,
+                const SizedBox(height: 10),
+                _InfoRow(
+                  icon: Icons.location_on_outlined,
+                  iconColor: palette.textSecondary,
+                  label: 'Destination',
+                  value: ride.destination,
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: 0.45,
-              minHeight: 8,
-              backgroundColor: palette.border,
-              valueColor: AlwaysStoppedAnimation(palette.accent),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _MiniMetric(
+                        title: 'Departure',
+                        value: ride.departureLabel,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _MiniMetric(
+                        title: 'Fare',
+                        value: ride.priceLabel,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _MiniMetric(
-                  title: 'Distance',
-                  value: '${ride['distance']}',
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _MiniMetric(title: 'Fare', value: '${ride['fare']}'),
-              ),
-            ],
-          ),
-        ],
-      ),
+        );
+      },
     );
-
-    if (onTap == null) {
-      return content;
-    }
-
-    return GestureDetector(onTap: onTap, child: content);
   }
 }
 
-class _UpdatesSection extends StatelessWidget {
+class _UpdatesSection extends ConsumerWidget {
   const _UpdatesSection();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.palette;
+    final role = ref.watch(currentUserRoleProvider);
+    final user = ref.watch(authUserProvider);
+    final currentRide = ref.watch(currentDriverRideProvider).valueOrNull;
+    final firstName = user?.fullName.split(RegExp(r'\s+')).first ?? 'User';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -501,25 +487,134 @@ class _UpdatesSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        _UpdateCard(
-          icon: Icons.near_me,
-          iconBg: palette.accent,
-          title: 'Driver arriving soon',
-          subtitle: 'Carlos is 3 minutes away from pickup',
-          highlight: true,
-          actionLabel: 'Quick Pay',
-          onAction: () => context.go(AppRoutes.payment),
-        ),
+        if (role == UserRole.driver)
+          _UpdateCard(
+            icon: currentRide == null
+                ? Icons.directions_car_outlined
+                : Icons.people_alt_outlined,
+            iconBg: palette.accent,
+            title: currentRide == null
+                ? 'No live ride yet'
+                : 'Manage your current ride',
+            subtitle: currentRide == null
+                ? 'Create a ride to start receiving passenger applications.'
+                : 'Open your live trip and review the passenger group.',
+            highlight: true,
+            actionLabel: currentRide == null ? 'Create Ride' : 'Open Ride',
+            onAction: () => context.go(
+              currentRide == null
+                  ? AppRoutes.createRide
+                  : AppRoutes.activeRideById(currentRide.id),
+            ),
+          )
+        else
+          _UpdateCard(
+            icon: Icons.near_me,
+            iconBg: palette.accent,
+            title: 'Welcome, $firstName',
+            subtitle: 'Browse available rides or pay quickly for your current trip.',
+            highlight: true,
+            actionLabel: 'Quick Pay',
+            onAction: () => context.go(AppRoutes.payment),
+          ),
         const SizedBox(height: 10),
         _UpdateCard(
-          icon: Icons.star_border,
+          icon: Icons.person_outline,
           iconBg: palette.border,
           iconColor: palette.secondary,
-          title: 'You earned punctuality points!',
-          subtitle: '+5 points for being on time',
-          trailing: '5m',
+          title: 'Profile and notifications',
+          subtitle: 'Review your activity, alerts, and account preferences.',
+          trailing: 'Open',
+          onAction: null,
         ),
       ],
+    );
+  }
+}
+
+class _InfoCard extends StatelessWidget {
+  const _InfoCard({
+    required this.title,
+    required this.subtitle,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String title;
+  final String subtitle;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.card,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: AppShadows.lg,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: palette.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: TextStyle(color: palette.textSecondary),
+          ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 14),
+            ElevatedButton(
+              onPressed: onAction,
+              child: Text(actionLabel!),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LoadingCard extends StatelessWidget {
+  const _LoadingCard({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.card,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: palette.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Center(child: CircularProgressIndicator()),
+        ],
+      ),
     );
   }
 }
@@ -528,9 +623,9 @@ class _UpdateCard extends StatelessWidget {
   const _UpdateCard({
     required this.icon,
     required this.iconBg,
-    this.iconColor,
     required this.title,
     required this.subtitle,
+    this.iconColor,
     this.trailing,
     this.highlight = false,
     this.actionLabel,
@@ -557,7 +652,9 @@ class _UpdateCard extends StatelessWidget {
         color: highlight ? palette.accentSoft : palette.card,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: highlight ? palette.accent.withValues(alpha: 0.35) : palette.border,
+          color: highlight
+              ? palette.accent.withValues(alpha: 0.35)
+              : palette.border,
         ),
       ),
       child: Row(
@@ -610,23 +707,12 @@ class _UpdateCard extends StatelessWidget {
                       horizontal: 16,
                       vertical: 10,
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.credit_card_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          actionLabel!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      actionLabel!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ),
@@ -783,51 +869,6 @@ class _CircleIconButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(999),
         ),
         child: Icon(icon, color: palette.primaryForeground),
-      ),
-    );
-  }
-}
-
-class _BellButton extends StatelessWidget {
-  const _BellButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Stack(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: palette.primaryForeground.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Icon(
-              Icons.notifications_none,
-              color: palette.primaryForeground,
-            ),
-          ),
-          Positioned(
-            right: 10,
-            top: 10,
-            child: Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                color: palette.accent,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: palette.primary, width: 2),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -24,6 +24,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+
     return Scaffold(
       backgroundColor: palette.background,
       body: SafeArea(
@@ -41,7 +42,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       onTap: () => context.go(AppRoutes.login),
                       borderRadius: BorderRadius.circular(12),
                       child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 6,
+                          horizontal: 4,
+                        ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -77,7 +81,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         ],
                       ),
                       child: const Center(
-                        child: Icon(Icons.lock_reset, color: Color(0xFF22C55E), size: 34),
+                        child: Icon(
+                          Icons.lock_reset,
+                          color: Color(0xFF22C55E),
+                          size: 34,
+                        ),
                       ),
                     ),
                   ),
@@ -175,11 +183,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 }
 
 class _InputField extends StatelessWidget {
-  final TextEditingController controller;
-  final String hintText;
-  final IconData prefixIcon;
-  final TextInputType? keyboardType;
-
   const _InputField({
     required this.controller,
     required this.hintText,
@@ -187,9 +190,15 @@ class _InputField extends StatelessWidget {
     this.keyboardType,
   });
 
+  final TextEditingController controller;
+  final String hintText;
+  final IconData prefixIcon;
+  final TextInputType? keyboardType;
+
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
@@ -199,7 +208,10 @@ class _InputField extends StatelessWidget {
         prefixIcon: Icon(prefixIcon, color: palette.textSecondary),
         filled: true,
         fillColor: palette.input,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: palette.border),

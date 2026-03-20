@@ -32,6 +32,18 @@ class AuthRemoteDataSource {
       password: password,
     );
   }
+
+  Future<AuthEntity?> restoreSession() async {
+    return _authService.restoreSession();
+  }
+
+  Stream<AuthEntity?> watchSession() {
+    return _authService.watchSession();
+  }
+
+  Future<void> signOut() {
+    return _authService.signOut();
+  }
 }
 
 String buildUniversityEmail(String username) {

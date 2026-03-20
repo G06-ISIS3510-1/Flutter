@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -20,7 +24,52 @@ import 'app_routes.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
-    initialLocation: AppRoutes.login,
+    initialLocation: firebase_auth.FirebaseAuth.instance.currentUser == null
+        ? AppRoutes.login
+        : AppRoutes.dashboard,
+    refreshListenable: GoRouterRefreshStream(
+      firebase_auth.FirebaseAuth.instance.authStateChanges(),
+    ),
+    redirect: (context, state) {
+      final container = ProviderScope.containerOf(context, listen: false);
+      final isReady = container.read(authSessionReadyProvider);
+      final isAuthenticated = container.read(isAuthenticatedProvider);
+      final isDriver = container.read(isDriverProvider);
+      final location = state.matchedLocation;
+      final isPublicRoute =
+          location == AppRoutes.login ||
+          location == AppRoutes.register ||
+          location == AppRoutes.forgotPassword;
+
+      if (!isReady) {
+        return null;
+      }
+
+      if (!isAuthenticated && !isPublicRoute) {
+        return AppRoutes.login;
+      }
+
+      if (isAuthenticated && isPublicRoute) {
+        return AppRoutes.dashboard;
+      }
+
+      if (location == AppRoutes.createRide && !isDriver) {
+        return AppRoutes.dashboard;
+      }
+
+      if (location == AppRoutes.rides && isDriver) {
+        return AppRoutes.createRide;
+      }
+
+      if ((location == AppRoutes.activeRide ||
+              location == AppRoutes.groupChat ||
+              location.startsWith('/group/')) &&
+          !isDriver) {
+        return AppRoutes.dashboard;
+      }
+
+      return null;
+    },
     routes: <RouteBase>[
       GoRoute(
         path: AppRoutes.login,
@@ -28,7 +77,11 @@ class AppRouter {
       ),
       GoRoute(
         path: AppRoutes.register,
-        builder: (context, state) => const RegisterScreen(),
+        builder: (context, state) => RegisterScreen(
+          initialModeIndex: state.uri.queryParameters['mode'] == 'login'
+              ? 1
+              : 0,
+        ),
       ),
       GoRoute(
         path: AppRoutes.forgotPassword,
@@ -44,20 +97,10 @@ class AppRouter {
       ),
       GoRoute(
         path: AppRoutes.createRide,
-        redirect: (context, state) {
-          final container = ProviderScope.containerOf(context, listen: false);
-          final isDriver = container.read(isDriverProvider);
-          return isDriver ? null : AppRoutes.dashboard;
-        },
         builder: (context, state) => const CreateRideScreen(),
       ),
       GoRoute(
         path: AppRoutes.rides,
-        redirect: (context, state) {
-          final container = ProviderScope.containerOf(context, listen: false);
-          final isDriver = container.read(isDriverProvider);
-          return isDriver ? AppRoutes.createRide : null;
-        },
         builder: (context, state) => const RidesSearchScreen(),
       ),
       GoRoute(
@@ -68,31 +111,18 @@ class AppRouter {
       ),
       GoRoute(
         path: AppRoutes.activeRide,
-        redirect: (context, state) {
-          final container = ProviderScope.containerOf(context, listen: false);
-          final isDriver = container.read(isDriverProvider);
-          return isDriver ? null : AppRoutes.dashboard;
-        },
-        builder: (context, state) => const ActiveRideScreen(),
+        builder: (context, state) => ActiveRideScreen(
+          rideId: state.uri.queryParameters['rideId'],
+        ),
       ),
       GoRoute(
         path: AppRoutes.groupChat,
-        redirect: (context, state) {
-          final container = ProviderScope.containerOf(context, listen: false);
-          final isDriver = container.read(isDriverProvider);
-          return isDriver ? null : AppRoutes.dashboard;
-        },
         builder: (context, state) => GroupChatScreen(
           tripId: state.uri.queryParameters['tripId'] ?? 'active-trip',
         ),
       ),
       GoRoute(
         path: AppRoutes.group,
-        redirect: (context, state) {
-          final container = ProviderScope.containerOf(context, listen: false);
-          final isDriver = container.read(isDriverProvider);
-          return isDriver ? null : AppRoutes.dashboard;
-        },
         builder: (context, state) =>
             GroupScreen(rideId: state.pathParameters['rideId'] ?? 'unknown'),
       ),
@@ -114,4 +144,18 @@ class AppRouter {
       ),
     ],
   );
+}
+
+class GoRouterRefreshStream extends ChangeNotifier {
+  GoRouterRefreshStream(Stream<dynamic> stream) {
+    _subscription = stream.asBroadcastStream().listen((_) => notifyListeners());
+  }
+
+  late final StreamSubscription<dynamic> _subscription;
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
 }

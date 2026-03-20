@@ -170,12 +170,11 @@ class _LoginBody extends ConsumerWidget {
         // Primary button: usando tu AppButton (quedará con colorScheme.primary)
         AppButton(
           label: 'Continue with University Email',
-          onPressed: () => context.push(AppRoutes.register),
+          onPressed: () => context.push('${AppRoutes.register}?mode=login'),
         ),
 
         const SizedBox(height: 12),
 
-        // Secondary google (Outlined)
         SizedBox(
           height: 48,
           child: OutlinedButton(
@@ -186,17 +185,10 @@ class _LoginBody extends ConsumerWidget {
               ),
               side: BorderSide(color: palette.border),
             ),
-            onPressed: () => context.go(AppRoutes.dashboard),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                Text('G', style: TextStyle(fontWeight: FontWeight.w900)),
-                SizedBox(width: 12),
-                Text(
-                  'Continue with Google',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ],
+            onPressed: () => context.go(AppRoutes.register),
+            child: const Text(
+              'Create account',
+              style: TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
         ),
@@ -219,11 +211,6 @@ class _LoginBody extends ConsumerWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            TextButton(
-              onPressed: () => context.go(AppRoutes.register),
-              child: const Text('Register'),
-            ),
-            const SizedBox(width: 8),
             TextButton(
               onPressed: () => context.go(AppRoutes.forgotPassword),
               child: const Text('Forgot password?'),

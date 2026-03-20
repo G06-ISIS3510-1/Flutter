@@ -11,8 +11,9 @@ import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
 import '../../../../theme/app_theme_palette.dart';
-import '../mock/rides_mock_data.dart';
+import '../../domain/entities/rides_entity.dart';
 import '../models/ride_listing.dart';
+import '../providers/rides_providers.dart';
 
 class RidesSearchScreen extends ConsumerStatefulWidget {
   const RidesSearchScreen({super.key});
@@ -38,13 +39,11 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
 
   DateTime _selectedDate = DateTime.now();
   RideSortOption _sort = RideSortOption.earliest;
-  List<RideListing> _results = <RideListing>[];
 
   @override
   void initState() {
     super.initState();
     _dateController.text = _formatDate(_selectedDate);
-    _runSearch();
   }
 
   @override
@@ -72,11 +71,15 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
       _selectedDate = DateTime(picked.year, picked.month, picked.day);
       _dateController.text = _formatDate(_selectedDate);
     });
-    _runSearch();
   }
 
-  void _runSearch() {
-    final source = buildMockRides(_selectedDate);
+  String _formatDate(DateTime value) {
+    final day = value.day.toString().padLeft(2, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    return '$day/$month/${value.year}';
+  }
+
+  List<RidesEntity> _applyFilters(List<RidesEntity> rides) {
     final selectedDay = DateTime(
       _selectedDate.year,
       _selectedDate.month,
@@ -85,15 +88,16 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     final originQuery = _originController.text.trim().toLowerCase();
     final destinationQuery = _destinationController.text.trim().toLowerCase();
 
-    final filtered = source.where((ride) {
+    final filtered = rides.where((ride) {
       final rideDay = DateTime(
-        ride.departureDateTime.year,
-        ride.departureDateTime.month,
-        ride.departureDateTime.day,
+        ride.departureAt.year,
+        ride.departureAt.month,
+        ride.departureAt.day,
       );
       if (rideDay != selectedDay) {
         return false;
       }
+
       final originMatch =
           originQuery.isEmpty ||
           ride.origin.toLowerCase().contains(originQuery);
@@ -105,29 +109,20 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
 
     filtered.sort(
       (a, b) => switch (_sort) {
-        RideSortOption.earliest => a.departureDateTime.compareTo(
-          b.departureDateTime,
-        ),
+        RideSortOption.earliest => a.departureAt.compareTo(b.departureAt),
         RideSortOption.cheapest => a.pricePerSeat.compareTo(b.pricePerSeat),
-        RideSortOption.highestRated => b.rating.compareTo(a.rating),
+        RideSortOption.highestRated => b.driverRating.compareTo(a.driverRating),
       },
     );
 
-    setState(() {
-      _results = filtered;
-    });
-  }
-
-  String _formatDate(DateTime value) {
-    final day = value.day.toString().padLeft(2, '0');
-    final month = value.month.toString().padLeft(2, '0');
-    return '$day/$month/${value.year}';
+    return filtered;
   }
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
     final role = ref.watch(currentUserRoleProvider);
+    final ridesAsync = ref.watch(availableRidesProvider);
 
     return AppScaffold(
       title: 'Rides',
@@ -151,16 +146,30 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
             const SizedBox(height: AppSpacing.m),
             _sortBar(),
             const SizedBox(height: AppSpacing.l),
-            _sectionTitle('Available Drivers', '${_results.length} rides'),
-            const SizedBox(height: AppSpacing.s),
-            if (_results.isEmpty) _emptyState(),
-            for (final ride in _results) ...[
-              _RideResultCard(
-                ride: ride,
-                onTap: () => context.go(AppRoutes.rideDetailsById(ride.id)),
+            ridesAsync.when(
+              data: (rides) {
+                final results = _applyFilters(rides);
+                return Column(
+                  children: [
+                    _sectionTitle('Available Drivers', '${results.length} rides'),
+                    const SizedBox(height: AppSpacing.s),
+                    if (results.isEmpty) _emptyState(),
+                    for (final ride in results) ...[
+                      _RideResultCard(
+                        ride: ride,
+                        onTap: () => context.go(AppRoutes.rideDetailsById(ride.id)),
+                      ),
+                      const SizedBox(height: AppSpacing.m),
+                    ],
+                  ],
+                );
+              },
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                child: Center(child: CircularProgressIndicator()),
               ),
-              const SizedBox(height: AppSpacing.m),
-            ],
+              error: (error, _) => _loadError(error),
+            ),
             const SizedBox(height: AppSpacing.s),
           ],
         ),
@@ -170,6 +179,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
 
   Widget _searchCard() {
     final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.m),
       decoration: BoxDecoration(
@@ -222,7 +232,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: _runSearch,
+              onPressed: () => setState(() {}),
               style: ElevatedButton.styleFrom(
                 backgroundColor: palette.accent,
                 foregroundColor: palette.accentForeground,
@@ -245,6 +255,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
 
   Widget _sortBar() {
     final palette = context.palette;
+
     return Row(
       children: [
         Icon(Icons.filter_list, color: palette.primary),
@@ -263,6 +274,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
             child: Row(
               children: RideSortOption.values.map((option) {
                 final selected = option == _sort;
+
                 return Padding(
                   padding: const EdgeInsets.only(right: AppSpacing.s),
                   child: ChoiceChip(
@@ -290,7 +302,6 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
                       setState(() {
                         _sort = option;
                       });
-                      _runSearch();
                     },
                   ),
                 );
@@ -304,6 +315,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
 
   Widget _sectionTitle(String left, String right) {
     final palette = context.palette;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -328,6 +340,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
 
   Widget _emptyState() {
     final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.l),
       decoration: BoxDecoration(
@@ -358,6 +371,39 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     );
   }
 
+  Widget _loadError(Object error) {
+    final palette = context.palette;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.l),
+      decoration: BoxDecoration(
+        color: palette.card,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        boxShadow: AppShadows.sm,
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.error_outline, size: 64, color: palette.error),
+          const SizedBox(height: AppSpacing.s),
+          Text(
+            'We could not load rides',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+              color: palette.textPrimary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            error.toString(),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: palette.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _autocompleteField({
     required TextEditingController controller,
     required String label,
@@ -366,6 +412,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     required Color iconColor,
   }) {
     final palette = context.palette;
+
     return Autocomplete<String>(
       optionsBuilder: (textEditingValue) {
         final query = textEditingValue.text.toLowerCase().trim();
@@ -386,6 +433,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
             selection: TextSelection.collapsed(offset: controller.text.length),
           );
         }
+
         return TextField(
           controller: textController,
           focusNode: focusNode,
@@ -410,7 +458,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
 class _RideResultCard extends StatefulWidget {
   const _RideResultCard({required this.ride, required this.onTap});
 
-  final RideListing ride;
+  final RidesEntity ride;
   final VoidCallback onTap;
 
   @override
@@ -481,7 +529,7 @@ class _RideResultCardState extends State<_RideResultCard> {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                '${widget.ride.rating} (${widget.ride.reviewCount})',
+                                '${widget.ride.driverRating.toStringAsFixed(1)} (${widget.ride.reviewCount})',
                                 style: TextStyle(
                                   color: palette.textSecondary,
                                   fontWeight: FontWeight.w600,
@@ -537,7 +585,9 @@ class _RideResultCardState extends State<_RideResultCard> {
                   decoration: BoxDecoration(
                     color: palette.input,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: palette.border.withValues(alpha: 0.65)),
+                    border: Border.all(
+                      color: palette.border.withValues(alpha: 0.65),
+                    ),
                   ),
                   child: Column(
                     children: [
@@ -568,8 +618,8 @@ class _RideResultCardState extends State<_RideResultCard> {
                     Expanded(
                       child: _metric(
                         Icons.event_seat_outlined,
-                        '${widget.ride.seatsLeft}/4',
-                        '${widget.ride.seatsLeft} seats left',
+                        '${widget.ride.availableSeats}/${widget.ride.totalSeats}',
+                        '${widget.ride.availableSeats} seats left',
                       ),
                     ),
                     Expanded(
@@ -591,6 +641,7 @@ class _RideResultCardState extends State<_RideResultCard> {
 
   Widget _metric(IconData icon, String strong, String detail) {
     final palette = context.palette;
+
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.s),
       child: Column(
@@ -623,6 +674,7 @@ class _RideResultCardState extends State<_RideResultCard> {
     required String text,
   }) {
     final palette = context.palette;
+
     return Row(
       children: [
         Icon(icon, size: 14, color: iconColor),
