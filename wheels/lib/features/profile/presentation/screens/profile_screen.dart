@@ -53,6 +53,7 @@ class ProfileScreen extends ConsumerWidget {
               _MenuSectionCard(items: section.items),
               const SizedBox(height: AppSpacing.xl),
             ],
+            const _LogoutButton(),
           ],
         ),
       ),
@@ -530,6 +531,42 @@ class _LeadingIcon extends StatelessWidget {
         ],
       ),
       child: Icon(icon, color: AppColors.secondary, size: 28),
+    );
+  }
+}
+
+class _LogoutButton extends ConsumerWidget {
+  const _LogoutButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () async {
+          await ref.read(authSessionControllerProvider).signOut();
+          if (context.mounted) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                const SnackBar(
+                  content: Text('Session closed successfully.'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+          }
+        },
+        icon: const Icon(Icons.logout_rounded),
+        label: const Text('Log out'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.error,
+          side: const BorderSide(color: AppColors.error),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+          ),
+        ),
+      ),
     );
   }
 }

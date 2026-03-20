@@ -35,4 +35,19 @@ class AuthRepositoryImpl extends AuthRepository {
       password: password,
     );
   }
+
+  @override
+  Future<AuthEntity?> restoreSession() {
+    return _remoteDataSource.restoreSession();
+  }
+
+  @override
+  Stream<AuthEntity?> watchSession() {
+    return _remoteDataSource.watchSession();
+  }
+
+  @override
+  Future<void> signOut() {
+    return _remoteDataSource.signOut();
+  }
 }

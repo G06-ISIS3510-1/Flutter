@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/auth/domain/entities/auth_entity.dart';
+import '../features/auth/presentation/providers/auth_providers.dart';
 import '../router/app_router.dart';
 import '../theme/app_theme.dart';
 
@@ -13,11 +15,33 @@ class WheelsApp extends StatelessWidget {
   }
 }
 
-class _WheelsAppView extends StatelessWidget {
+class _WheelsAppView extends ConsumerStatefulWidget {
   const _WheelsAppView();
 
   @override
+  ConsumerState<_WheelsAppView> createState() => _WheelsAppViewState();
+}
+
+class _WheelsAppViewState extends ConsumerState<_WheelsAppView> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() async {
+      await ref.read(authSessionControllerProvider).restoreSession();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<AuthEntity?>>(authSessionStreamProvider, (
+      previous,
+      next,
+    ) {
+      next.whenData((authEntity) {
+        ref.read(authSessionControllerProvider).syncFromStream(authEntity);
+      });
+    });
+
     return MaterialApp.router(
       title: 'Wheels',
       debugShowCheckedModeBanner: false,

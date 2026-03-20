@@ -40,11 +40,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       onTap: () => context.go(AppRoutes.login),
                       borderRadius: BorderRadius.circular(12),
                       child: const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                        padding: EdgeInsets.symmetric(
+                          vertical: 6,
+                          horizontal: 4,
+                        ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.chevron_left, color: AppColors.textPrimary),
+                            Icon(
+                              Icons.chevron_left,
+                              color: AppColors.textPrimary,
+                            ),
                             SizedBox(width: 4),
                             Text(
                               'Back',
@@ -76,7 +82,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         ],
                       ),
                       child: const Center(
-                        child: Icon(Icons.lock_reset, color: Color(0xFF22C55E), size: 34),
+                        child: Icon(
+                          Icons.lock_reset,
+                          color: Color(0xFF22C55E),
+                          size: 34,
+                        ),
                       ),
                     ),
                   ),
@@ -197,7 +207,10 @@ class _InputField extends StatelessWidget {
         prefixIcon: Icon(prefixIcon, color: AppColors.textSecondary),
         filled: true,
         fillColor: const Color(0xFFF8FAFC),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.08)),

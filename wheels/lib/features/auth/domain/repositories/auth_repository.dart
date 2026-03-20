@@ -15,4 +15,10 @@ abstract class AuthRepository {
     required String username,
     required String password,
   });
+
+  Future<AuthEntity?> restoreSession();
+
+  Stream<AuthEntity?> watchSession();
+
+  Future<void> signOut();
 }
