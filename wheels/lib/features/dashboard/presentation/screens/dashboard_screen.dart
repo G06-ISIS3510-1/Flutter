@@ -7,7 +7,9 @@ import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../theme/app_colors.dart';
-import '../../../rides/presentation/mock/driver_active_ride_mock.dart';
+import '../../../../theme/app_spacing.dart';
+import '../../../rides/presentation/models/ride_listing.dart';
+import '../../../rides/presentation/providers/rides_providers.dart';
 import '../providers/dashboard_providers.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -17,62 +19,72 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(dashboardSummaryProvider);
     final role = ref.watch(currentUserRoleProvider);
-    final canOpenActiveRide = role == UserRole.driver;
+    final user = ref.watch(authUserProvider);
+    final fullName = (user?.fullName.trim().isNotEmpty ?? false)
+        ? user!.fullName.trim()
+        : 'Wheels User';
+    final firstName = fullName.split(RegExp(r'\s+')).first;
 
     return AppScaffold(
       title: 'Dashboard',
       showAppBar: false,
       backgroundColor: AppColors.background,
       maxScrollableWidth: 440,
-      scrollableHeader: const _Header(),
+      scrollableHeader: _DashboardHeader(
+        firstName: firstName,
+        email: user?.email ?? 'No email available',
+      ),
       bottomNavigationBar: AppBottomNav(
         currentTab: AppBottomNavTab.home,
         role: role,
       ),
       child: Column(
         children: [
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpacing.s),
           const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.m),
             child: _MapCard(),
           ),
-          const SizedBox(height: 14),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: _CurrentRideCard(
-              onTap: canOpenActiveRide
-                  ? () => context.go(AppRoutes.activeRide)
-                  : null,
-            ),
+          const SizedBox(height: AppSpacing.m),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.m),
+            child: _CurrentRideCard(),
           ),
-          const SizedBox(height: 14),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+          const SizedBox(height: AppSpacing.m),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.m),
             child: _UpdatesSection(),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.s),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
             child: Text(
               summary,
               style: const TextStyle(color: AppColors.textSecondary),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.l),
         ],
       ),
     );
   }
 }
-/* ---------- UI widgets ---------- */
 
-class _Header extends StatelessWidget {
-  const _Header();
+class _DashboardHeader extends StatelessWidget {
+  const _DashboardHeader({required this.firstName, required this.email});
+
+  final String firstName;
+  final String email;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.m,
+        AppSpacing.m,
+        AppSpacing.m,
+        AppSpacing.l,
+      ),
       decoration: const BoxDecoration(
         color: AppColors.primary,
         borderRadius: BorderRadius.only(
@@ -84,100 +96,85 @@ class _Header extends StatelessWidget {
         children: [
           Row(
             children: [
-              _CircleIconButton(icon: Icons.menu, onTap: () {}),
-              const SizedBox(width: 12),
-              const Expanded(
+              const _CircleIconButton(icon: Icons.menu),
+              const SizedBox(width: AppSpacing.s),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'Welcome back',
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: 13,
-                        height: 1.1,
                       ),
                     ),
-                    SizedBox(height: 2),
+                    const SizedBox(height: 2),
                     Text(
-                      'María',
-                      style: TextStyle(
+                      firstName,
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
-                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
                       ),
                     ),
                   ],
                 ),
               ),
-              _BellButton(onTap: () => context.go(AppRoutes.notifications)),
+              _CircleIconButton(
+                icon: Icons.notifications_none,
+                onTap: () => context.go(AppRoutes.notifications),
+              ),
             ],
           ),
-
-          const SizedBox(height: 14),
-
-          // ✅ Stats dentro del header como el mockup
-          const _StatsRow(),
+          const SizedBox(height: AppSpacing.m),
+          const Row(
+            children: [
+              Expanded(child: _StatCard(value: 'Live', label: 'Session')),
+              SizedBox(width: AppSpacing.s),
+              Expanded(child: _StatCard(value: 'Firebase', label: 'Auth')),
+              SizedBox(width: AppSpacing.s),
+              Expanded(child: _StatCard(value: 'Wheels', label: 'App')),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-class _StatsRow extends StatelessWidget {
-  const _StatsRow();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: const [
-        Expanded(
-          child: _StatCard(value: '12', label: 'Rides'),
-        ),
-        SizedBox(width: 10),
-        Expanded(
-          child: _StatCard(
-            value: '98%',
-            label: 'Score', // ✅ mockup
-            valueColor: AppColors.accent,
-          ),
-        ),
-        SizedBox(width: 10),
-        Expanded(
-          child: _StatCard(value: '4.9', label: 'Rating'),
-        ), // ✅ mockup
-      ],
-    );
-  }
-}
-
 class _StatCard extends StatelessWidget {
+  const _StatCard({required this.value, required this.label});
+
   final String value;
   final String label;
-  final Color? valueColor;
-
-  const _StatCard({required this.value, required this.label, this.valueColor});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.m),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(
-          alpha: 0.18,
-        ), // ✅ más visible como mockup
+        color: Colors.white.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         children: [
           Text(
             value,
-            style: TextStyle(
-              color: valueColor ?? AppColors.primaryForeground,
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              height: 1.1,
+            style: const TextStyle(
+              color: AppColors.primaryForeground,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 4),
@@ -201,7 +198,7 @@ class _MapCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 200, // ✅ más compacto como el mockup
+      height: 200,
       decoration: BoxDecoration(
         color: AppColors.card,
         borderRadius: BorderRadius.circular(22),
@@ -242,7 +239,7 @@ class _MapCard extends StatelessWidget {
                   Icon(Icons.schedule, size: 18, color: AppColors.accent),
                   SizedBox(width: 8),
                   Text(
-                    '3 min away',
+                    'Campus rides',
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
                       color: AppColors.textPrimary,
@@ -252,45 +249,9 @@ class _MapCard extends StatelessWidget {
               ),
             ),
           ),
-          Positioned.fill(
+          const Positioned.fill(
             child: Center(
-              child: Container(
-                width: 70,
-                height: 70,
-                decoration: BoxDecoration(
-                  color: AppColors.card,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: AppColors.accent, width: 4),
-                  boxShadow: [
-                    BoxShadow(
-                      blurRadius: 18,
-                      color: Colors.black.withValues(alpha: 0.10),
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.near_me, color: AppColors.primary),
-              ),
-            ),
-          ),
-          Positioned(
-            right: 16,
-            bottom: 16,
-            child: Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: AppColors.card,
-                borderRadius: BorderRadius.circular(999),
-                boxShadow: [
-                  BoxShadow(
-                    blurRadius: 16,
-                    color: Colors.black.withValues(alpha: 0.10),
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.near_me, color: AppColors.primary),
+              child: Icon(Icons.near_me, color: AppColors.primary, size: 34),
             ),
           ),
         ],
@@ -299,16 +260,260 @@ class _MapCard extends StatelessWidget {
   }
 }
 
-class _CurrentRideCard extends StatelessWidget {
-  const _CurrentRideCard({this.onTap});
+class _CurrentRideCard extends ConsumerWidget {
+  const _CurrentRideCard();
 
-  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rideAsync = ref.watch(currentDriverRideProvider);
+    final role = ref.watch(currentUserRoleProvider);
+
+    if (role != UserRole.driver) {
+      return _InfoCard(
+        title: 'Passenger Home',
+        subtitle: 'Search available rides and apply with your account.',
+        actionLabel: 'Search Rides',
+        onAction: () => context.go(AppRoutes.rides),
+      );
+    }
+
+    return rideAsync.when(
+      loading: () => const _LoadingCard(title: 'Current Ride'),
+      error: (error, _) => _InfoCard(
+        title: 'Current Ride',
+        subtitle: error.toString(),
+      ),
+      data: (ride) {
+        if (ride == null) {
+          return _InfoCard(
+            title: 'Current Ride',
+            subtitle: 'You do not have an active ride yet.',
+            actionLabel: 'Create Ride',
+            onAction: () => context.go(AppRoutes.createRide),
+          );
+        }
+
+        return GestureDetector(
+          onTap: () => context.go(AppRoutes.activeRideById(ride.id)),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  blurRadius: 20,
+                  color: Colors.black.withValues(alpha: 0.06),
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Current Ride',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD1FAE5),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        ride.status == 'in_progress' ? 'In Progress' : 'Open',
+                        style: const TextStyle(
+                          color: AppColors.accentHover,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 27,
+                      backgroundColor: AppColors.primaryLight,
+                      child: Text(
+                        ride.driverInitials,
+                        style: const TextStyle(
+                          color: AppColors.primaryForeground,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            ride.driverName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${ride.availableSeats}/${ride.totalSeats} seats left',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _SmallActionButton(
+                      icon: Icons.chat_bubble_outline,
+                      onTap: () => context.go(AppRoutes.groupChatByTripId(ride.id)),
+                    ),
+                    const SizedBox(width: 8),
+                    _SmallActionButton(
+                      icon: Icons.arrow_forward_outlined,
+                      onTap: () => context.go(AppRoutes.activeRideById(ride.id)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Divider(color: Colors.black.withValues(alpha: 0.06)),
+                const SizedBox(height: 10),
+                _InfoRow(
+                  icon: Icons.trip_origin,
+                  iconColor: AppColors.secondary,
+                  label: 'Origin',
+                  value: ride.origin,
+                ),
+                const SizedBox(height: 10),
+                _InfoRow(
+                  icon: Icons.location_on_outlined,
+                  iconColor: AppColors.textSecondary,
+                  label: 'Destination',
+                  value: ride.destination,
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _MiniMetric(
+                        title: 'Departure',
+                        value: ride.departureLabel,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _MiniMetric(title: 'Fare', value: ride.priceLabel),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _UpdatesSection extends ConsumerWidget {
+  const _UpdatesSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final role = ref.watch(currentUserRoleProvider);
+    final user = ref.watch(authUserProvider);
+    final currentRide = ref.watch(currentDriverRideProvider).valueOrNull;
+    final firstName = user?.fullName.split(RegExp(r'\s+')).first ?? 'User';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Updates',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (role == UserRole.driver)
+          _UpdateCard(
+            icon: currentRide == null
+                ? Icons.directions_car_outlined
+                : Icons.people_alt_outlined,
+            iconBg: AppColors.accent,
+            title: currentRide == null
+                ? 'No live ride yet'
+                : 'Your ride is visible now',
+            subtitle: currentRide == null
+                ? 'Create a ride so passengers can find and apply to it.'
+                : '${currentRide.origin} to ${currentRide.destination} is already accepting passengers.',
+            highlight: true,
+            actionLabel: currentRide == null ? 'Create Ride' : 'View Ride',
+            onAction: () => context.go(
+              currentRide == null
+                  ? AppRoutes.createRide
+                  : AppRoutes.activeRideById(currentRide.id),
+            ),
+          )
+        else
+          _UpdateCard(
+            icon: Icons.search_outlined,
+            iconBg: AppColors.accent,
+            title: 'Find your next ride',
+            subtitle:
+                '$firstName, browse active campus rides and apply with your current account.',
+            highlight: true,
+            actionLabel: 'Search Rides',
+            onAction: () => context.go(AppRoutes.rides),
+          ),
+        const SizedBox(height: 10),
+        _UpdateCard(
+          icon: Icons.person_outline,
+          iconBg: AppColors.border,
+          iconColor: AppColors.secondary,
+          title: 'Signed in account',
+          subtitle: user?.email ?? 'No account data available.',
+          trailing: role == UserRole.driver ? 'Driver' : 'Passenger',
+        ),
+      ],
+    );
+  }
+}
+
+class _InfoCard extends StatelessWidget {
+  const _InfoCard({
+    required this.title,
+    required this.subtitle,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String title;
+  final String subtitle;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
-    final ride = DriverActiveRideMock.ride;
-
-    final content = Container(
+    return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.card,
@@ -324,218 +529,77 @@ class _CurrentRideCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Current Ride',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD1FAE5),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: const Text(
-                  'Active',
-                  style: TextStyle(
-                    color: AppColors.accentHover,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Center(
-                  child: Text(
-                    '${ride['driverInitials']}',
-                    style: TextStyle(
-                      color: AppColors.primaryForeground,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${ride['driverName']}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Icons.star, size: 16, color: Color(0xFFF59E0B)),
-                        SizedBox(width: 4),
-                        Text(
-                          '${ride['driverRating']}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        SizedBox(width: 10),
-                        Text(
-                          '${ride['carModel']}',
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              _SmallActionButton(
-                icon: Icons.chat_bubble_outline,
-                onTap: () => context.go(
-                  AppRoutes.groupChatByTripId('dashboard-active-trip'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              _SmallActionButton(icon: Icons.call_outlined, onTap: () {}),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Divider(color: Colors.black.withValues(alpha: 0.06)),
-          const SizedBox(height: 10),
-          _InfoRow(
-            icon: Icons.circle,
-            iconColor: Color(0xFF3B82F6),
-            label: 'Pickup',
-            value: '${ride['origin']}',
-          ),
-          const SizedBox(height: 10),
-          _InfoRow(
-            icon: Icons.location_on_outlined,
-            iconColor: AppColors.textSecondary,
-            label: 'Destination',
-            value: '${ride['destination']}',
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: const [
-              Expanded(
-                child: Text(
-                  'Trip Progress',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              Text(
-                '45%',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: const LinearProgressIndicator(
-              value: 0.45,
-              minHeight: 8,
-              backgroundColor: AppColors.border,
-              valueColor: AlwaysStoppedAnimation(AppColors.accent),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _MiniMetric(
-                  title: 'Distance',
-                  value: '${ride['distance']}',
-                ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: _MiniMetric(title: 'Fare', value: '${ride['fare']}'),
-              ),
-            ],
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: const TextStyle(color: AppColors.textSecondary),
           ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 14),
+            ElevatedButton(
+              onPressed: onAction,
+              child: Text(actionLabel!),
+            ),
+          ],
         ],
       ),
     );
-
-    if (onTap == null) {
-      return content;
-    }
-
-    return GestureDetector(onTap: onTap, child: content);
   }
 }
 
-class _UpdatesSection extends StatelessWidget {
-  const _UpdatesSection();
+class _LoadingCard extends StatelessWidget {
+  const _LoadingCard({required this.title});
+
+  final String title;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Updates',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
-            color: AppColors.textPrimary,
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: AppColors.textPrimary,
+            ),
           ),
-        ),
-        const SizedBox(height: 10),
-        _UpdateCard(
-          icon: Icons.near_me,
-          iconBg: AppColors.accent,
-          title: 'Driver arriving soon',
-          subtitle: 'Carlos is 3 minutes away from pickup',
-          highlight: true,
-          actionLabel: 'Quick Pay',
-          onAction: () => context.go(AppRoutes.payment),
-        ),
-        const SizedBox(height: 10),
-        _UpdateCard(
-          icon: Icons.star_border,
-          iconBg: AppColors.border,
-          iconColor: AppColors.secondary,
-          title: 'You earned punctuality points!',
-          subtitle: '+5 points for being on time',
-          trailing: '5m',
-        ),
-      ],
+          const SizedBox(height: 16),
+          const Center(child: CircularProgressIndicator()),
+        ],
+      ),
     );
   }
 }
 
 class _UpdateCard extends StatelessWidget {
+  const _UpdateCard({
+    required this.icon,
+    required this.iconBg,
+    required this.title,
+    required this.subtitle,
+    this.iconColor,
+    this.trailing,
+    this.highlight = false,
+    this.actionLabel,
+    this.onAction,
+  });
+
   final IconData icon;
   final Color iconBg;
   final Color? iconColor;
@@ -545,18 +609,6 @@ class _UpdateCard extends StatelessWidget {
   final bool highlight;
   final String? actionLabel;
   final VoidCallback? onAction;
-
-  const _UpdateCard({
-    required this.icon,
-    required this.iconBg,
-    this.iconColor,
-    required this.title,
-    required this.subtitle,
-    this.trailing,
-    this.highlight = false,
-    this.actionLabel,
-    this.onAction,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -604,44 +656,9 @@ class _UpdateCard extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           if (actionLabel != null && onAction != null)
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF5DD6A5), Color(0xFF58C890)],
-                ),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: onAction,
-                  borderRadius: BorderRadius.circular(999),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.credit_card_rounded,
-                          color: AppColors.primaryForeground,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          actionLabel!,
-                          style: const TextStyle(
-                            color: AppColors.primaryForeground,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+            TextButton(
+              onPressed: onAction,
+              child: Text(actionLabel!),
             )
           else if (trailing != null)
             Text(
@@ -658,10 +675,10 @@ class _UpdateCard extends StatelessWidget {
 }
 
 class _MiniMetric extends StatelessWidget {
+  const _MiniMetric({required this.title, required this.value});
+
   final String title;
   final String value;
-
-  const _MiniMetric({required this.title, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -697,17 +714,17 @@ class _MiniMetric extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String label;
-  final String value;
-
   const _InfoRow({
     required this.icon,
     required this.iconColor,
     required this.label,
     required this.value,
   });
+
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
@@ -744,10 +761,10 @@ class _InfoRow extends StatelessWidget {
 }
 
 class _SmallActionButton extends StatelessWidget {
+  const _SmallActionButton({required this.icon, required this.onTap});
+
   final IconData icon;
   final VoidCallback onTap;
-
-  const _SmallActionButton({required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -768,10 +785,10 @@ class _SmallActionButton extends StatelessWidget {
 }
 
 class _CircleIconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
+  const _CircleIconButton({required this.icon, this.onTap});
 
-  const _CircleIconButton({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -791,50 +808,6 @@ class _CircleIconButton extends StatelessWidget {
   }
 }
 
-class _BellButton extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _BellButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Stack(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: const Icon(
-              Icons.notifications_none,
-              color: AppColors.primaryForeground,
-            ),
-          ),
-          Positioned(
-            right: 10,
-            top: 10,
-            child: Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                color: AppColors.accent,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: AppColors.primary, width: 2),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/* ✅ Bottom nav estilo mockup (círculo oscuro activo) */
 class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -852,39 +825,6 @@ class _GridPainter extends CustomPainter {
     for (double y = 0; y < size.height; y += step) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
-
-    final pathPaint = Paint()
-      ..color = const Color(0xFF94A3B8)
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke;
-
-    final path = Path()
-      ..moveTo(size.width * 0.2, size.height * 0.75)
-      ..quadraticBezierTo(
-        size.width * 0.55,
-        size.height * 0.45,
-        size.width * 0.82,
-        size.height * 0.35,
-      );
-
-    const dash = 10.0;
-    const gap = 8.0;
-    for (final m in path.computeMetrics()) {
-      double dist = 0;
-      while (dist < m.length) {
-        canvas.drawPath(m.extractPath(dist, dist + dash), pathPaint);
-        dist += dash + gap;
-      }
-    }
-
-    final dot = Paint()..color = AppColors.secondary;
-    canvas.drawCircle(Offset(size.width * 0.27, size.height * 0.78), 5, dot);
-
-    final dot2 = Paint()..color = AppColors.accent;
-    canvas.drawCircle(Offset(size.width * 0.58, size.height * 0.48), 8, dot2);
-
-    final dot3 = Paint()..color = const Color(0xFF0F172A);
-    canvas.drawCircle(Offset(size.width * 0.83, size.height * 0.36), 6, dot3);
   }
 
   @override
