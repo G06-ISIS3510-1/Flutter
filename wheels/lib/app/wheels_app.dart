@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/auth/domain/entities/auth_entity.dart';
 import '../features/auth/presentation/providers/auth_providers.dart';
+import '../features/engagement/presentation/providers/engagement_providers.dart';
 import '../router/app_router.dart';
 import '../theme/app_theme.dart';
 
@@ -22,12 +23,38 @@ class _WheelsAppView extends ConsumerStatefulWidget {
   ConsumerState<_WheelsAppView> createState() => _WheelsAppViewState();
 }
 
-class _WheelsAppViewState extends ConsumerState<_WheelsAppView> {
+class _WheelsAppViewState extends ConsumerState<_WheelsAppView>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     Future.microtask(() async {
+      await ref.read(engagementServiceProvider).initializeMessaging();
       await ref.read(authSessionControllerProvider).restoreSession();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      return;
+    }
+
+    final user = ref.read(authUserProvider);
+    if (user == null) {
+      return;
+    }
+
+    Future.microtask(() async {
+      await ref.read(engagementServiceProvider).registerDeviceToken(user.uid);
+      await ref.read(engagementServiceProvider).recordConnection(user.uid);
     });
   }
 
@@ -39,6 +66,17 @@ class _WheelsAppViewState extends ConsumerState<_WheelsAppView> {
     ) {
       next.whenData((authEntity) {
         ref.read(authSessionControllerProvider).syncFromStream(authEntity);
+        if (authEntity == null) {
+          return;
+        }
+        Future.microtask(() async {
+          await ref.read(engagementServiceProvider).registerDeviceToken(
+            authEntity.uid,
+          );
+          await ref.read(engagementServiceProvider).recordConnection(
+            authEntity.uid,
+          );
+        });
       });
     });
 
