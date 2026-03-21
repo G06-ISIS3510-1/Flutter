@@ -75,19 +75,26 @@ class ProfileMenuItemData {
 final profileViewDataProvider = Provider<ProfileViewData>((ref) {
   final user = ref.watch(authUserProvider);
   final role = ref.watch(currentUserRoleProvider);
+
   final fullName = (user?.fullName.trim().isNotEmpty ?? false)
       ? user!.fullName.trim()
       : 'Wheels User';
   final email = user?.email ?? 'No email available';
+  final roleLabel = _roleLabel(role);
+  final badgeLabel = switch (role) {
+    UserRole.admin => 'Platform Administrator',
+    UserRole.driver => 'Driver Account',
+    UserRole.passenger => 'Passenger Account',
+  };
 
   return ProfileViewData(
     fullName: fullName,
     initials: _buildInitials(fullName),
-    badgeLabel: role == UserRole.driver ? 'Driver Account' : 'Passenger Account',
+    badgeLabel: badgeLabel,
     memberSince: 'Signed in as $email',
     metrics: [
       ProfileMetricData(
-        value: role == UserRole.driver ? 'Driver' : 'Passenger',
+        value: roleLabel,
         label: 'Role',
         valueColor: AppColors.primary,
       ),
@@ -115,29 +122,41 @@ final profileViewDataProvider = Provider<ProfileViewData>((ref) {
       ),
       ProfileContactData(
         label: 'Role',
-        value: role == UserRole.driver ? 'Driver' : 'Passenger',
+        value: roleLabel,
         icon: Icons.badge_outlined,
       ),
     ],
-    menuSections: const [
+    menuSections: [
       ProfileMenuSectionData(
         title: 'Account',
         items: [
-          ProfileMenuItemData(
+          const ProfileMenuItemData(
             title: 'Trust & Fairness',
             subtitle: 'View your reliability metrics',
             icon: Icons.star_border_rounded,
             route: AppRoutes.trust,
           ),
-          ProfileMenuItemData(
+          const ProfileMenuItemData(
             title: 'Payment Methods',
             subtitle: 'Manage your payment options',
             icon: Icons.credit_card_outlined,
             route: AppRoutes.payment,
           ),
+          const ProfileMenuItemData(
+            title: 'Rewards & Points',
+            subtitle: 'Redeem your rewards and points',
+            icon: Icons.workspace_premium_outlined,
+          ),
+          if (role == UserRole.admin)
+            const ProfileMenuItemData(
+              title: 'Engagement Analytics',
+              subtitle: 'Inspect user connection patterns',
+              icon: Icons.bar_chart_rounded,
+              route: AppRoutes.adminAnalytics,
+            ),
         ],
       ),
-      ProfileMenuSectionData(
+      const ProfileMenuSectionData(
         title: 'Settings',
         items: [
           ProfileMenuItemData(
@@ -170,12 +189,26 @@ final profileSummaryProvider = Provider<String>((ref) {
 final profileCompletionProvider = StateProvider<int>((ref) => 98);
 
 String _buildInitials(String fullName) {
-  final parts = fullName.trim().split(RegExp(r'\s+'));
-  if (parts.isEmpty || fullName.trim().isEmpty) {
+  final trimmed = fullName.trim();
+  if (trimmed.isEmpty) {
     return 'WU';
   }
+
+  final parts = trimmed.split(RegExp(r'\s+'));
   if (parts.length == 1) {
     return parts.first.substring(0, 1).toUpperCase();
   }
+
   return '${parts.first[0]}${parts[1][0]}'.toUpperCase();
+}
+
+String _roleLabel(UserRole role) {
+  switch (role) {
+    case UserRole.admin:
+      return 'Admin';
+    case UserRole.driver:
+      return 'Driver';
+    case UserRole.passenger:
+      return 'Passenger';
+  }
 }
