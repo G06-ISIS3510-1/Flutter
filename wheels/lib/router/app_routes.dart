@@ -21,4 +21,5 @@ class AppRoutes {
       '/group-chat?tripId=$tripId';
   static String rideDetailsById(String rideId) => '/ride/$rideId';
   static String activeRideById(String rideId) => '/active-ride?rideId=$rideId';
+  static String paymentByRideId(String rideId) => '/payment?rideId=$rideId';
 }

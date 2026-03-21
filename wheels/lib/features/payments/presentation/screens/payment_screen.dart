@@ -2,29 +2,33 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_spacing.dart';
+import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../../rides/domain/entities/rides_entity.dart';
+import '../../../rides/presentation/models/ride_listing.dart';
+import '../../../rides/presentation/providers/rides_providers.dart';
 import '../../domain/entities/payment_flow_status.dart';
 import '../providers/payment_provider.dart';
 import '../widgets/payment_status_banner.dart';
 import 'checkout_webview_screen.dart';
 
 class PaymentScreen extends ConsumerStatefulWidget {
-  const PaymentScreen({super.key});
+  const PaymentScreen({this.rideId, super.key});
+
+  final String? rideId;
 
   @override
   ConsumerState<PaymentScreen> createState() => _PaymentScreenState();
 }
 
 class _PaymentScreenState extends ConsumerState<PaymentScreen> {
-  static const _rideId = 'ride_123';
-  static const _title = 'Ride payment - Wheels';
-  static const _unitPrice = 1000.0;
   static const _quantity = 1;
+
+  String? _observedRideId;
 
   @override
   Widget build(BuildContext context) {
@@ -47,109 +51,79 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           MaterialPageRoute<void>(
             builder: (_) => CheckoutWebViewScreen(
               checkoutUrl: next.checkoutUrl!,
-              rideId: next.rideId ?? _rideId,
+              rideId: next.rideId ?? _observedRideId ?? '',
             ),
           ),
         );
       });
     });
 
-    final paymentState = ref.watch(paymentProvider);
-    final currentUser = ref.watch(authUserProvider);
-    final isLoading = paymentState.status == PaymentFlowStatus.loading;
-    final isApproved = paymentState.status == PaymentFlowStatus.approved;
-    final isPending = paymentState.status == PaymentFlowStatus.pending;
-    final isRejected = paymentState.status == PaymentFlowStatus.rejected;
-    final payerEmail = currentUser?.email ?? 'No email available';
-    final userId = currentUser?.uid;
-    final fullName = currentUser?.fullName ?? 'No signed-in user';
-    final canStartCheckout =
-        !isLoading &&
-        !isApproved &&
-        !isPending &&
-        userId != null &&
-        payerEmail.trim().isNotEmpty;
+    final fallbackRide = ref.watch(currentPassengerRideProvider).valueOrNull;
+    final resolvedRideId = widget.rideId ?? fallbackRide?.id;
+
+    if (resolvedRideId != null && _observedRideId != resolvedRideId) {
+      _observedRideId = resolvedRideId;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        ref.read(paymentProvider.notifier).observeRide(resolvedRideId);
+      });
+    }
+
+    if (resolvedRideId == null) {
+      return AppScaffold(
+        title: 'Ride payment',
+        child: _MissingRideCard(
+          message:
+              'No ride is linked to your account yet. Apply to a ride first and then return here to pay.',
+        ),
+      );
+    }
+
+    final rideAsync = ref.watch(rideProvider(resolvedRideId));
 
     return AppScaffold(
       title: 'Ride payment',
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _HeroCard(
-              amount: _unitPrice,
-              rideId: _rideId,
-              title: _title,
-              status: paymentState.status,
-            ),
-            const SizedBox(height: AppSpacing.l),
-            PaymentStatusBanner(
-              status: paymentState.status,
-              message: paymentState.message,
-            ),
-            if (isLoading) ...[
-              const SizedBox(height: AppSpacing.m),
-              const LinearProgressIndicator(),
-            ],
-            const SizedBox(height: AppSpacing.l),
-            _UserStatusCard(
-              paymentState: paymentState,
-              onBack: () => _goBack(context),
-            ),
-            const SizedBox(height: AppSpacing.l),
-            _DetailsCard(
-              paymentState: paymentState,
-              unitPrice: _unitPrice,
-              quantity: _quantity,
-              payerEmail: payerEmail,
-              userId: userId ?? 'No signed-in user',
-              fullName: fullName,
-              fallbackRideId: _rideId,
-            ),
-            const SizedBox(height: AppSpacing.l),
-            if (canStartCheckout)
-              AppButton(
-                label: 'Pay with Mercado Pago',
-                onPressed: () {
-                  ref.read(paymentProvider.notifier).startCheckout(
-                    rideId: _rideId,
-                    title: _title,
-                    unitPrice: _unitPrice,
+      child: rideAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => _MissingRideCard(message: error.toString()),
+        data: (ride) {
+          if (ride == null) {
+            return const _MissingRideCard(
+              message:
+                  'This ride is no longer available. Please go back to the dashboard and select another trip.',
+            );
+          }
+
+          return _PaymentContent(
+            ride: ride,
+            quantity: _quantity,
+            paymentState: ref.watch(paymentProvider),
+            currentUser: ref.watch(authUserProvider),
+            onBack: () => _goBack(context),
+            onStartCheckout: () {
+              final user = ref.read(authUserProvider);
+              if (user == null) {
+                return;
+              }
+              ref.read(paymentProvider.notifier).startCheckout(
+                    rideId: ride.id,
+                    title: _checkoutTitle(ride),
+                    unitPrice: ride.pricePerSeat.toDouble(),
                     quantity: _quantity,
-                    payerEmail: payerEmail,
-                    userId: userId,
+                    payerEmail: user.email,
+                    userId: user.uid,
                   );
-                },
-              ),
-            if (!canStartCheckout) ...[
-              AppButton(
-                label: 'Back to dashboard',
-                onPressed: () => _goBack(context),
-                isPrimary: false,
-              ),
-              if (isRejected) ...[
-                const SizedBox(height: AppSpacing.s),
-                AppButton(
-                  label: 'Try payment again',
-                  onPressed: userId == null
-                      ? null
-                      : () {
-                          ref.read(paymentProvider.notifier).startCheckout(
-                            rideId: _rideId,
-                            title: _title,
-                            unitPrice: _unitPrice,
-                            quantity: _quantity,
-                            payerEmail: payerEmail,
-                            userId: userId,
-                          );
-                        },
-                ),
-              ],
-            ],
-          ],
-        ),
+            },
+          );
+        },
       ),
     );
+  }
+
+  static String _checkoutTitle(RidesEntity ride) {
+    return 'Ride payment - ${ride.origin} to ${ride.destination}';
   }
 
   void _goBack(BuildContext context) {
@@ -158,6 +132,140 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       return;
     }
     context.go(AppRoutes.dashboard);
+  }
+}
+
+class _PaymentContent extends StatelessWidget {
+  const _PaymentContent({
+    required this.ride,
+    required this.quantity,
+    required this.paymentState,
+    required this.currentUser,
+    required this.onBack,
+    required this.onStartCheckout,
+  });
+
+  final RidesEntity ride;
+  final int quantity;
+  final PaymentState paymentState;
+  final dynamic currentUser;
+  final VoidCallback onBack;
+  final VoidCallback onStartCheckout;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLoading = paymentState.status == PaymentFlowStatus.loading;
+    final isApproved = paymentState.status == PaymentFlowStatus.approved;
+    final isPending = paymentState.status == PaymentFlowStatus.pending;
+    final isRejected = paymentState.status == PaymentFlowStatus.rejected;
+    final payerEmail = currentUser?.email ?? 'No email available';
+    final userId = currentUser?.uid;
+    final fullName = currentUser?.fullName ?? 'No signed-in user';
+    final amount = ride.pricePerSeat.toDouble();
+    final canStartCheckout =
+        !isLoading &&
+        !isApproved &&
+        !isPending &&
+        userId != null &&
+        payerEmail.trim().isNotEmpty;
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _HeroCard(
+            amount: amount,
+            rideId: ride.id,
+            title: 'Ride payment - ${ride.origin} to ${ride.destination}',
+            status: paymentState.status,
+          ),
+          const SizedBox(height: AppSpacing.l),
+          PaymentStatusBanner(
+            status: paymentState.status,
+            message: paymentState.message,
+          ),
+          if (isLoading) ...[
+            const SizedBox(height: AppSpacing.m),
+            const LinearProgressIndicator(),
+          ],
+          const SizedBox(height: AppSpacing.l),
+          _UserStatusCard(paymentState: paymentState, onBack: onBack),
+          const SizedBox(height: AppSpacing.l),
+          _DetailsCard(
+            paymentState: paymentState,
+            ride: ride,
+            unitPrice: amount,
+            quantity: quantity,
+            payerEmail: payerEmail,
+            userId: userId ?? 'No signed-in user',
+            fullName: fullName,
+          ),
+          const SizedBox(height: AppSpacing.l),
+          if (canStartCheckout)
+            AppButton(
+              label: 'Pay with Mercado Pago',
+              onPressed: onStartCheckout,
+            )
+          else ...[
+            AppButton(
+              label: 'Back to dashboard',
+              onPressed: onBack,
+              isPrimary: false,
+            ),
+            if (isRejected) ...[
+              const SizedBox(height: AppSpacing.s),
+              AppButton(
+                label: 'Try payment again',
+                onPressed: userId == null ? null : onStartCheckout,
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MissingRideCard extends StatelessWidget {
+  const _MissingRideCard({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.l),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.receipt_long_outlined, size: 40, color: AppColors.primary),
+            const SizedBox(height: AppSpacing.m),
+            Text(
+              'No ride ready for payment',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                  ),
+            ),
+            const SizedBox(height: AppSpacing.s),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -306,16 +414,16 @@ class _UserStatusCard extends StatelessWidget {
           Text(
             _userTitle(status),
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: AppColors.primary,
-            ),
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primary,
+                ),
           ),
           const SizedBox(height: AppSpacing.s),
           Text(
             _userDescription(status, paymentState.message),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.textSecondary,
-            ),
+                  color: AppColors.textSecondary,
+                ),
           ),
           const SizedBox(height: AppSpacing.m),
           AppButton(
@@ -386,21 +494,21 @@ class _UserStatusCard extends StatelessWidget {
 class _DetailsCard extends StatelessWidget {
   const _DetailsCard({
     required this.paymentState,
+    required this.ride,
     required this.unitPrice,
     required this.quantity,
     required this.payerEmail,
     required this.userId,
     required this.fullName,
-    required this.fallbackRideId,
   });
 
   final PaymentState paymentState;
+  final RidesEntity ride;
   final double unitPrice;
   final int quantity;
   final String payerEmail;
   final String userId;
   final String fullName;
-  final String fallbackRideId;
 
   @override
   Widget build(BuildContext context) {
@@ -418,23 +526,24 @@ class _DetailsCard extends StatelessWidget {
           Text(
             'Payment details',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: AppColors.primary,
-            ),
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                ),
           ),
           const SizedBox(height: AppSpacing.m),
           _DetailRow(label: 'Passenger', value: fullName),
-          _DetailRow(label: 'User ID', value: userId),
           _DetailRow(label: 'Payer', value: payerEmail),
+          _DetailRow(label: 'User ID', value: userId),
+          _DetailRow(label: 'Driver', value: ride.driverName),
+          _DetailRow(label: 'Route', value: '${ride.origin} -> ${ride.destination}'),
+          _DetailRow(label: 'Date', value: ride.dateLabel),
+          _DetailRow(label: 'Departure', value: ride.departureLabel),
           _DetailRow(label: 'Quantity', value: quantity.toString()),
           _DetailRow(
             label: 'Unit price',
             value: '\$${unitPrice.toStringAsFixed(0)} COP',
           ),
-          _DetailRow(
-            label: 'Ride ID',
-            value: paymentState.rideId ?? fallbackRideId,
-          ),
+          _DetailRow(label: 'Ride ID', value: paymentState.rideId ?? ride.id),
           _DetailRow(label: 'Flow status', value: paymentState.status.name),
           _DetailRow(
             label: 'DB status',
@@ -464,9 +573,9 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
             ),
           ),
           const SizedBox(width: AppSpacing.s),
@@ -474,8 +583,8 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               value,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.primary,
-              ),
+                    color: AppColors.primary,
+                  ),
             ),
           ),
         ],

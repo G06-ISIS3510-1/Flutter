@@ -59,6 +59,22 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
   StreamSubscription<Uri>? _deepLinkSubscription;
   StreamSubscription<PaymentRecord?>? _paymentSubscription;
 
+  void observeRide(String rideId) {
+    if (rideId.isEmpty) {
+      return;
+    }
+
+    if (state.rideId != rideId) {
+      state = PaymentState(
+        status: PaymentFlowStatus.idle,
+        rideId: rideId,
+        message: 'Ready to pay for this ride.',
+      );
+    }
+
+    bindPaymentStream(rideId);
+  }
+
   Future<void> startCheckout({
     required String rideId,
     required String title,

@@ -9,6 +9,8 @@ abstract class RidesRepository {
 
   Stream<RidesEntity?> watchCurrentDriverRide(String driverId);
 
+  Stream<RidesEntity?> watchCurrentPassengerRide(String passengerId);
+
   Stream<List<RideApplicationEntity>> watchRideApplications(String rideId);
 
   Stream<RideApplicationEntity?> watchPassengerApplication({

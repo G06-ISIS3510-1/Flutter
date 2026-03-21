@@ -24,6 +24,11 @@ class RidesRepositoryImpl extends RidesRepository {
   }
 
   @override
+  Stream<RidesEntity?> watchCurrentPassengerRide(String passengerId) {
+    return _remoteDataSource.watchCurrentPassengerRide(passengerId);
+  }
+
+  @override
   Stream<List<RideApplicationEntity>> watchRideApplications(String rideId) {
     return _remoteDataSource.watchRideApplications(rideId);
   }
