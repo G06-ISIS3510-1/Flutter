@@ -149,6 +149,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       if (!mounted) return;
       final role = authEntity.role == 'driver'
           ? UserRole.driver
+          : authEntity.role == 'admin'
+          ? UserRole.admin
           : UserRole.passenger;
       _completeAuth(authEntity, role);
       _showSnackBar('Welcome back!');

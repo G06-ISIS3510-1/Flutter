@@ -75,6 +75,7 @@ class ProfileMenuItemData {
 final profileViewDataProvider = Provider<ProfileViewData>((ref) {
   final user = ref.watch(authUserProvider);
   final role = ref.watch(currentUserRoleProvider);
+
   final rawName = user?.fullName.trim() ?? '';
   final shouldUseMockIdentity =
       rawName.isEmpty || rawName.toLowerCase() == 'dev access';
@@ -84,12 +85,63 @@ final profileViewDataProvider = Provider<ProfileViewData>((ref) {
       ? user!.email.trim()
       : 'm.gonzalez@uniandes.edu.co';
 
+  final menuSections = <ProfileMenuSectionData>[
+    ProfileMenuSectionData(
+      title: 'Account',
+      items: [
+        const ProfileMenuItemData(
+          title: 'Trust & Fairness',
+          subtitle: 'View your reliability metrics',
+          icon: Icons.star_border_rounded,
+          route: AppRoutes.trust,
+        ),
+        const ProfileMenuItemData(
+          title: 'Payment Methods',
+          subtitle: 'Manage your payment options',
+          icon: Icons.credit_card_outlined,
+          route: AppRoutes.payment,
+        ),
+        const ProfileMenuItemData(
+          title: 'Rewards & Points',
+          subtitle: 'Redeem your 142 points',
+          icon: Icons.workspace_premium_outlined,
+        ),
+        if (role == UserRole.admin)
+          const ProfileMenuItemData(
+            title: 'Engagement Analytics',
+            subtitle: 'Inspect user connection patterns',
+            icon: Icons.bar_chart_rounded,
+            route: AppRoutes.adminAnalytics,
+          ),
+      ],
+    ),
+    const ProfileMenuSectionData(
+      title: 'Settings',
+      items: [
+        ProfileMenuItemData(
+          title: 'Notifications',
+          subtitle: 'Manage notification preferences',
+          icon: Icons.notifications_none_rounded,
+          route: AppRoutes.notifications,
+        ),
+        ProfileMenuItemData(
+          title: 'Privacy & Security',
+          subtitle: 'Control your privacy settings',
+          icon: Icons.shield_outlined,
+        ),
+        ProfileMenuItemData(
+          title: 'Help & Support',
+          subtitle: 'Get help and contact support',
+          icon: Icons.help_outline_rounded,
+        ),
+      ],
+    ),
+  ];
+
   return ProfileViewData(
     fullName: fullName,
     initials: _buildInitials(fullName),
-    badgeLabel: role == UserRole.driver
-        ? 'Verified Driver'
-        : 'Verified Student',
+    badgeLabel: _badgeLabel(role),
     memberSince: 'Member since Jan 2025',
     metrics: const [
       ProfileMetricData(
@@ -120,57 +172,13 @@ final profileViewDataProvider = Provider<ProfileViewData>((ref) {
         value: email,
         icon: Icons.mail_outline_rounded,
       ),
-      const ProfileContactData(
-        label: 'Phone',
-        value: '+57 300 123 4567',
-        icon: Icons.phone_outlined,
+      ProfileContactData(
+        label: 'Role',
+        value: _roleLabel(role),
+        icon: Icons.badge_outlined,
       ),
     ],
-    menuSections: const [
-      ProfileMenuSectionData(
-        title: 'Account',
-        items: [
-          ProfileMenuItemData(
-            title: 'Trust & Fairness',
-            subtitle: 'View your reliability metrics',
-            icon: Icons.star_border_rounded,
-            route: AppRoutes.trust,
-          ),
-          ProfileMenuItemData(
-            title: 'Payment Methods',
-            subtitle: 'Manage your payment options',
-            icon: Icons.credit_card_outlined,
-            route: AppRoutes.payment,
-          ),
-          ProfileMenuItemData(
-            title: 'Rewards & Points',
-            subtitle: 'Redeem your 142 points',
-            icon: Icons.workspace_premium_outlined,
-          ),
-        ],
-      ),
-      ProfileMenuSectionData(
-        title: 'Settings',
-        items: [
-          ProfileMenuItemData(
-            title: 'Notifications',
-            subtitle: 'Manage notification preferences',
-            icon: Icons.notifications_none_rounded,
-            route: AppRoutes.notifications,
-          ),
-          ProfileMenuItemData(
-            title: 'Privacy & Security',
-            subtitle: 'Control your privacy settings',
-            icon: Icons.shield_outlined,
-          ),
-          ProfileMenuItemData(
-            title: 'Help & Support',
-            subtitle: 'Get help and contact support',
-            icon: Icons.help_outline_rounded,
-          ),
-        ],
-      ),
-    ],
+    menuSections: menuSections,
   );
 });
 
@@ -182,12 +190,37 @@ final profileSummaryProvider = Provider<String>((ref) {
 final profileCompletionProvider = StateProvider<int>((ref) => 98);
 
 String _buildInitials(String fullName) {
-  final parts = fullName.trim().split(RegExp(r'\s+'));
-  if (parts.isEmpty || fullName.trim().isEmpty) {
+  final trimmed = fullName.trim();
+  if (trimmed.isEmpty) {
     return 'MG';
   }
+
+  final parts = trimmed.split(RegExp(r'\s+'));
   if (parts.length == 1) {
     return parts.first.substring(0, 1).toUpperCase();
   }
+
   return '${parts.first[0]}${parts[1][0]}'.toUpperCase();
+}
+
+String _roleLabel(UserRole role) {
+  switch (role) {
+    case UserRole.admin:
+      return 'Admin';
+    case UserRole.driver:
+      return 'Driver';
+    case UserRole.passenger:
+      return 'Passenger';
+  }
+}
+
+String _badgeLabel(UserRole role) {
+  switch (role) {
+    case UserRole.admin:
+      return 'Platform Administrator';
+    case UserRole.driver:
+      return 'Verified Driver';
+    case UserRole.passenger:
+      return 'Verified Student';
+  }
 }
