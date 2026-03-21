@@ -3,10 +3,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/providers/auth_providers.dart';
 import '../../router/app_routes.dart';
-import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
+import '../../theme/app_theme_palette.dart';
 
 enum AppBottomNavTab { home, middle, alerts, profile }
 
@@ -25,6 +25,7 @@ class AppBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final availableWidth =
         MediaQuery.sizeOf(context).width - (AppSpacing.m * 2);
     final navWidth = availableWidth > 430 ? 430.0 : availableWidth;
@@ -43,9 +44,9 @@ class AppBottomNav extends StatelessWidget {
             SizedBox(
               width: navWidth,
               child: Container(
-                decoration: const BoxDecoration(
-                  color: AppColors.card,
-                  borderRadius: BorderRadius.only(
+                decoration: BoxDecoration(
+                  color: palette.card,
+                  borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(AppRadius.lg),
                     topRight: Radius.circular(AppRadius.lg),
                   ),
@@ -60,6 +61,7 @@ class AppBottomNav extends StatelessWidget {
                 child: NavigationBar(
                   selectedIndex: _selectedIndex,
                   indicatorColor: Colors.transparent,
+                  backgroundColor: palette.card,
                   labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
                   onDestinationSelected: (index) =>
                       _onDestinationSelected(context, index),
@@ -125,15 +127,14 @@ class _ActiveNavIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       width: 36,
       height: 36,
-      decoration: const BoxDecoration(
-        color: AppColors.primary,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: palette.primary, shape: BoxShape.circle),
       alignment: Alignment.center,
-      child: Icon(icon, color: AppColors.primaryForeground, size: 18),
+      child: Icon(icon, color: palette.primaryForeground, size: 18),
     );
   }
 }

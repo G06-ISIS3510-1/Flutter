@@ -5,6 +5,7 @@ import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
+import '../../../../theme/app_theme_palette.dart';
 import '../providers/auth_providers.dart';
 
 class AuthHeader extends StatelessWidget {
@@ -21,13 +22,14 @@ class AuthHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextButton.icon(
           onPressed: onBack,
           style: TextButton.styleFrom(
-            foregroundColor: AppColors.primary,
+            foregroundColor: palette.primary,
             padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
           ),
           icon: const Icon(Icons.chevron_left_rounded, size: 24),
@@ -41,8 +43,8 @@ class AuthHeader extends StatelessWidget {
         const SizedBox(height: 22),
         Text(
           title,
-          style: const TextStyle(
-            color: AppColors.primary,
+          style: TextStyle(
+            color: palette.textPrimary,
             fontSize: 34,
             fontWeight: FontWeight.w800,
             letterSpacing: -0.8,
@@ -51,8 +53,8 @@ class AuthHeader extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           subtitle,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
+          style: TextStyle(
+            color: palette.textSecondary,
             fontSize: 16,
             height: 1.4,
           ),
@@ -74,10 +76,11 @@ class AuthModeToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: const Color(0xFFEAF0F8),
+        color: palette.surfaceMuted,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -108,10 +111,11 @@ class AuthInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.card,
         borderRadius: BorderRadius.circular(24),
         boxShadow: AppShadows.lg,
       ),
@@ -123,8 +127,8 @@ class AuthInfoCard extends StatelessWidget {
               Container(
                 width: 42,
                 height: 42,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFEAFBF4),
+                decoration: BoxDecoration(
+                  color: palette.accentSoft,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -133,11 +137,11 @@ class AuthInfoCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Text(
                   'Only @uniandes.edu.co accounts can register',
                   style: TextStyle(
-                    color: AppColors.primary,
+                    color: palette.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                   ),
@@ -146,23 +150,23 @@ class AuthInfoCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Type only your university username and we will complete the official Uniandes email for you automatically.',
-            style: TextStyle(color: AppColors.textSecondary, height: 1.4),
+            style: TextStyle(color: palette.textSecondary, height: 1.4),
           ),
           const SizedBox(height: 12),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFEAFBF4),
+              color: palette.accentSoft,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFBDEED9)),
+              border: Border.all(color: palette.accent.withValues(alpha: 0.4)),
             ),
-            child: const Text(
+            child: Text(
               'Your account will be created with Firebase Authentication and your profile will be saved securely in Firestore.',
               style: TextStyle(
-                color: AppColors.accentHover,
+                color: palette.accent,
                 fontSize: 13,
                 height: 1.4,
                 fontWeight: FontWeight.w600,
@@ -285,6 +289,7 @@ class RegisterForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Form(
       key: formKey,
       autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -327,8 +332,8 @@ class RegisterForm extends StatelessWidget {
             constructedEmail.isEmpty
                 ? 'Your university email will be: username@uniandes.edu.co'
                 : 'Your university email will be: $constructedEmail',
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: palette.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -368,10 +373,10 @@ class RegisterForm extends StatelessWidget {
             },
           ),
           const SizedBox(height: AppSpacing.l),
-          const Text(
+          Text(
             'Choose your role',
             style: TextStyle(
-              color: AppColors.primary,
+              color: palette.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
@@ -380,9 +385,9 @@ class RegisterForm extends StatelessWidget {
           RoleSelector(selectedRole: selectedRole, onSelected: onRoleSelected),
           if (selectedRole == null) ...[
             const SizedBox(height: 10),
-            const Text(
+            Text(
               'Select whether you want to join as a driver or passenger.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              style: TextStyle(color: palette.textSecondary, fontSize: 13),
             ),
           ],
           const SizedBox(height: AppSpacing.xl),
@@ -510,10 +515,11 @@ class AuthFormShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.card,
         borderRadius: BorderRadius.circular(28),
         boxShadow: AppShadows.lg,
       ),
@@ -529,10 +535,11 @@ class DevAccessButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return TextButton.icon(
       onPressed: onPressed,
       style: TextButton.styleFrom(
-        foregroundColor: AppColors.textSecondary,
+        foregroundColor: palette.textSecondary,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       ),
       icon: const Icon(Icons.code_rounded, size: 18),
@@ -549,11 +556,12 @@ class _AuthLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       width: 78,
       height: 78,
       decoration: BoxDecoration(
-        color: AppColors.primary,
+        color: palette.primary,
         borderRadius: BorderRadius.circular(24),
         boxShadow: AppShadows.xl,
       ),
@@ -575,6 +583,7 @@ class _ModeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
@@ -582,7 +591,7 @@ class _ModeButton extends StatelessWidget {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : Colors.transparent,
+          color: isSelected ? palette.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(999),
         ),
         alignment: Alignment.center,
@@ -590,8 +599,8 @@ class _ModeButton extends StatelessWidget {
           label,
           style: TextStyle(
             color: isSelected
-                ? AppColors.primaryForeground
-                : AppColors.textSecondary,
+                ? palette.primaryForeground
+                : palette.textSecondary,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -617,16 +626,19 @@ class _RoleOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppRadius.md),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEAFBF4) : Colors.white,
+          color: isSelected ? palette.accentSoft : palette.card,
           borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
-            color: isSelected ? const Color(0xFFBDEED9) : AppColors.border,
+            color: isSelected
+                ? palette.accent.withValues(alpha: 0.4)
+                : palette.border,
             width: 1.2,
           ),
         ),
@@ -638,20 +650,20 @@ class _RoleOption extends StatelessWidget {
               height: 42,
               decoration: BoxDecoration(
                 color: isSelected
-                    ? AppColors.accent.withValues(alpha: 0.16)
-                    : const Color(0xFFF4F7FB),
+                    ? palette.accent.withValues(alpha: 0.16)
+                    : palette.cardSecondary,
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 icon,
-                color: isSelected ? AppColors.accentHover : AppColors.secondary,
+                color: isSelected ? AppColors.accentHover : palette.secondary,
               ),
             ),
             const SizedBox(height: 12),
             Text(
               title,
-              style: const TextStyle(
-                color: AppColors.primary,
+              style: TextStyle(
+                color: palette.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w800,
               ),
@@ -659,8 +671,8 @@ class _RoleOption extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               subtitle,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
+              style: TextStyle(
+                color: palette.textSecondary,
                 fontSize: 13,
               ),
             ),

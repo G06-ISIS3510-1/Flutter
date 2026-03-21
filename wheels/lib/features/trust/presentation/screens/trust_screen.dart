@@ -8,9 +8,9 @@ import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
-import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
+import '../../../../theme/app_theme_palette.dart';
 import '../providers/trust_providers.dart';
 
 class TrustScreen extends ConsumerWidget {
@@ -18,13 +18,14 @@ class TrustScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.palette;
     final trust = ref.watch(trustViewDataProvider);
     final role = ref.watch(currentUserRoleProvider);
 
     return AppScaffold(
       title: 'Trust & Fairness',
       showAppBar: false,
-      backgroundColor: const Color(0xFFF3F6FB),
+      backgroundColor: palette.background,
       maxScrollableWidth: 440,
       scrollableHeader: _TrustHeader(
         onBack: () {
@@ -53,7 +54,7 @@ class TrustScreen extends ConsumerWidget {
               offset: const Offset(0, -26),
               child: _TrustOverviewCard(trust: trust),
             ),
-            const _SectionTitle('Performance Breakdown'),
+            _SectionTitle(label: 'Performance Breakdown'),
             const SizedBox(height: AppSpacing.m),
             _PaymentReliabilityCard(data: trust.paymentReliability),
             const SizedBox(height: AppSpacing.m),
@@ -61,11 +62,11 @@ class TrustScreen extends ConsumerWidget {
             const SizedBox(height: AppSpacing.m),
             _CancellationCard(data: trust.cancellation),
             const SizedBox(height: AppSpacing.xl),
-            const _SectionTitle('Accountability System'),
+            _SectionTitle(label: 'Accountability System'),
             const SizedBox(height: AppSpacing.m),
             _PolicyCard(steps: trust.policySteps, notice: trust.policyNotice),
             const SizedBox(height: AppSpacing.xl),
-            const _SectionTitle('Punctuality Rewards'),
+            _SectionTitle(label: 'Punctuality Rewards'),
             const SizedBox(height: AppSpacing.m),
             _RewardsCard(
               rewardPoints: trust.rewardPoints,
@@ -85,16 +86,18 @@ class _TrustHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(18, 10, 18, 34),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.primary, AppColors.primaryLight],
+          colors: [palette.primary, palette.primaryLight],
         ),
-        borderRadius: BorderRadius.only(
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(34),
           bottomRight: Radius.circular(34),
         ),
@@ -105,7 +108,7 @@ class _TrustHeader extends StatelessWidget {
           TextButton.icon(
             onPressed: onBack,
             style: TextButton.styleFrom(
-              foregroundColor: AppColors.primaryForeground,
+              foregroundColor: palette.primaryForeground,
               padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
             ),
             icon: const Icon(Icons.chevron_left_rounded, size: 24),
@@ -115,19 +118,19 @@ class _TrustHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.m),
-          const Text(
+          Text(
             'Trust & Fairness',
             style: TextStyle(
-              color: AppColors.primaryForeground,
+              color: palette.primaryForeground,
               fontSize: 26,
               fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: AppSpacing.s),
-          const Text(
+          Text(
             'Your reliability and accountability metrics',
             style: TextStyle(
-              color: Color(0xFFE2ECF8),
+              color: palette.primaryForeground.withValues(alpha: 0.82),
               fontSize: 16,
               fontWeight: FontWeight.w500,
             ),
@@ -145,11 +148,13 @@ class _TrustOverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(34),
         boxShadow: AppShadows.xl,
       ),
@@ -160,8 +165,8 @@ class _TrustOverviewCard extends StatelessWidget {
           Text(
             trust.headline,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.primary,
+            style: TextStyle(
+              color: palette.primary,
               fontSize: 24,
               fontWeight: FontWeight.w800,
             ),
@@ -170,8 +175,8 @@ class _TrustOverviewCard extends StatelessWidget {
           Text(
             trust.headlineSubtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: palette.textSecondary,
               fontSize: 16,
               fontWeight: FontWeight.w500,
             ),
@@ -191,6 +196,8 @@ class _ScoreRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return SizedBox(
       width: 190,
       height: 190,
@@ -199,25 +206,30 @@ class _ScoreRing extends StatelessWidget {
         children: [
           CustomPaint(
             size: const Size.square(190),
-            painter: _ScoreRingPainter(progress: score / 100),
+            painter: _ScoreRingPainter(
+              progress: score / 100,
+              trackColor: palette.border,
+              startColor: palette.accent,
+              endColor: palette.secondary,
+            ),
           ),
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 '$score',
-                style: const TextStyle(
-                  color: AppColors.primary,
+                style: TextStyle(
+                  color: palette.primary,
                   fontSize: 58,
                   fontWeight: FontWeight.w900,
                   height: 0.95,
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'Score',
                 style: TextStyle(
-                  color: AppColors.textSecondary,
+                  color: palette.textSecondary,
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
                 ),
@@ -231,9 +243,17 @@ class _ScoreRing extends StatelessWidget {
 }
 
 class _ScoreRingPainter extends CustomPainter {
-  const _ScoreRingPainter({required this.progress});
+  const _ScoreRingPainter({
+    required this.progress,
+    required this.trackColor,
+    required this.startColor,
+    required this.endColor,
+  });
 
   final double progress;
+  final Color trackColor;
+  final Color startColor;
+  final Color endColor;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -242,17 +262,17 @@ class _ScoreRingPainter extends CustomPainter {
     final rect = Rect.fromCircle(center: center, radius: radius);
 
     final trackPaint = Paint()
-      ..color = const Color(0xFFE9EEF7)
+      ..color = trackColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 14;
     canvas.drawCircle(center, radius, trackPaint);
 
     final progressPaint = Paint()
-      ..shader = const SweepGradient(
+      ..shader = SweepGradient(
         startAngle: -math.pi / 2,
         endAngle: math.pi * 1.5,
-        colors: [Color(0xFF63D7AB), AppColors.secondary],
-        transform: GradientRotation(-math.pi / 2),
+        colors: [startColor, endColor],
+        transform: const GradientRotation(-math.pi / 2),
       ).createShader(rect)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 14
@@ -269,7 +289,10 @@ class _ScoreRingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ScoreRingPainter oldDelegate) {
-    return oldDelegate.progress != progress;
+    return oldDelegate.progress != progress ||
+        oldDelegate.trackColor != trackColor ||
+        oldDelegate.startColor != startColor ||
+        oldDelegate.endColor != endColor;
   }
 }
 
@@ -310,10 +333,12 @@ class _MetricTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 18),
       decoration: BoxDecoration(
-        color: const Color(0xFFF6F8FC),
+        color: palette.cardSecondary,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -330,8 +355,8 @@ class _MetricTile extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             metric.value,
-            style: const TextStyle(
-              color: AppColors.primary,
+            style: TextStyle(
+              color: palette.primary,
               fontSize: 20,
               fontWeight: FontWeight.w800,
             ),
@@ -340,8 +365,8 @@ class _MetricTile extends StatelessWidget {
           Text(
             metric.label,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: palette.textSecondary,
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
@@ -353,16 +378,18 @@ class _MetricTile extends StatelessWidget {
 }
 
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.label);
+  const _SectionTitle({required this.label});
 
   final String label;
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Text(
       label,
-      style: const TextStyle(
-        color: Color(0xFF59749B),
+      style: TextStyle(
+        color: palette.textSecondary,
         fontSize: 18,
         fontWeight: FontWeight.w700,
       ),
@@ -377,11 +404,13 @@ class _InfoCardShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(30),
         boxShadow: AppShadows.lg,
       ),
@@ -407,6 +436,8 @@ class _CardHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Row(
       children: [
         Container(
@@ -425,8 +456,8 @@ class _CardHeader extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(
-                  color: AppColors.primary,
+                style: TextStyle(
+                  color: palette.primary,
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
                 ),
@@ -434,8 +465,8 @@ class _CardHeader extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 subtitle,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: palette.textSecondary,
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
                 ),
@@ -455,6 +486,7 @@ class _PaymentReliabilityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final progress = data.completedPayments / data.totalPayments;
 
     return _InfoCardShell(
@@ -463,7 +495,7 @@ class _PaymentReliabilityCard extends StatelessWidget {
         children: [
           const _CardHeader(
             icon: Icons.attach_money_rounded,
-            iconColor: AppColors.accent,
+            iconColor: Color(0xFF00D9A3),
             iconBackground: Color(0xFFEAFBF4),
             title: 'Payment Reliability',
             subtitle: 'Track record of timely payments',
@@ -471,11 +503,11 @@ class _PaymentReliabilityCard extends StatelessWidget {
           const SizedBox(height: 20),
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
                   'On-time payments',
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: palette.textSecondary,
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
                   ),
@@ -483,8 +515,8 @@ class _PaymentReliabilityCard extends StatelessWidget {
               ),
               Text(
                 '${data.completedPayments}/${data.totalPayments}',
-                style: const TextStyle(
-                  color: AppColors.accent,
+                style: TextStyle(
+                  color: palette.accent,
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
                 ),
@@ -497,15 +529,15 @@ class _PaymentReliabilityCard extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 10,
-              backgroundColor: const Color(0xFFE6ECF5),
-              valueColor: const AlwaysStoppedAnimation(Color(0xFF64D6AB)),
+              backgroundColor: palette.border,
+              valueColor: AlwaysStoppedAnimation(palette.accent),
             ),
           ),
           const SizedBox(height: 14),
           Text(
             data.successRateLabel,
-            style: const TextStyle(
-              color: Color(0xFF5B7599),
+            style: TextStyle(
+              color: palette.textSecondary,
               fontSize: 15,
               fontWeight: FontWeight.w500,
             ),
@@ -523,13 +555,15 @@ class _PunctualityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return _InfoCardShell(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _CardHeader(
             icon: Icons.schedule_rounded,
-            iconColor: AppColors.secondary,
+            iconColor: Color(0xFF5B89C8),
             iconBackground: Color(0xFFEAF2FD),
             title: 'Punctuality Score',
             subtitle: 'Arrival time and waiting detection',
@@ -549,23 +583,23 @@ class _PunctualityCard extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
             decoration: BoxDecoration(
-              color: const Color(0xFFEAFBF4),
+              color: palette.accentSoft,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFBEEFD9)),
+              border: Border.all(color: palette.accent.withValues(alpha: 0.35)),
             ),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.trending_up_rounded,
-                  color: AppColors.accent,
+                  color: palette.accent,
                   size: 22,
                 ),
                 const SizedBox(width: AppSpacing.s),
                 Expanded(
                   child: Text(
                     data.message,
-                    style: const TextStyle(
-                      color: AppColors.accent,
+                    style: TextStyle(
+                      color: palette.accent,
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                     ),
@@ -587,13 +621,15 @@ class _CancellationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return _InfoCardShell(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _CardHeader(
             icon: Icons.warning_amber_rounded,
-            iconColor: AppColors.warning,
+            iconColor: Color(0xFFFFA726),
             iconBackground: Color(0xFFFFF3E8),
             title: 'Cancellation Record',
             subtitle: 'Last-minute cancellations impact score',
@@ -610,14 +646,14 @@ class _CancellationCard extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF6EC),
+              color: palette.warning.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFF7D4A5)),
+              border: Border.all(color: palette.warning.withValues(alpha: 0.35)),
             ),
             child: RichText(
               text: TextSpan(
-                style: const TextStyle(
-                  color: AppColors.primary,
+                style: TextStyle(
+                  color: palette.primary,
                   fontSize: 15,
                   height: 1.4,
                 ),
@@ -648,13 +684,15 @@ class _MetricLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Row(
       children: [
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(
-              color: Color(0xFF5B7599),
+            style: TextStyle(
+              color: palette.textSecondary,
               fontSize: 15,
               fontWeight: FontWeight.w500,
             ),
@@ -663,8 +701,8 @@ class _MetricLine extends StatelessWidget {
         const SizedBox(width: AppSpacing.m),
         Text(
           value,
-          style: const TextStyle(
-            color: AppColors.primary,
+          style: TextStyle(
+            color: palette.primary,
             fontSize: 15,
             fontWeight: FontWeight.w800,
           ),
@@ -682,18 +720,20 @@ class _PolicyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return _InfoCardShell(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.shield_outlined, color: AppColors.primary, size: 34),
-              SizedBox(width: 14),
+              Icon(Icons.shield_outlined, color: palette.primary, size: 34),
+              const SizedBox(width: 14),
               Text(
                 'Cancellation Policy',
                 style: TextStyle(
-                  color: AppColors.primary,
+                  color: palette.primary,
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
                 ),
@@ -706,20 +746,20 @@ class _PolicyCard extends StatelessWidget {
             if (step != steps.last) const SizedBox(height: 16),
           ],
           const SizedBox(height: 20),
-          const Divider(color: AppColors.border, height: 1),
+          Divider(color: palette.border, height: 1),
           const SizedBox(height: 18),
           RichText(
             text: TextSpan(
-              style: const TextStyle(
-                color: Color(0xFF5B7599),
+              style: TextStyle(
+                color: palette.textSecondary,
                 fontSize: 15,
                 height: 1.55,
               ),
               children: [
-                const TextSpan(
+                TextSpan(
                   text: 'Important: ',
                   style: TextStyle(
-                    color: AppColors.primary,
+                    color: palette.primary,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -743,6 +783,8 @@ class _PolicyStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -756,8 +798,8 @@ class _PolicyStep extends StatelessWidget {
           alignment: Alignment.center,
           child: Text(
             '${step.stepNumber}',
-            style: const TextStyle(
-              color: AppColors.primaryForeground,
+            style: TextStyle(
+              color: palette.primaryForeground,
               fontSize: 16,
               fontWeight: FontWeight.w800,
             ),
@@ -770,8 +812,8 @@ class _PolicyStep extends StatelessWidget {
             children: [
               Text(
                 step.title,
-                style: const TextStyle(
-                  color: AppColors.primary,
+                style: TextStyle(
+                  color: palette.primary,
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                 ),
@@ -779,8 +821,8 @@ class _PolicyStep extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 step.description,
-                style: const TextStyle(
-                  color: Color(0xFF5B7599),
+                style: TextStyle(
+                  color: palette.textSecondary,
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
                   height: 1.35,
@@ -802,14 +844,16 @@ class _RewardsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF65D7AB), Color(0xFF57C890)],
+          colors: [palette.accent, palette.accent.withBlue(140)],
         ),
         borderRadius: BorderRadius.circular(30),
         boxShadow: AppShadows.lg,
@@ -829,7 +873,7 @@ class _RewardsCard extends StatelessWidget {
                 ),
                 child: const Icon(
                   Icons.workspace_premium_outlined,
-                  color: AppColors.primaryForeground,
+                  color: Colors.white,
                   size: 30,
                 ),
               ),
@@ -841,7 +885,7 @@ class _RewardsCard extends StatelessWidget {
                     Text(
                       'Reward Points',
                       style: TextStyle(
-                        color: AppColors.primaryForeground,
+                        color: Colors.white,
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
                       ),
@@ -864,7 +908,7 @@ class _RewardsCard extends StatelessWidget {
                   Text(
                     '$rewardPoints',
                     style: const TextStyle(
-                      color: AppColors.primaryForeground,
+                      color: Colors.white,
                       fontSize: 26,
                       fontWeight: FontWeight.w900,
                       height: 1,
@@ -900,7 +944,7 @@ class _RewardsCard extends StatelessWidget {
                         child: Text(
                           item.label,
                           style: const TextStyle(
-                            color: AppColors.primaryForeground,
+                            color: Colors.white,
                             fontSize: 15,
                             fontWeight: FontWeight.w500,
                           ),
@@ -909,7 +953,7 @@ class _RewardsCard extends StatelessWidget {
                       Text(
                         item.pointsLabel,
                         style: const TextStyle(
-                          color: AppColors.primaryForeground,
+                          color: Colors.white,
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
                         ),

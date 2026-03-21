@@ -2,17 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../theme/app_colors.dart';
+import '../../../../theme/app_theme_palette.dart';
+import '../../../../shared/widgets/app_bottom_nav.dart';
 
 class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final role = ref.watch(currentUserRoleProvider);
+    final palette = context.palette;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
-      bottomNavigationBar: const _BottomNav(currentIndex: 2),
+      backgroundColor: palette.background,
+      bottomNavigationBar: AppBottomNav(
+        currentTab: AppBottomNavTab.alerts,
+        role: role,
+      ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -25,8 +34,8 @@ class NotificationsScreen extends ConsumerWidget {
                   Transform.translate(
                     offset: const Offset(0, -18),
                     child: Container(
-                      decoration: const BoxDecoration(
-                        color: AppColors.background,
+                      decoration: BoxDecoration(
+                        color: palette.background,
                         borderRadius: BorderRadius.only(
                           topLeft: Radius.circular(26),
                           topRight: Radius.circular(26),
@@ -124,6 +133,8 @@ class _NotificationsHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 26),
@@ -140,13 +151,13 @@ class _NotificationsHeader extends StatelessWidget {
           InkWell(
             onTap: () => context.go(AppRoutes.dashboard),
             borderRadius: BorderRadius.circular(12),
-            child: const Padding(
+            child: Padding(
               padding: EdgeInsets.symmetric(vertical: 6),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.chevron_left, color: Colors.white, size: 24),
-                  SizedBox(width: 4),
+                  const Icon(Icons.chevron_left, color: Colors.white, size: 24),
+                  const SizedBox(width: 4),
                   Text(
                     'Back',
                     style: TextStyle(
@@ -191,7 +202,7 @@ class _NotificationsHeader extends StatelessWidget {
               TextButton(
                 onPressed: () {},
                 style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
+                  foregroundColor: palette.primaryForeground,
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                 ),
                 child: const Text(
@@ -228,20 +239,22 @@ class _NotificationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.card,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: highlighted ? const Color(0xFF4F8EF7) : Colors.transparent,
+          color: highlighted ? palette.secondary : Colors.transparent,
           width: 1.6,
         ),
         boxShadow: [
           BoxShadow(
             blurRadius: 18,
-            color: Colors.black.withValues(alpha: 0.04),
+            color: palette.shadow.withValues(alpha: 0.22),
             offset: const Offset(0, 8),
           ),
         ],
@@ -269,8 +282,8 @@ class _NotificationCard extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
+                        style: TextStyle(
+                          color: palette.textPrimary,
                           fontSize: 17,
                           fontWeight: FontWeight.w800,
                           height: 1.2,
@@ -279,8 +292,8 @@ class _NotificationCard extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text(
                         subtitle,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
+                        style: TextStyle(
+                          color: palette.textSecondary,
                           fontSize: 15,
                           height: 1.35,
                         ),
@@ -288,16 +301,16 @@ class _NotificationCard extends StatelessWidget {
                       const SizedBox(height: 10),
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.schedule,
                             size: 17,
-                            color: AppColors.textSecondary,
+                            color: palette.textSecondary,
                           ),
                           const SizedBox(width: 8),
                           Text(
                             time,
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
+                            style: TextStyle(
+                              color: palette.textSecondary,
                               fontSize: 14,
                             ),
                           ),
@@ -318,117 +331,12 @@ class _NotificationCard extends StatelessWidget {
                 height: 11,
                 decoration: BoxDecoration(
                   color: const Color(0xFF12D6A3),
+                  
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-class _BottomNav extends StatelessWidget {
-  final int currentIndex;
-  const _BottomNav({required this.currentIndex});
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              blurRadius: 20,
-              color: Colors.black.withValues(alpha: 0.08),
-              offset: const Offset(0, -10),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _NavItem(
-              label: 'Home',
-              icon: Icons.location_on_outlined,
-              selected: currentIndex == 0,
-              onTap: () => context.go(AppRoutes.dashboard),
-            ),
-            _NavItem(
-              label: 'Create',
-              icon: Icons.directions_car_outlined,
-              selected: currentIndex == 1,
-              onTap: () => context.go(AppRoutes.createRide),
-            ),
-            _NavItem(
-              label: 'Alerts',
-              icon: Icons.notifications_none,
-              selected: currentIndex == 2,
-              onTap: () => context.go(AppRoutes.notifications),
-            ),
-            _NavItem(
-              label: 'Profile',
-              icon: Icons.person_outline,
-              selected: currentIndex == 3,
-              onTap: () => context.go(AppRoutes.profile),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _NavItem({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: selected ? const Color(0xFF0B2346) : Colors.transparent,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Icon(
-                icon,
-                color: selected ? Colors.white : const Color(0xFF94A3B8),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color:
-                    selected ? const Color(0xFF0B2346) : const Color(0xFF94A3B8),
-                fontSize: 12,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
