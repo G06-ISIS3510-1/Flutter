@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
+import '../../../../theme/app_theme_palette.dart';
 import '../providers/reviews_providers.dart';
 
 class UserReviewSummaryCard extends StatelessWidget {
@@ -13,11 +13,13 @@ class UserReviewSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(34),
         boxShadow: AppShadows.xl,
       ),
@@ -35,8 +37,8 @@ class UserReviewSummaryCard extends StatelessWidget {
                   children: [
                     Text(
                       user.fullName,
-                      style: const TextStyle(
-                        color: AppColors.primary,
+                      style: TextStyle(
+                        color: palette.primary,
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
                       ),
@@ -44,16 +46,16 @@ class UserReviewSummaryCard extends StatelessWidget {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.verified_user_outlined,
-                          color: AppColors.accent,
+                          color: palette.accent,
                           size: 21,
                         ),
                         const SizedBox(width: AppSpacing.s),
                         Text(
                           user.badgeLabel,
-                          style: const TextStyle(
-                            color: AppColors.accent,
+                          style: TextStyle(
+                            color: palette.accent,
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
                           ),
@@ -63,8 +65,8 @@ class UserReviewSummaryCard extends StatelessWidget {
                     const SizedBox(height: 12),
                     Text(
                       user.memberSince,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
+                      style: TextStyle(
+                        color: palette.textSecondary,
                         fontSize: 15,
                         fontWeight: FontWeight.w500,
                       ),
@@ -79,8 +81,9 @@ class UserReviewSummaryCard extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: const Color(0xFFF6F8FC),
+              color: palette.cardSecondary,
               borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: palette.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -89,8 +92,8 @@ class UserReviewSummaryCard extends StatelessWidget {
                   children: [
                     Text(
                       user.averageRating.toStringAsFixed(1),
-                      style: const TextStyle(
-                        color: AppColors.primary,
+                      style: TextStyle(
+                        color: palette.primary,
                         fontSize: 30,
                         fontWeight: FontWeight.w900,
                       ),
@@ -102,8 +105,8 @@ class UserReviewSummaryCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   '${user.totalReviews} reviews',
-                  style: const TextStyle(
-                    color: AppColors.primary,
+                  style: TextStyle(
+                    color: palette.primary,
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
@@ -111,8 +114,8 @@ class UserReviewSummaryCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   user.supportingText,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
+                  style: TextStyle(
+                    color: palette.textSecondary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -138,30 +141,32 @@ class RatingBreakdownCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(28),
         boxShadow: AppShadows.lg,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Rating Breakdown',
             style: TextStyle(
-              color: AppColors.primary,
+              color: palette.primary,
               fontSize: 18,
               fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: AppSpacing.s),
-          const Text(
+          Text(
             'A quick look at how this rating is built',
             style: TextStyle(
-              color: AppColors.textSecondary,
+              color: palette.textSecondary,
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
@@ -189,6 +194,8 @@ class ReviewFilterChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Wrap(
       spacing: 10,
       runSpacing: 10,
@@ -199,13 +206,13 @@ class ReviewFilterChips extends StatelessWidget {
           selected: isSelected,
           label: Text(_filterLabel(filter)),
           onSelected: (_) => onSelected(filter),
-          backgroundColor: AppColors.card,
-          selectedColor: const Color(0xFFEAFBF4),
+          backgroundColor: palette.card,
+          selectedColor: palette.accentSoft,
           side: BorderSide(
-            color: isSelected ? const Color(0xFFBDEED9) : AppColors.border,
+            color: isSelected ? palette.accent.withValues(alpha: 0.45) : palette.border,
           ),
           labelStyle: TextStyle(
-            color: isSelected ? AppColors.accentHover : AppColors.textSecondary,
+            color: isSelected ? palette.accent : palette.textSecondary,
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
           ),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -234,11 +241,13 @@ class ReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(28),
         boxShadow: AppShadows.lg,
       ),
@@ -250,11 +259,11 @@ class ReviewCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 26,
-                backgroundColor: const Color(0xFFEAF2FD),
+                backgroundColor: palette.secondarySoft,
                 child: Text(
                   review.reviewerInitials,
-                  style: const TextStyle(
-                    color: AppColors.secondary,
+                  style: TextStyle(
+                    color: palette.secondary,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -266,8 +275,8 @@ class ReviewCard extends StatelessWidget {
                   children: [
                     Text(
                       review.reviewerName,
-                      style: const TextStyle(
-                        color: AppColors.primary,
+                      style: TextStyle(
+                        color: palette.primary,
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                       ),
@@ -286,8 +295,8 @@ class ReviewCard extends StatelessWidget {
               const SizedBox(width: AppSpacing.s),
               Text(
                 review.dateLabel,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: palette.textSecondary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -297,8 +306,8 @@ class ReviewCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.m),
           Text(
             review.reviewText,
-            style: const TextStyle(
-              color: Color(0xFF526A8E),
+            style: TextStyle(
+              color: palette.textSecondary,
               fontSize: 15,
               fontWeight: FontWeight.w500,
               height: 1.45,
@@ -317,11 +326,13 @@ class ReviewsEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(28),
         boxShadow: AppShadows.lg,
       ),
@@ -330,21 +341,21 @@ class ReviewsEmptyState extends StatelessWidget {
           Container(
             width: 62,
             height: 62,
-            decoration: const BoxDecoration(
-              color: Color(0xFFEAFBF4),
+            decoration: BoxDecoration(
+              color: palette.accentSoft,
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.chat_bubble_outline_rounded,
-              color: AppColors.accent,
+              color: palette.accent,
               size: 28,
             ),
           ),
           const SizedBox(height: AppSpacing.m),
-          const Text(
+          Text(
             'No reviews here yet',
             style: TextStyle(
-              color: AppColors.primary,
+              color: palette.primary,
               fontSize: 18,
               fontWeight: FontWeight.w800,
             ),
@@ -353,8 +364,8 @@ class ReviewsEmptyState extends StatelessWidget {
           Text(
             'There are no reviews available for ${_filterDescription(filter)} right now.',
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: palette.textSecondary,
               fontSize: 15,
               fontWeight: FontWeight.w500,
               height: 1.4,
@@ -382,22 +393,24 @@ class _UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       width: 94,
       height: 94,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF5E8BC7), AppColors.primary],
+          colors: [palette.secondary, palette.primary],
         ),
       ),
       alignment: Alignment.center,
       child: Text(
         initials,
-        style: const TextStyle(
-          color: AppColors.primaryForeground,
+        style: TextStyle(
+          color: palette.primaryForeground,
           fontSize: 26,
           fontWeight: FontWeight.w800,
         ),
@@ -414,6 +427,7 @@ class _BreakdownRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final progress = totalReviews == 0 ? 0.0 : item.count / totalReviews;
 
     return Row(
@@ -424,8 +438,8 @@ class _BreakdownRow extends StatelessWidget {
             children: [
               Text(
                 '${item.stars}',
-                style: const TextStyle(
-                  color: AppColors.primary,
+                style: TextStyle(
+                  color: palette.primary,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -445,8 +459,8 @@ class _BreakdownRow extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 10,
-              backgroundColor: const Color(0xFFE7ECF5),
-              valueColor: const AlwaysStoppedAnimation(Color(0xFF63D7AB)),
+              backgroundColor: palette.border,
+              valueColor: AlwaysStoppedAnimation(palette.accent),
             ),
           ),
         ),
@@ -456,8 +470,8 @@ class _BreakdownRow extends StatelessWidget {
           child: Text(
             '${item.count}',
             textAlign: TextAlign.right,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: palette.textSecondary,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -495,18 +509,19 @@ class _RoleTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final isDriver = roleTag == ReviewRoleTag.driver;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: isDriver ? const Color(0xFFEAF2FD) : const Color(0xFFEAFBF4),
+        color: isDriver ? palette.secondarySoft : palette.accentSoft,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         isDriver ? 'As Driver' : 'As Passenger',
         style: TextStyle(
-          color: isDriver ? AppColors.secondary : AppColors.accentHover,
+          color: isDriver ? palette.secondary : palette.accent,
           fontSize: 12,
           fontWeight: FontWeight.w700,
         ),

@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../router/app_routes.dart';
 import '../../../../shared/widgets/app_button.dart';
-import '../../../../theme/app_colors.dart';
+import '../../../../theme/app_theme_palette.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -23,8 +23,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: palette.background,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -39,23 +41,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     child: InkWell(
                       onTap: () => context.go(AppRoutes.login),
                       borderRadius: BorderRadius.circular(12),
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
                           vertical: 6,
                           horizontal: 4,
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              Icons.chevron_left,
-                              color: AppColors.textPrimary,
-                            ),
-                            SizedBox(width: 4),
+                            Icon(Icons.chevron_left, color: palette.textPrimary),
+                            const SizedBox(width: 4),
                             Text(
                               'Back',
                               style: TextStyle(
-                                color: AppColors.textPrimary,
+                                color: palette.textPrimary,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -71,7 +70,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       width: 74,
                       height: 74,
                       decoration: BoxDecoration(
-                        color: AppColors.primary,
+                        color: palette.primary,
                         borderRadius: BorderRadius.circular(22),
                         boxShadow: [
                           BoxShadow(
@@ -91,25 +90,25 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  const Center(
+                  Center(
                     child: Text(
                       'Forgot password',
                       style: TextStyle(
                         fontSize: 34,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
+                        color: palette.textPrimary,
                         letterSpacing: -0.6,
                       ),
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Center(
+                  Center(
                     child: Text(
                       'Enter your Uniandes email and we will send you a link to reset your password.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 16,
-                        color: AppColors.textSecondary,
+                        color: palette.textSecondary,
                         height: 1.35,
                       ),
                     ),
@@ -118,7 +117,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   Container(
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: palette.card,
                       borderRadius: BorderRadius.circular(22),
                       boxShadow: [
                         BoxShadow(
@@ -131,11 +130,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text(
+                        Text(
                           'Uniandes email',
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
+                            color: palette.textPrimary,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -163,9 +162,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text(
+                      Text(
                         'Remember your password?',
-                        style: TextStyle(color: AppColors.textSecondary),
+                        style: TextStyle(color: palette.textSecondary),
                       ),
                       TextButton(
                         onPressed: () => context.go(AppRoutes.login),
@@ -184,11 +183,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 }
 
 class _InputField extends StatelessWidget {
-  final TextEditingController controller;
-  final String hintText;
-  final IconData prefixIcon;
-  final TextInputType? keyboardType;
-
   const _InputField({
     required this.controller,
     required this.hintText,
@@ -196,32 +190,39 @@ class _InputField extends StatelessWidget {
     this.keyboardType,
   });
 
+  final TextEditingController controller;
+  final String hintText;
+  final IconData prefixIcon;
+  final TextInputType? keyboardType;
+
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: const TextStyle(color: AppColors.textSecondary),
-        prefixIcon: Icon(prefixIcon, color: AppColors.textSecondary),
+        hintStyle: TextStyle(color: palette.textSecondary),
+        prefixIcon: Icon(prefixIcon, color: palette.textSecondary),
         filled: true,
-        fillColor: const Color(0xFFF8FAFC),
+        fillColor: palette.input,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 16,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
+          borderSide: BorderSide(color: palette.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
+          borderSide: BorderSide(color: palette.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
+          borderSide: BorderSide(color: palette.primary, width: 1.4),
         ),
       ),
     );

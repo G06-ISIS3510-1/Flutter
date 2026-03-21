@@ -117,7 +117,9 @@ class AppRouter {
       ),
       GoRoute(
         path: AppRoutes.activeRide,
-        builder: (context, state) => const ActiveRideScreen(),
+        builder: (context, state) => ActiveRideScreen(
+          rideId: state.uri.queryParameters['rideId'],
+        ),
       ),
       GoRoute(
         path: AppRoutes.groupChat,

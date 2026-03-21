@@ -1,37 +1,68 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../features/auth/presentation/providers/auth_providers.dart';
-import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
-import '../mock/rides_mock_data.dart';
+import '../models/ride_listing.dart';
+import '../providers/rides_providers.dart';
 
-class RideDetailsScreen extends ConsumerWidget {
+class RideDetailsScreen extends ConsumerStatefulWidget {
   const RideDetailsScreen({required this.rideId, super.key});
 
   final String rideId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final role = ref.watch(currentUserRoleProvider);
-    final ride = findRideById(rideId, DateTime.now());
+  ConsumerState<RideDetailsScreen> createState() => _RideDetailsScreenState();
+}
 
-    if (ride == null) {
-      return AppScaffold(
-        title: 'Ride Details',
-        bottomNavigationBar: AppBottomNav(
-          currentTab: AppBottomNavTab.home,
-          role: role,
-        ),
-        child: const Center(child: Text('Ride not found')),
+class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
+  @override
+  Widget build(BuildContext context) {
+    final role = ref.watch(currentUserRoleProvider);
+    final rideAsync = ref.watch(rideProvider(widget.rideId));
+    final applicationAsync = ref.watch(
+      passengerRideApplicationProvider(widget.rideId),
+    );
+    final applyState = ref.watch(rideApplicationControllerProvider);
+    final currentUser = ref.watch(authUserProvider);
+
+    ref.listen<AsyncValue<void>>(rideApplicationControllerProvider, (
+      previous,
+      next,
+    ) {
+      next.whenOrNull(
+        data: (_) {
+          if ((previous?.isLoading ?? false) && mounted) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                const SnackBar(
+                  content: Text('Your seat request was sent successfully.'),
+                ),
+              );
+          }
+        },
+        error: (error, _) {
+          if (!mounted) {
+            return;
+          }
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(
+                  error.toString().replaceFirst('Exception: ', ''),
+                ),
+              ),
+            );
+        },
       );
-    }
+    });
 
     return AppScaffold(
       title: 'Ride Details',
@@ -39,96 +70,242 @@ class RideDetailsScreen extends ConsumerWidget {
         currentTab: AppBottomNavTab.home,
         role: role,
       ),
-      child: ListView(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.m),
-            decoration: BoxDecoration(
-              color: AppColors.card,
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-              boxShadow: AppShadows.sm,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+      child: rideAsync.when(
+        data: (ride) {
+          if (ride == null) {
+            return const Center(child: Text('Ride not found'));
+          }
+
+          final isOwnRide = currentUser?.uid == ride.driverId;
+          final hasApplied = applicationAsync.valueOrNull != null;
+          final canApply =
+              !isOwnRide &&
+              ride.isOpen &&
+              ride.hasAvailableSeats &&
+              !hasApplied &&
+              currentUser != null;
+
+          return ListView(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.m),
+                decoration: BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  boxShadow: AppShadows.sm,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CircleAvatar(
-                      backgroundColor: AppColors.primary,
-                      child: Text(
-                        ride.driverInitials,
-                        style: const TextStyle(
-                          color: AppColors.primaryForeground,
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: AppColors.primary,
+                          child: Text(
+                            ride.driverInitials,
+                            style: const TextStyle(
+                              color: AppColors.primaryForeground,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.s),
-                    Expanded(
-                      child: Text(
-                        ride.driverName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 18,
+                        const SizedBox(width: AppSpacing.s),
+                        Expanded(
+                          child: Text(
+                            ride.driverName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 18,
+                            ),
+                          ),
                         ),
-                      ),
+                        Text(
+                          ride.priceLabel,
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      ride.priceLabel,
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                      ),
+                    const SizedBox(height: AppSpacing.m),
+                    _DetailRow(Icons.trip_origin, 'Origin', ride.origin),
+                    const SizedBox(height: AppSpacing.s),
+                    _DetailRow(
+                      Icons.place_outlined,
+                      'Destination',
+                      ride.destination,
                     ),
+                    const SizedBox(height: AppSpacing.s),
+                    _DetailRow(
+                      Icons.calendar_month_outlined,
+                      'Date',
+                      ride.dateLabel,
+                    ),
+                    const SizedBox(height: AppSpacing.s),
+                    _DetailRow(
+                      Icons.schedule_outlined,
+                      'Departure',
+                      ride.departureLabel,
+                    ),
+                    const SizedBox(height: AppSpacing.s),
+                    _DetailRow(
+                      Icons.timer_outlined,
+                      'Duration',
+                      ride.durationLabel,
+                    ),
+                    const SizedBox(height: AppSpacing.s),
+                    _DetailRow(
+                      Icons.event_seat_outlined,
+                      'Seats left',
+                      '${ride.availableSeats} of ${ride.totalSeats}',
+                    ),
+                    const SizedBox(height: AppSpacing.s),
+                    _DetailRow(
+                      Icons.info_outline,
+                      'Status',
+                      _statusLabel(ride.status),
+                    ),
+                    if (ride.notes.trim().isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.s),
+                      _DetailRow(
+                        Icons.notes_outlined,
+                        'Notes',
+                        ride.notes,
+                      ),
+                    ],
                   ],
                 ),
-                const SizedBox(height: AppSpacing.m),
-                _DetailRow(Icons.trip_origin, 'Origin', ride.origin),
-                const SizedBox(height: AppSpacing.s),
-                _DetailRow(
-                  Icons.place_outlined,
-                  'Destination',
-                  ride.destination,
+              ),
+              const SizedBox(height: AppSpacing.m),
+              if (isOwnRide)
+                _messageCard(
+                  'This is your ride',
+                  'Passengers can already see it in the search list and apply from there.',
+                )
+              else if (hasApplied)
+                _messageCard(
+                  'Application sent',
+                  'You already applied to this ride. We will keep this seat linked to your account.',
+                )
+              else if (!ride.hasAvailableSeats)
+                _messageCard(
+                  'Ride is full',
+                  'All seats have already been taken for this trip.',
+                )
+              else if (!ride.isOpen)
+                _messageCard(
+                  'Ride unavailable',
+                  'This ride is no longer open for new passengers.',
                 ),
-                const SizedBox(height: AppSpacing.s),
-                _DetailRow(
-                  Icons.calendar_month_outlined,
-                  'Date',
-                  ride.dateLabel,
+              const SizedBox(height: AppSpacing.s),
+              ElevatedButton(
+                onPressed: canApply && !applyState.isLoading
+                    ? () async {
+                        await ref
+                            .read(rideApplicationControllerProvider.notifier)
+                            .applyToRide(
+                              rideId: ride.id,
+                              passengerId: currentUser.uid,
+                              passengerName: currentUser.fullName,
+                              passengerEmail: currentUser.email,
+                            );
+                      }
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: AppColors.accentForeground,
+                  disabledBackgroundColor: AppColors.muted,
+                  disabledForegroundColor: AppColors.mutedForeground,
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
                 ),
-                const SizedBox(height: AppSpacing.s),
-                _DetailRow(
-                  Icons.schedule_outlined,
-                  'Departure',
-                  ride.departureLabel,
-                ),
-                const SizedBox(height: AppSpacing.s),
-                _DetailRow(
-                  Icons.timer_outlined,
-                  'Duration',
-                  ride.durationLabel,
-                ),
-                const SizedBox(height: AppSpacing.s),
-                _DetailRow(
-                  Icons.event_seat_outlined,
-                  'Seats left',
-                  '${ride.seatsLeft}',
-                ),
-              ],
+                child: Text(_actionLabel(
+                  isOwnRide: isOwnRide,
+                  hasApplied: hasApplied,
+                  rideStatus: ride.status,
+                  hasAvailableSeats: ride.hasAvailableSeats,
+                  isLoading: applyState.isLoading,
+                )),
+              ),
+            ],
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => Center(
+          child: Text(
+            error.toString(),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'open':
+        return 'Open';
+      case 'in_progress':
+        return 'In progress';
+      case 'completed':
+        return 'Completed';
+      case 'cancelled':
+        return 'Cancelled';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  String _actionLabel({
+    required bool isOwnRide,
+    required bool hasApplied,
+    required String rideStatus,
+    required bool hasAvailableSeats,
+    required bool isLoading,
+  }) {
+    if (isLoading) {
+      return 'Sending request...';
+    }
+    if (isOwnRide) {
+      return 'This is your ride';
+    }
+    if (hasApplied) {
+      return 'Application sent';
+    }
+    if (!hasAvailableSeats) {
+      return 'Ride full';
+    }
+    if (rideStatus != 'open') {
+      return 'Ride unavailable';
+    }
+    return 'Apply to this ride';
+  }
+
+  Widget _messageCard(String title, String message) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        boxShadow: AppShadows.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: AppColors.foreground,
             ),
           ),
-          const SizedBox(height: AppSpacing.m),
-          ElevatedButton(
-            onPressed: () => context.go(AppRoutes.groupChatByTripId(ride.id)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              foregroundColor: AppColors.accentForeground,
-              minimumSize: const Size(double.infinity, 50),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-              ),
-            ),
-            child: const Text('Request Ride'),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            message,
+            style: const TextStyle(color: AppColors.textSecondary),
           ),
         ],
       ),

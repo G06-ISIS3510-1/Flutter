@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
+import '../../theme/app_theme_palette.dart';
 
 class AppGradientHeader extends StatelessWidget {
   const AppGradientHeader({
@@ -22,6 +23,7 @@ class AppGradientHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       height: height,
       width: double.infinity,
@@ -31,13 +33,13 @@ class AppGradientHeader extends StatelessWidget {
         AppSpacing.m,
         AppSpacing.l,
       ),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[AppColors.primary, AppColors.primaryLight],
+          colors: <Color>[palette.primary, palette.primaryLight],
         ),
-        borderRadius: BorderRadius.only(
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(AppRadius.md),
           bottomRight: Radius.circular(AppRadius.md),
         ),
@@ -54,7 +56,7 @@ class AppGradientHeader extends StatelessWidget {
             ),
             label: Text(
               backLabel,
-              style: const TextStyle(color: AppColors.primaryForeground),
+              style: TextStyle(color: palette.primaryForeground),
             ),
             style: TextButton.styleFrom(
               padding: EdgeInsets.zero,
@@ -64,8 +66,8 @@ class AppGradientHeader extends StatelessWidget {
           const SizedBox(height: AppSpacing.s),
           Text(
             title,
-            style: const TextStyle(
-              color: AppColors.primaryForeground,
+            style: TextStyle(
+              color: palette.primaryForeground,
               fontSize: 36,
               fontWeight: FontWeight.w700,
             ),
@@ -73,8 +75,8 @@ class AppGradientHeader extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           Text(
             subtitle,
-            style: const TextStyle(
-              color: AppColors.secondaryLight,
+            style: TextStyle(
+              color: palette.primaryForeground.withValues(alpha: 0.82),
               fontSize: 14,
             ),
           ),

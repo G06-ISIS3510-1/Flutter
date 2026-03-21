@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+<<<<<<< feature/most-frequent-times-#46
 import '../../../../features/auth/presentation/providers/auth_providers.dart';
+=======
+import '../../../auth/presentation/providers/auth_providers.dart';
+>>>>>>> develop
 import '../../../../router/app_routes.dart';
 import '../../../../theme/app_colors.dart';
 
@@ -73,6 +77,7 @@ class ProfileMenuItemData {
 }
 
 final profileViewDataProvider = Provider<ProfileViewData>((ref) {
+<<<<<<< feature/most-frequent-times-#46
   final role = ref.watch(currentUserRoleProvider);
   final isAdmin = role == UserRole.admin;
 
@@ -121,17 +126,75 @@ final profileViewDataProvider = Provider<ProfileViewData>((ref) {
         title: 'Account',
         items: [
           const ProfileMenuItemData(
+=======
+  final user = ref.watch(authUserProvider);
+  final role = ref.watch(currentUserRoleProvider);
+  final fullName = (user?.fullName.trim().isNotEmpty ?? false)
+      ? user!.fullName.trim()
+      : 'Wheels User';
+  final email = user?.email ?? 'No email available';
+
+  return ProfileViewData(
+    fullName: fullName,
+    initials: _buildInitials(fullName),
+    badgeLabel: role == UserRole.driver ? 'Driver Account' : 'Passenger Account',
+    memberSince: 'Signed in as $email',
+    metrics: [
+      ProfileMetricData(
+        value: role == UserRole.driver ? 'Driver' : 'Passenger',
+        label: 'Role',
+        valueColor: AppColors.primary,
+      ),
+      const ProfileMetricData(
+        value: 'Active',
+        label: 'Status',
+        valueColor: AppColors.accent,
+      ),
+      ProfileMetricData(
+        value: user == null ? '--' : user.uid.substring(0, 6).toUpperCase(),
+        label: 'User ID',
+        valueColor: AppColors.warning,
+      ),
+      const ProfileMetricData(
+        value: 'Firebase',
+        label: 'Auth',
+        valueColor: AppColors.secondary,
+      ),
+    ],
+    contacts: [
+      ProfileContactData(
+        label: 'Email',
+        value: email,
+        icon: Icons.mail_outline_rounded,
+      ),
+      ProfileContactData(
+        label: 'Role',
+        value: role == UserRole.driver ? 'Driver' : 'Passenger',
+        icon: Icons.badge_outlined,
+      ),
+    ],
+    menuSections: const [
+      ProfileMenuSectionData(
+        title: 'Account',
+        items: [
+          ProfileMenuItemData(
+>>>>>>> develop
             title: 'Trust & Fairness',
             subtitle: 'View your reliability metrics',
             icon: Icons.star_border_rounded,
             route: AppRoutes.trust,
           ),
+<<<<<<< feature/most-frequent-times-#46
           const ProfileMenuItemData(
+=======
+          ProfileMenuItemData(
+>>>>>>> develop
             title: 'Payment Methods',
             subtitle: 'Manage your payment options',
             icon: Icons.credit_card_outlined,
             route: AppRoutes.payment,
           ),
+<<<<<<< feature/most-frequent-times-#46
           const ProfileMenuItemData(
             title: 'Rewards & Points',
             subtitle: 'Redeem your 142 points',
@@ -147,6 +210,11 @@ final profileViewDataProvider = Provider<ProfileViewData>((ref) {
         ],
       ),
       const ProfileMenuSectionData(
+=======
+        ],
+      ),
+      ProfileMenuSectionData(
+>>>>>>> develop
         title: 'Settings',
         items: [
           ProfileMenuItemData(
@@ -173,7 +241,18 @@ final profileViewDataProvider = Provider<ProfileViewData>((ref) {
 
 final profileSummaryProvider = Provider<String>((ref) {
   final data = ref.watch(profileViewDataProvider);
-  return '${data.fullName} has ${data.metrics.last.value} points and ${data.metrics.first.value} rides.';
+  return '${data.fullName} is signed in and using the ${data.metrics.first.value.toLowerCase()} profile.';
 });
 
 final profileCompletionProvider = StateProvider<int>((ref) => 98);
+
+String _buildInitials(String fullName) {
+  final parts = fullName.trim().split(RegExp(r'\s+'));
+  if (parts.isEmpty || fullName.trim().isEmpty) {
+    return 'WU';
+  }
+  if (parts.length == 1) {
+    return parts.first.substring(0, 1).toUpperCase();
+  }
+  return '${parts.first[0]}${parts[1][0]}'.toUpperCase();
+}
