@@ -2,661 +2,483 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
-import '../../../../theme/app_radius.dart';
-import '../../../../theme/app_shadows.dart';
+import '../../../../shared/ui/app_scaffold.dart';
+import '../../../../shared/widgets/app_button.dart';
+import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_spacing.dart';
-import '../../../../theme/app_theme_palette.dart';
-import '../providers/payments_providers.dart';
+import '../../domain/entities/payment_flow_status.dart';
+import '../providers/payment_provider.dart';
+import '../widgets/payment_status_banner.dart';
+import 'checkout_webview_screen.dart';
 
-class PaymentScreen extends ConsumerWidget {
+class PaymentScreen extends ConsumerStatefulWidget {
   const PaymentScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = context.palette;
-    final payment = ref.watch(quickPaymentDataProvider);
-    final selectedMethod = ref.watch(selectedQuickPaymentMethodProvider);
+  ConsumerState<PaymentScreen> createState() => _PaymentScreenState();
+}
 
-    return Scaffold(
-      backgroundColor: palette.background,
-      bottomNavigationBar: _PaymentFooter(
-        amountLabel: payment.amountLabel,
-        bonusLabel: payment.bonusLabel,
-        onPay: () {
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              SnackBar(
-                content: Text(
-                  '${payment.amountLabel} paid successfully with ${_methodLabel(selectedMethod)}.',
-                ),
-              ),
-            );
-          context.go(AppRoutes.dashboard);
-        },
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  _QuickPayHeader(
-                    onBack: () {
-                      if (context.canPop()) {
-                        context.pop();
-                      } else {
-                        context.go(AppRoutes.dashboard);
-                      }
-                    },
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.m,
-                    ),
-                    child: Transform.translate(
-                      offset: const Offset(0, -30),
-                      child: _AmountCard(payment: payment),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.m,
-                      0,
-                      AppSpacing.m,
-                      AppSpacing.l,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _SectionTitle(label: 'Ride Summary'),
-                        const SizedBox(height: AppSpacing.m),
-                        _RideSummaryCard(payment: payment),
-                        const SizedBox(height: AppSpacing.xl),
-                        _SectionTitle(label: 'Payment Method'),
-                        const SizedBox(height: AppSpacing.m),
-                        for (final method in payment.methods) ...[
-                          _PaymentMethodTile(
-                            method: method,
-                            isSelected: method.id == selectedMethod,
-                            onTap: () {
-                              ref
-                                  .read(
-                                    selectedQuickPaymentMethodProvider.notifier,
-                                  )
-                                  .state = method.id;
-                            },
-                          ),
-                          const SizedBox(height: 14),
-                        ],
-                        const SizedBox(height: 6),
-                        _SecurePaymentCard(payment: payment),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+class _PaymentScreenState extends ConsumerState<PaymentScreen> {
+  static const _rideId = 'ride_123';
+  static const _title = 'Ride payment - Wheels';
+  static const _unitPrice = 1000.0;
+  static const _quantity = 1;
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen<PaymentState>(paymentProvider, (previous, next) {
+      final shouldOpenCheckout =
+          next.status == PaymentFlowStatus.checkoutOpened &&
+          next.checkoutUrl != null &&
+          next.checkoutUrl != previous?.checkoutUrl;
+
+      if (!shouldOpenCheckout) {
+        return;
+      }
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => CheckoutWebViewScreen(
+              checkoutUrl: next.checkoutUrl!,
+              rideId: next.rideId ?? _rideId,
             ),
           ),
+        );
+      });
+    });
+
+    final paymentState = ref.watch(paymentProvider);
+    final currentUser = ref.watch(authUserProvider);
+    final isLoading = paymentState.status == PaymentFlowStatus.loading;
+    final isApproved = paymentState.status == PaymentFlowStatus.approved;
+    final isPending = paymentState.status == PaymentFlowStatus.pending;
+    final isRejected = paymentState.status == PaymentFlowStatus.rejected;
+    final payerEmail = currentUser?.email ?? 'No email available';
+    final userId = currentUser?.uid;
+    final fullName = currentUser?.fullName ?? 'No signed-in user';
+    final canStartCheckout =
+        !isLoading &&
+        !isApproved &&
+        !isPending &&
+        userId != null &&
+        payerEmail.trim().isNotEmpty;
+
+    return AppScaffold(
+      title: 'Ride payment',
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _HeroCard(
+              amount: _unitPrice,
+              rideId: _rideId,
+              title: _title,
+              status: paymentState.status,
+            ),
+            const SizedBox(height: AppSpacing.l),
+            PaymentStatusBanner(
+              status: paymentState.status,
+              message: paymentState.message,
+            ),
+            if (isLoading) ...[
+              const SizedBox(height: AppSpacing.m),
+              const LinearProgressIndicator(),
+            ],
+            const SizedBox(height: AppSpacing.l),
+            _UserStatusCard(
+              paymentState: paymentState,
+              onBack: () => _goBack(context),
+            ),
+            const SizedBox(height: AppSpacing.l),
+            _DetailsCard(
+              paymentState: paymentState,
+              unitPrice: _unitPrice,
+              quantity: _quantity,
+              payerEmail: payerEmail,
+              userId: userId ?? 'No signed-in user',
+              fullName: fullName,
+              fallbackRideId: _rideId,
+            ),
+            const SizedBox(height: AppSpacing.l),
+            if (canStartCheckout)
+              AppButton(
+                label: 'Pay with Mercado Pago',
+                onPressed: () {
+                  ref.read(paymentProvider.notifier).startCheckout(
+                    rideId: _rideId,
+                    title: _title,
+                    unitPrice: _unitPrice,
+                    quantity: _quantity,
+                    payerEmail: payerEmail,
+                    userId: userId,
+                  );
+                },
+              ),
+            if (!canStartCheckout) ...[
+              AppButton(
+                label: 'Back to dashboard',
+                onPressed: () => _goBack(context),
+                isPrimary: false,
+              ),
+              if (isRejected) ...[
+                const SizedBox(height: AppSpacing.s),
+                AppButton(
+                  label: 'Try payment again',
+                  onPressed: userId == null
+                      ? null
+                      : () {
+                          ref.read(paymentProvider.notifier).startCheckout(
+                            rideId: _rideId,
+                            title: _title,
+                            unitPrice: _unitPrice,
+                            quantity: _quantity,
+                            payerEmail: payerEmail,
+                            userId: userId,
+                          );
+                        },
+                ),
+              ],
+            ],
+          ],
         ),
       ),
     );
   }
 
-  static String _methodLabel(QuickPaymentMethod method) {
-    return switch (method) {
-      QuickPaymentMethod.card => 'card',
-      QuickPaymentMethod.wallet => 'digital wallet',
-      QuickPaymentMethod.qr => 'QR code',
-    };
+  void _goBack(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go(AppRoutes.dashboard);
   }
 }
 
-class _QuickPayHeader extends StatelessWidget {
-  const _QuickPayHeader({required this.onBack});
+class _HeroCard extends StatelessWidget {
+  const _HeroCard({
+    required this.amount,
+    required this.rideId,
+    required this.title,
+    required this.status,
+  });
 
-  final VoidCallback onBack;
+  final double amount;
+  final String rideId;
+  final String title;
+  final PaymentFlowStatus status;
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.palette;
+    final theme = Theme.of(context);
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 10, 18, 40),
+      padding: const EdgeInsets.all(AppSpacing.l),
       decoration: BoxDecoration(
         gradient: LinearGradient(
+          colors: _heroColors(status),
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [palette.primary, palette.primaryLight],
         ),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(34),
-          bottomRight: Radius.circular(34),
-        ),
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextButton.icon(
-            onPressed: onBack,
-            style: TextButton.styleFrom(
-              foregroundColor: palette.primaryForeground,
-              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
-            ),
-            icon: const Icon(Icons.chevron_left_rounded, size: 24),
-            label: const Text(
-              'Back',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          Text(
+            _heroTitle(status),
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: AppSpacing.m),
+          const SizedBox(height: AppSpacing.s),
           Text(
-            'Quick Payment',
-            style: TextStyle(
-              color: palette.primaryForeground,
-              fontSize: 26,
+            _heroSubtitle(status),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: Colors.white.withValues(alpha: 0.88),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.l),
+          Text(
+            '\$${amount.toStringAsFixed(0)} COP',
+            style: theme.textTheme.headlineMedium?.copyWith(
+              color: Colors.white,
               fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: AppSpacing.s),
           Text(
-            'Fast and secure ride payment',
-            style: TextStyle(
-              color: palette.primaryForeground.withValues(alpha: 0.82),
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
+            '$title\nRide ID: $rideId',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: Colors.white.withValues(alpha: 0.92),
             ),
           ),
         ],
       ),
     );
   }
+
+  List<Color> _heroColors(PaymentFlowStatus status) {
+    switch (status) {
+      case PaymentFlowStatus.approved:
+        return const [Color(0xFF0A8F68), Color(0xFF13B97A)];
+      case PaymentFlowStatus.pending:
+        return const [Color(0xFFC77700), Color(0xFFFFA726)];
+      case PaymentFlowStatus.rejected:
+      case PaymentFlowStatus.error:
+        return const [Color(0xFF9F1C1C), Color(0xFFE05252)];
+      case PaymentFlowStatus.idle:
+      case PaymentFlowStatus.loading:
+      case PaymentFlowStatus.checkoutOpened:
+        return const [AppColors.primary, AppColors.primaryLight];
+    }
+  }
+
+  String _heroTitle(PaymentFlowStatus status) {
+    switch (status) {
+      case PaymentFlowStatus.approved:
+        return 'Ride paid successfully';
+      case PaymentFlowStatus.pending:
+        return 'We are verifying your payment';
+      case PaymentFlowStatus.rejected:
+        return 'Payment failed';
+      case PaymentFlowStatus.error:
+        return 'Payment status unavailable';
+      case PaymentFlowStatus.idle:
+      case PaymentFlowStatus.loading:
+      case PaymentFlowStatus.checkoutOpened:
+        return 'Mercado Pago checkout';
+    }
+  }
+
+  String _heroSubtitle(PaymentFlowStatus status) {
+    switch (status) {
+      case PaymentFlowStatus.approved:
+        return 'Your ride is already paid. You do not need to pay again.';
+      case PaymentFlowStatus.pending:
+        return 'We will keep checking Firestore until backend confirms the result.';
+      case PaymentFlowStatus.rejected:
+        return 'The payment could not be completed. You can go back or try again.';
+      case PaymentFlowStatus.error:
+        return 'We could not confirm the payment yet. Please return or try later.';
+      case PaymentFlowStatus.idle:
+      case PaymentFlowStatus.loading:
+      case PaymentFlowStatus.checkoutOpened:
+        return 'The checkout opens inside the app and waits for Firestore confirmation before marking payment as successful.';
+    }
+  }
 }
 
-class _AmountCard extends StatelessWidget {
-  const _AmountCard({required this.payment});
+class _UserStatusCard extends StatelessWidget {
+  const _UserStatusCard({required this.paymentState, required this.onBack});
 
-  final QuickPaymentViewData payment;
+  final PaymentState paymentState;
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.palette;
+    final status = paymentState.status;
+    if (status == PaymentFlowStatus.idle ||
+        status == PaymentFlowStatus.loading ||
+        status == PaymentFlowStatus.checkoutOpened) {
+      return const SizedBox.shrink();
+    }
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 24),
+      padding: const EdgeInsets.all(AppSpacing.m),
       decoration: BoxDecoration(
-        color: palette.card,
-        borderRadius: BorderRadius.circular(34),
-        boxShadow: AppShadows.xl,
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Amount to pay',
-            style: TextStyle(
-              color: palette.textSecondary,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
+            _userTitle(status),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: AppColors.primary,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.s),
           Text(
-            payment.amountLabel,
-            style: TextStyle(
-              color: palette.primary,
-              fontSize: 42,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -1,
+            _userDescription(status, paymentState.message),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.textSecondary,
             ),
           ),
           const SizedBox(height: AppSpacing.m),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            decoration: BoxDecoration(
-              color: palette.accentSoft,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.check_circle_outline_rounded,
-                  color: palette.accent,
-                  size: 20,
-                ),
-                const SizedBox(width: AppSpacing.s),
-                Text(
-                  payment.protectionLabel,
-                  style: TextStyle(
-                    color: palette.accent,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
+          AppButton(
+            label: _buttonLabel(status),
+            onPressed: onBack,
+            isPrimary: false,
           ),
         ],
       ),
     );
   }
-}
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.label});
+  String _userTitle(PaymentFlowStatus status) {
+    switch (status) {
+      case PaymentFlowStatus.approved:
+        return 'Payment confirmed';
+      case PaymentFlowStatus.pending:
+        return 'Payment verification in progress';
+      case PaymentFlowStatus.rejected:
+        return 'Payment was not completed';
+      case PaymentFlowStatus.error:
+        return 'We could not validate the payment';
+      case PaymentFlowStatus.idle:
+      case PaymentFlowStatus.loading:
+      case PaymentFlowStatus.checkoutOpened:
+        return '';
+    }
+  }
 
-  final String label;
+  String _userDescription(PaymentFlowStatus status, String? message) {
+    if (message != null && message.isNotEmpty) {
+      return message;
+    }
+    switch (status) {
+      case PaymentFlowStatus.approved:
+        return 'Everything is ready. You can go back to your dashboard.';
+      case PaymentFlowStatus.pending:
+        return 'Please wait while we check the final result in the database.';
+      case PaymentFlowStatus.rejected:
+        return 'You can return to your ride or try the payment again.';
+      case PaymentFlowStatus.error:
+        return 'Please return and try again later.';
+      case PaymentFlowStatus.idle:
+      case PaymentFlowStatus.loading:
+      case PaymentFlowStatus.checkoutOpened:
+        return '';
+    }
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-
-    return Text(
-      label,
-      style: TextStyle(
-        color: palette.textSecondary,
-        fontSize: 17,
-        fontWeight: FontWeight.w700,
-      ),
-    );
+  String _buttonLabel(PaymentFlowStatus status) {
+    switch (status) {
+      case PaymentFlowStatus.approved:
+        return 'Back to dashboard';
+      case PaymentFlowStatus.pending:
+        return 'Go back';
+      case PaymentFlowStatus.rejected:
+        return 'Back to dashboard';
+      case PaymentFlowStatus.error:
+        return 'Go back';
+      case PaymentFlowStatus.idle:
+      case PaymentFlowStatus.loading:
+      case PaymentFlowStatus.checkoutOpened:
+        return 'Go back';
+    }
   }
 }
 
-class _RideSummaryCard extends StatelessWidget {
-  const _RideSummaryCard({required this.payment});
+class _DetailsCard extends StatelessWidget {
+  const _DetailsCard({
+    required this.paymentState,
+    required this.unitPrice,
+    required this.quantity,
+    required this.payerEmail,
+    required this.userId,
+    required this.fullName,
+    required this.fallbackRideId,
+  });
 
-  final QuickPaymentViewData payment;
+  final PaymentState paymentState;
+  final double unitPrice;
+  final int quantity;
+  final String payerEmail;
+  final String userId;
+  final String fullName;
+  final String fallbackRideId;
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.palette;
-
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(AppSpacing.m),
       decoration: BoxDecoration(
-        color: palette.card,
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: AppShadows.lg,
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 62,
-                height: 62,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [palette.secondary, palette.primary],
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  payment.driverInitials,
-                  style: TextStyle(
-                    color: palette.primaryForeground,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.m),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      payment.driverName,
-                      style: TextStyle(
-                        color: palette.primary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      payment.driverRole,
-                      style: TextStyle(
-                        color: palette.textSecondary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          Text(
+            'Payment details',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+            ),
           ),
           const SizedBox(height: AppSpacing.m),
-          Divider(color: palette.border, height: 1),
-          const SizedBox(height: 18),
-          _SummaryRow(label: 'From', value: payment.origin),
-          const SizedBox(height: 14),
-          _SummaryRow(label: 'To', value: payment.destination),
-          const SizedBox(height: 14),
-          _SummaryRow(label: 'Date & Time', value: payment.scheduleLabel),
+          _DetailRow(label: 'Passenger', value: fullName),
+          _DetailRow(label: 'User ID', value: userId),
+          _DetailRow(label: 'Payer', value: payerEmail),
+          _DetailRow(label: 'Quantity', value: quantity.toString()),
+          _DetailRow(
+            label: 'Unit price',
+            value: '\$${unitPrice.toStringAsFixed(0)} COP',
+          ),
+          _DetailRow(
+            label: 'Ride ID',
+            value: paymentState.rideId ?? fallbackRideId,
+          ),
+          _DetailRow(label: 'Flow status', value: paymentState.status.name),
+          _DetailRow(
+            label: 'DB status',
+            value: paymentState.paymentRecord?.status ?? 'Waiting for update',
+          ),
         ],
       ),
     );
   }
 }
 
-class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({required this.label, required this.value});
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.label, required this.value});
 
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.palette;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              color: palette.textSecondary,
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.m),
-        Expanded(
-          child: Text(
-            value,
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              color: palette.primary,
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PaymentMethodTile extends StatelessWidget {
-  const _PaymentMethodTile({
-    required this.method,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final QuickPaymentMethodData method;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-          decoration: BoxDecoration(
-            color: isSelected ? palette.secondarySoft : palette.card,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: isSelected ? palette.secondary : palette.border,
-              width: isSelected ? 1.6 : 1.2,
-            ),
-            boxShadow: isSelected ? null : AppShadows.sm,
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: isSelected ? palette.secondary : palette.surfaceMuted,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  method.icon,
-                  color: isSelected
-                      ? palette.primaryForeground
-                      : palette.textSecondary,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.m),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      method.title,
-                      style: TextStyle(
-                        color: palette.primary,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      method.subtitle,
-                      style: TextStyle(
-                        color: method.id == QuickPaymentMethod.wallet
-                            ? palette.accent
-                            : palette.textSecondary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.s),
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isSelected ? palette.secondary : palette.card,
-                  border: Border.all(
-                    color: isSelected ? palette.secondary : palette.border,
-                    width: 1.6,
-                  ),
-                ),
-                child: isSelected
-                    ? Icon(
-                        Icons.check_rounded,
-                        color: palette.primaryForeground,
-                        size: 18,
-                      )
-                    : null,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SecurePaymentCard extends StatelessWidget {
-  const _SecurePaymentCard({required this.payment});
-
-  final QuickPaymentViewData payment;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: palette.secondarySoft,
-        borderRadius: BorderRadius.circular(28),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.s),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: palette.card,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.shield_outlined,
-              color: palette.secondary,
-              size: 24,
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: AppSpacing.s),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  payment.securePaymentTitle,
-                  style: TextStyle(
-                    color: palette.primary,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  payment.securePaymentMessage,
-                  style: TextStyle(
-                    color: palette.textSecondary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    height: 1.4,
-                  ),
-                ),
-              ],
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.primary,
+              ),
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _PaymentFooter extends StatelessWidget {
-  const _PaymentFooter({
-    required this.amountLabel,
-    required this.bonusLabel,
-    required this.onPay,
-  });
-
-  final String amountLabel;
-  final String bonusLabel;
-  final VoidCallback onPay;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: palette.card,
-        boxShadow: [
-          BoxShadow(
-            color: palette.shadow,
-            blurRadius: 18,
-            offset: const Offset(0, -8),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.m,
-            12,
-            AppSpacing.m,
-            AppSpacing.m,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.schedule_rounded,
-                    color: palette.accent,
-                    size: 18,
-                  ),
-                  const SizedBox(width: AppSpacing.s),
-                  Expanded(
-                    child: Text(
-                      bonusLabel,
-                      style: TextStyle(
-                        color: palette.textSecondary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [palette.accent, palette.accent.withBlue(140)],
-                  ),
-                  borderRadius: BorderRadius.circular(AppRadius.xl),
-                  boxShadow: AppShadows.lg,
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: onPay,
-                    borderRadius: BorderRadius.circular(AppRadius.xl),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 18),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Pay $amountLabel',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          const Icon(
-                            Icons.chevron_right_rounded,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

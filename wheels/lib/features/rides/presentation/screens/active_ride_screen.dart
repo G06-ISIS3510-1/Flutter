@@ -61,12 +61,19 @@ class ActiveRideScreen extends ConsumerWidget {
               const SizedBox(height: AppSpacing.m),
               _routeCard(ride),
               const SizedBox(height: AppSpacing.m),
-              _statusActions(
-                context: context,
-                ref: ref,
-                rideId: ride.id,
-                currentStatus: ride.status,
-                isLoading: statusState.isLoading,
+              applicationsAsync.when(
+                data: (applications) => _statusActions(
+                  context: context,
+                  ref: ref,
+                  ride: ride,
+                  applications: applications,
+                  isLoading: statusState.isLoading,
+                ),
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) => _errorCard(
+                  'We could not load passenger applications.',
+                  error.toString(),
+                ),
               ),
               const SizedBox(height: AppSpacing.m),
               applicationsAsync.when(
@@ -203,17 +210,19 @@ class ActiveRideScreen extends ConsumerWidget {
   Widget _statusActions({
     required BuildContext context,
     required WidgetRef ref,
-    required String rideId,
-    required String currentStatus,
+    required RidesEntity ride,
+    required List<RideApplicationEntity> applications,
     required bool isLoading,
   }) {
     Future<void> updateStatus(String status, String successMessage) async {
       await ref
           .read(rideStatusControllerProvider.notifier)
-          .updateRideStatus(rideId: rideId, status: status);
+          .updateRideStatus(rideId: ride.id, status: status);
+
       if (!context.mounted) {
         return;
       }
+
       ref.read(rideStatusControllerProvider.notifier).clear();
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -227,7 +236,21 @@ class ActiveRideScreen extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (currentStatus == 'open')
+        ElevatedButton.icon(
+          onPressed: () => context.go(AppRoutes.groupChatByTripId(ride.id)),
+          icon: const Icon(Icons.forum_outlined),
+          label: const Text('Open Group Chat'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF5B89C8),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.s),
+        if (ride.status == 'open')
           ElevatedButton(
             onPressed: isLoading
                 ? null
@@ -240,26 +263,38 @@ class ActiveRideScreen extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(AppRadius.md),
               ),
             ),
-            child: Text(isLoading ? 'Updating...' : 'Start ride'),
+            child: Text(isLoading ? 'Updating...' : 'Start Ride'),
           ),
-        if (currentStatus == 'in_progress')
-          ElevatedButton(
+        if (ride.status == 'in_progress') ...[
+          OutlinedButton.icon(
             onPressed: isLoading
                 ? null
-                : () => updateStatus('completed', 'Ride finished successfully.'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.primaryForeground,
+                : () async {
+                    final shouldFinish = await _openPassengerReviewFlow(
+                      context,
+                      applications,
+                    );
+                    if (!shouldFinish) {
+                      return;
+                    }
+                    await updateStatus(
+                      'completed',
+                      'Ride finished and passenger ratings submitted.',
+                    );
+                  },
+            icon: const Icon(Icons.check_circle_outline),
+            label: Text(isLoading ? 'Updating...' : 'Finish Ride'),
+            style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppRadius.md),
               ),
             ),
-            child: Text(isLoading ? 'Updating...' : 'Finish ride'),
           ),
-        const SizedBox(height: AppSpacing.s),
+          const SizedBox(height: AppSpacing.s),
+        ],
         OutlinedButton(
-          onPressed: isLoading || currentStatus == 'completed'
+          onPressed: isLoading || ride.status == 'completed'
               ? null
               : () => updateStatus('cancelled', 'Ride cancelled.'),
           style: OutlinedButton.styleFrom(
@@ -268,10 +303,133 @@ class ActiveRideScreen extends ConsumerWidget {
               borderRadius: BorderRadius.circular(AppRadius.md),
             ),
           ),
-          child: const Text('Cancel ride'),
+          child: const Text('Cancel Ride'),
         ),
       ],
     );
+  }
+
+  Future<bool> _openPassengerReviewFlow(
+    BuildContext context,
+    List<RideApplicationEntity> applications,
+  ) async {
+    if (applications.isEmpty) {
+      return true;
+    }
+
+    final ratings = <String, int>{
+      for (final application in applications) application.id: 5,
+    };
+
+    final submitted = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.m,
+                AppSpacing.m,
+                AppSpacing.m,
+                AppSpacing.l,
+              ),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Center(
+                      child: SizedBox(
+                        width: 44,
+                        child: Divider(thickness: 4, color: AppColors.border),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.s),
+                    const Text(
+                      'Rate your passengers',
+                      style: TextStyle(
+                        color: AppColors.foreground,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.s),
+                    const Text(
+                      'Before finishing the ride, tell us how each passenger behaved during the trip.',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.m),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: applications.map((application) {
+                            final rating = ratings[application.id] ?? 5;
+                            return Padding(
+                              padding: const EdgeInsets.only(
+                                bottom: AppSpacing.s,
+                              ),
+                              child: _PassengerReviewTile(
+                                name: application.passengerName,
+                                subtitle: application.passengerEmail,
+                                rating: rating,
+                                onRatingChanged: (value) {
+                                  setModalState(() {
+                                    ratings[application.id] = value;
+                                  });
+                                },
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.m),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                          ),
+                        ),
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: const Text(
+                          'Submit ratings and finish ride',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.s),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text('Go Back'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    return submitted ?? false;
   }
 
   Widget _passengerSection(
@@ -378,7 +536,7 @@ class ActiveRideScreen extends ConsumerWidget {
       case 'open':
         return 'Open';
       case 'in_progress':
-        return 'In progress';
+        return 'In Progress';
       case 'completed':
         return 'Completed';
       case 'cancelled':
@@ -397,6 +555,68 @@ class ActiveRideScreen extends ConsumerWidget {
       return parts.first[0].toUpperCase();
     }
     return '${parts.first[0]}${parts[1][0]}'.toUpperCase();
+  }
+}
+
+class _PassengerReviewTile extends StatelessWidget {
+  const _PassengerReviewTile({
+    required this.name,
+    required this.subtitle,
+    required this.rating,
+    required this.onRatingChanged,
+  });
+
+  final String name;
+  final String subtitle;
+  final int rating;
+  final ValueChanged<int> onRatingChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            name,
+            style: const TextStyle(
+              color: AppColors.foreground,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            subtitle,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          Wrap(
+            spacing: 4,
+            children: List.generate(5, (index) {
+              final starValue = index + 1;
+              return IconButton(
+                onPressed: () => onRatingChanged(starValue),
+                icon: Icon(
+                  starValue <= rating
+                      ? Icons.star_rounded
+                      : Icons.star_outline_rounded,
+                  color: const Color(0xFFF59E0B),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
   }
 }
 

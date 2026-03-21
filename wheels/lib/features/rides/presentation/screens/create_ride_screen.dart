@@ -37,6 +37,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   int _availableSeats = 3;
   String _origin = '';
   String _destination = '';
+  DriverPaymentOption _paymentOption = DriverPaymentOption.card;
   bool _isResolvingOriginFromGps = false;
   String? _originLocationError;
   String? _currentLocationSuggestion;
@@ -248,7 +249,16 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     return parsed ?? 0;
   }
 
-  int get _estimatedEarnings => _availableSeats * _pricePerSeat;
+  double get _estimatedEarnings => _availableSeats * _pricePerSeat.toDouble();
+  double get _platformFixedFee => 800;
+  double get _platformPercentageFee => _estimatedEarnings * 0.033;
+  double get _estimatedNetAfterPlatformFee =>
+      _paymentOption == DriverPaymentOption.card
+      ? (_estimatedEarnings - _platformFixedFee - _platformPercentageFee).clamp(
+          0,
+          double.infinity,
+        )
+      : _estimatedEarnings;
 
   Future<void> _publishRide() async {
     final isValid = _formKey.currentState?.validate() ?? false;
@@ -613,6 +623,96 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
               ),
               const SizedBox(height: AppSpacing.m),
               _sectionCard(
+                title: 'Payment Options',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Choose how riders will pay for this trip.',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.m),
+                    _PaymentOptionTile(
+                      title: 'Accept card payments',
+                      subtitle:
+                          'Wheels keeps \$800 COP + 3.3% of the purchase.',
+                      helper:
+                          'Recommended if you want riders to pay inside the app with Mercado Pago.',
+                      icon: Icons.credit_card_rounded,
+                      isSelected: _paymentOption == DriverPaymentOption.card,
+                      onTap: () {
+                        setState(() {
+                          _paymentOption = DriverPaymentOption.card;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.s),
+                    _PaymentOptionTile(
+                      title: 'Direct bank transfer',
+                      subtitle:
+                          'The rider pays you directly outside the platform.',
+                      helper:
+                          'Use this if you prefer manual payment coordination.',
+                      icon: Icons.account_balance_rounded,
+                      isSelected:
+                          _paymentOption == DriverPaymentOption.bankTransfer,
+                      onTap: () {
+                        setState(() {
+                          _paymentOption = DriverPaymentOption.bankTransfer;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.m),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppSpacing.m),
+                      decoration: BoxDecoration(
+                        color: AppColors.input,
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _paymentOption == DriverPaymentOption.card
+                                ? 'Estimated net after platform fee'
+                                : 'Estimated amount you receive',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            '\$${_estimatedNetAfterPlatformFee.toStringAsFixed(0)} COP',
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          if (_paymentOption == DriverPaymentOption.card) ...[
+                            const SizedBox(height: AppSpacing.xs),
+                            Text(
+                              'Gross: \$${_estimatedEarnings.toStringAsFixed(0)} | Fee: \$${(_platformFixedFee + _platformPercentageFee).toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.m),
+              _sectionCard(
                 title: 'Additional Information (Optional)',
                 child: TextFormField(
                   controller: _notesController,
@@ -918,6 +1018,8 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   }
 }
 
+enum DriverPaymentOption { card, bankTransfer }
+
 class _FieldLabel extends StatelessWidget {
   const _FieldLabel({required this.icon, required this.text});
 
@@ -942,6 +1044,100 @@ class _FieldLabel extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _PaymentOptionTile extends StatelessWidget {
+  const _PaymentOptionTile({
+    required this.title,
+    required this.subtitle,
+    required this.helper,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final String helper;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.sm),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.m),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFEAF2FD) : AppColors.card,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          border: Border.all(
+            color: isSelected ? AppColors.secondary : AppColors.border,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppColors.secondary
+                    : AppColors.secondaryLight,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                icon,
+                color: isSelected
+                    ? AppColors.primaryForeground
+                    : AppColors.secondary,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.m),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: AppColors.foreground,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    helper,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.s),
+            Icon(
+              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: isSelected ? AppColors.secondary : AppColors.border,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
