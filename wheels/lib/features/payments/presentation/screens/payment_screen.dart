@@ -7,6 +7,7 @@ import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_spacing.dart';
+import '../../../auth/domain/entities/auth_entity.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../rides/domain/entities/rides_entity.dart';
 import '../../../rides/presentation/models/ride_listing.dart';
@@ -72,7 +73,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     }
 
     if (resolvedRideId == null) {
-      return AppScaffold(
+      return const AppScaffold(
         title: 'Ride payment',
         child: _MissingRideCard(
           message:
@@ -107,6 +108,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               if (user == null) {
                 return;
               }
+
               ref.read(paymentProvider.notifier).startCheckout(
                     rideId: ride.id,
                     title: _checkoutTitle(ride),
@@ -148,7 +150,7 @@ class _PaymentContent extends StatelessWidget {
   final RidesEntity ride;
   final int quantity;
   final PaymentState paymentState;
-  final dynamic currentUser;
+  final AuthEntity? currentUser;
   final VoidCallback onBack;
   final VoidCallback onStartCheckout;
 
@@ -245,7 +247,11 @@ class _MissingRideCard extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.receipt_long_outlined, size: 40, color: AppColors.primary),
+            const Icon(
+              Icons.receipt_long_outlined,
+              size: 40,
+              color: AppColors.primary,
+            ),
             const SizedBox(height: AppSpacing.m),
             Text(
               'No ride ready for payment',
@@ -303,31 +309,31 @@ class _HeroCard extends StatelessWidget {
           Text(
             _heroTitle(status),
             style: theme.textTheme.titleLarge?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
           ),
           const SizedBox(height: AppSpacing.s),
           Text(
             _heroSubtitle(status),
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withValues(alpha: 0.88),
-            ),
+                  color: Colors.white.withValues(alpha: 0.88),
+                ),
           ),
           const SizedBox(height: AppSpacing.l),
           Text(
             '\$${amount.toStringAsFixed(0)} COP',
             style: theme.textTheme.headlineMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-            ),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
           ),
           const SizedBox(height: AppSpacing.s),
           Text(
             '$title\nRide ID: $rideId',
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withValues(alpha: 0.92),
-            ),
+                  color: Colors.white.withValues(alpha: 0.92),
+                ),
           ),
         ],
       ),

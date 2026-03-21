@@ -100,14 +100,18 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
         payerEmail: payerEmail,
         userId: userId,
       );
+      final checkoutUrl =
+          (session.sandboxInitPoint?.trim().isNotEmpty ?? false)
+              ? session.sandboxInitPoint!.trim()
+              : session.initPoint;
 
       bindPaymentStream(rideId);
 
       state = state.copyWith(
         status: PaymentFlowStatus.checkoutOpened,
-        checkoutUrl: session.initPoint,
+        checkoutUrl: checkoutUrl,
         rideId: rideId,
-        message: 'Checkout opened. Finish the payment inside Wheels.',
+        message: 'Test checkout opened. Finish the payment inside Wheels.',
       );
     } catch (error) {
       state = state.copyWith(
@@ -155,33 +159,30 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
 
   void bindPaymentStream(String rideId) {
     _paymentSubscription?.cancel();
-    _paymentSubscription = _repository
-        .watchPaymentStatus(rideId)
-        .listen(
-          (paymentRecord) {
-            if (paymentRecord == null) {
-              return;
-            }
+    _paymentSubscription = _repository.watchPaymentStatus(rideId).listen(
+      (paymentRecord) {
+        if (paymentRecord == null) {
+          return;
+        }
 
-            state = state.copyWith(
-              rideId: rideId,
-              paymentRecord: paymentRecord,
-              status: _mapStatus(paymentRecord.status),
-              message: _statusMessage(paymentRecord.status),
-              clearCheckoutUrl:
-                  state.status != PaymentFlowStatus.checkoutOpened,
-            );
-          },
-          onError: (Object error, StackTrace stackTrace) {
-            state = state.copyWith(
-              status: PaymentFlowStatus.error,
-              message: _readableError(
-                error,
-                fallback: 'We lost the payment observer connection.',
-              ),
-            );
-          },
+        state = state.copyWith(
+          rideId: rideId,
+          paymentRecord: paymentRecord,
+          status: _mapStatus(paymentRecord.status),
+          message: _statusMessage(paymentRecord.status),
+          clearCheckoutUrl: state.status != PaymentFlowStatus.checkoutOpened,
         );
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        state = state.copyWith(
+          status: PaymentFlowStatus.error,
+          message: _readableError(
+            error,
+            fallback: 'We lost the payment observer connection.',
+          ),
+        );
+      },
+    );
   }
 
   void handleRedirectSuccess() {
@@ -331,17 +332,15 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
   }
 }
 
-final paymentRemoteDataSourceProvider = Provider<PaymentRemoteDataSource>((
-  ref,
-) {
+final paymentRemoteDataSourceProvider = Provider<PaymentRemoteDataSource>((ref) {
   return PaymentRemoteDataSource();
 });
 
-final paymentFirestoreDataSourceProvider = Provider<PaymentFirestoreDataSource>(
-  (ref) {
-    return PaymentFirestoreDataSource();
-  },
-);
+final paymentFirestoreDataSourceProvider = Provider<PaymentFirestoreDataSource>((
+  ref,
+) {
+  return PaymentFirestoreDataSource();
+});
 
 final paymentRepositoryProvider = Provider<PaymentRepository>((ref) {
   return PaymentRepositoryImpl(
