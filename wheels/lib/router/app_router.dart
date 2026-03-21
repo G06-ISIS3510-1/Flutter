@@ -9,6 +9,7 @@ import '../features/auth/presentation/providers/auth_providers.dart';
 import '../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../features/auth/presentation/screens/login_screen.dart';
 import '../features/auth/presentation/screens/register_screen.dart';
+import '../features/admin/presentation/admin_dashboard.dart';
 import '../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../features/notifications/presentation/screens/notifications_screen.dart';
 import '../features/payments/presentation/screens/payment_screen.dart';
@@ -35,6 +36,7 @@ class AppRouter {
       final isReady = container.read(authSessionReadyProvider);
       final isAuthenticated = container.read(isAuthenticatedProvider);
       final isDriver = container.read(isDriverProvider);
+      final isAdmin = container.read(isAdminProvider);
       final location = state.matchedLocation;
       final isPublicRoute =
           location == AppRoutes.login ||
@@ -65,6 +67,10 @@ class AppRouter {
               location == AppRoutes.groupChat ||
               location.startsWith('/group/')) &&
           !isDriver) {
+        return AppRoutes.dashboard;
+      }
+
+      if (location == AppRoutes.adminAnalytics && !isAdmin) {
         return AppRoutes.dashboard;
       }
 
@@ -111,7 +117,9 @@ class AppRouter {
       ),
       GoRoute(
         path: AppRoutes.activeRide,
-        builder: (context, state) => const ActiveRideScreen(),
+        builder: (context, state) => ActiveRideScreen(
+          rideId: state.uri.queryParameters['rideId'],
+        ),
       ),
       GoRoute(
         path: AppRoutes.groupChat,
@@ -139,6 +147,10 @@ class AppRouter {
       GoRoute(
         path: AppRoutes.reviews,
         builder: (context, state) => const ReviewsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminAnalytics,
+        builder: (context, state) => const AdminDashboard(),
       ),
     ],
   );

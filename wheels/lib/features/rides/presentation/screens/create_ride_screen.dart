@@ -29,6 +29,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   final _notesController = TextEditingController();
   final _dateController = TextEditingController();
   final _timeController = TextEditingController();
+  final _durationController = TextEditingController(text: '30');
   final _priceController = TextEditingController();
 
   DateTime? _selectedDate;
@@ -57,6 +58,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     _notesController.dispose();
     _dateController.dispose();
     _timeController.dispose();
+    _durationController.dispose();
     _priceController.dispose();
     super.dispose();
   }
@@ -238,12 +240,16 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     return '$hour:$minute';
   }
 
-  double get _pricePerSeat {
-    final parsed = double.tryParse(_priceController.text.trim());
+  int get _durationMinutes {
+    return int.tryParse(_durationController.text.trim()) ?? 0;
+  }
+
+  int get _pricePerSeat {
+    final parsed = int.tryParse(_priceController.text.trim());
     return parsed ?? 0;
   }
 
-  double get _estimatedEarnings => _availableSeats * _pricePerSeat;
+  double get _estimatedEarnings => _availableSeats * _pricePerSeat.toDouble();
   double get _platformFixedFee => 800;
   double get _platformPercentageFee => _estimatedEarnings * 0.033;
   double get _estimatedNetAfterPlatformFee =>
@@ -254,26 +260,92 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
         )
       : _estimatedEarnings;
 
-  void _publishRide() {
+  Future<void> _publishRide() async {
     final isValid = _formKey.currentState?.validate() ?? false;
     if (!isValid) {
       return;
     }
 
-    final paymentSummary = _paymentOption == DriverPaymentOption.card
-        ? 'Card payments enabled'
-        : 'Direct bank transfer';
-    final summary =
-        '$_origin -> $_destination | $_availableSeats seats | \$${_priceController.text.trim()} | $paymentSummary';
-    ref.read(publishedRideSummaryProvider.notifier).state = summary;
-    ref.read(activeRideCountProvider.notifier).state = 1;
+    final currentUser = ref.read(authUserProvider);
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sign in again before publishing your ride.'),
+        ),
+      );
+      return;
+    }
 
-    context.go(AppRoutes.activeRide);
+    final selectedDate = _selectedDate;
+    final selectedTime = _selectedTime;
+    if (selectedDate == null || selectedTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select both date and departure time.')),
+      );
+      return;
+    }
+
+    final departureAt = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+      selectedTime.hour,
+      selectedTime.minute,
+    );
+
+    if (!departureAt.isAfter(DateTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Departure time must be in the future.'),
+        ),
+      );
+      return;
+    }
+
+    final rideId = await ref.read(createRideControllerProvider.notifier).createRide(
+      driverId: currentUser.uid,
+      driverName: currentUser.fullName,
+      driverEmail: currentUser.email,
+      origin: _origin.trim(),
+      destination: _destination.trim(),
+      departureAt: departureAt,
+      estimatedDurationMinutes: _durationMinutes,
+      totalSeats: _availableSeats,
+      pricePerSeat: _pricePerSeat,
+      notes: _notesController.text.trim(),
+    );
+
+    if (!mounted || rideId == null) {
+      return;
+    }
+
+    ref.read(createRideControllerProvider.notifier).clear();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Ride published successfully.')),
+    );
+    context.go(AppRoutes.activeRideById(rideId));
   }
 
   @override
   Widget build(BuildContext context) {
     final role = ref.watch(currentUserRoleProvider);
+    final createRideState = ref.watch(createRideControllerProvider);
+
+    ref.listen<AsyncValue<String?>>(createRideControllerProvider, (
+      previous,
+      next,
+    ) {
+      next.whenOrNull(
+        error: (error, _) {
+          final message = error is Exception
+              ? error.toString().replaceFirst('Exception: ', '')
+              : 'We could not publish your ride right now.';
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(message)));
+        },
+      );
+    });
 
     return AppScaffold(
       title: 'Create Ride',
@@ -308,7 +380,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _publishRide,
+                  onPressed: createRideState.isLoading ? null : _publishRide,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accent,
                     foregroundColor: AppColors.accentForeground,
@@ -433,6 +505,39 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                       onTap: _pickTime,
                       validatorText: 'Departure time is required.',
                     ),
+                    const SizedBox(height: AppSpacing.m),
+                    TextFormField(
+                      controller: _durationController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: <TextInputFormatter>[
+                        FilteringTextInputFormatter.digitsOnly,
+                      ],
+                      decoration: _inputDecoration(
+                        label: 'Estimated Duration',
+                        hint: '30',
+                        icon: Icons.timer_outlined,
+                        suffixIcon: const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: Text(
+                            'min',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Estimated duration is required.';
+                        }
+                        final parsed = int.tryParse(value);
+                        if (parsed == null || parsed <= 0) {
+                          return 'Enter a valid duration.';
+                        }
+                        return null;
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -490,12 +595,10 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                     TextFormField(
                       controller: _priceController,
                       keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
+                        decimal: false,
                       ),
                       inputFormatters: <TextInputFormatter>[
-                        FilteringTextInputFormatter.allow(
-                          RegExp(r'^\d*\.?\d{0,2}$'),
-                        ),
+                        FilteringTextInputFormatter.digitsOnly,
                       ],
                       decoration: _inputDecoration(
                         label: 'Price per Seat',
@@ -507,7 +610,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                         if (value == null || value.trim().isEmpty) {
                           return 'Price per seat is required.';
                         }
-                        final parsed = double.tryParse(value);
+                        final parsed = int.tryParse(value);
                         if (parsed == null || parsed <= 0) {
                           return 'Enter a valid price.';
                         }
@@ -887,7 +990,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
-                '$_availableSeats seats x \$${_pricePerSeat.toStringAsFixed(0)} each',
+                '$_availableSeats seats x \$$_pricePerSeat each',
                 style: const TextStyle(
                   color: AppColors.primaryForeground,
                   fontSize: 13,

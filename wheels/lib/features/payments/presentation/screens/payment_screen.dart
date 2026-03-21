@@ -111,16 +111,14 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               AppButton(
                 label: 'Pay with Mercado Pago',
                 onPressed: () {
-                  ref
-                      .read(paymentProvider.notifier)
-                      .startCheckout(
-                        rideId: _rideId,
-                        title: _title,
-                        unitPrice: _unitPrice,
-                        quantity: _quantity,
-                        payerEmail: payerEmail,
-                        userId: userId,
-                      );
+                  ref.read(paymentProvider.notifier).startCheckout(
+                    rideId: _rideId,
+                    title: _title,
+                    unitPrice: _unitPrice,
+                    quantity: _quantity,
+                    payerEmail: payerEmail,
+                    userId: userId,
+                  );
                 },
               ),
             if (!canStartCheckout) ...[
@@ -136,16 +134,14 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   onPressed: userId == null
                       ? null
                       : () {
-                          ref
-                              .read(paymentProvider.notifier)
-                              .startCheckout(
-                                rideId: _rideId,
-                                title: _title,
-                                unitPrice: _unitPrice,
-                                quantity: _quantity,
-                                payerEmail: payerEmail,
-                                userId: userId,
-                              );
+                          ref.read(paymentProvider.notifier).startCheckout(
+                            rideId: _rideId,
+                            title: _title,
+                            unitPrice: _unitPrice,
+                            quantity: _quantity,
+                            payerEmail: payerEmail,
+                            userId: userId,
+                          );
                         },
                 ),
               ],
@@ -317,9 +313,9 @@ class _UserStatusCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.s),
           Text(
             _userDescription(status, paymentState.message),
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
           const SizedBox(height: AppSpacing.m),
           AppButton(
@@ -477,9 +473,9 @@ class _DetailRow extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppColors.primary),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.primary,
+              ),
             ),
           ),
         ],

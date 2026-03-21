@@ -14,9 +14,11 @@ class AppRoutes {
   static const profile = '/profile';
   static const trust = '/trust';
   static const reviews = '/reviews';
+  static const adminAnalytics = '/admin-analytics';
 
   static String groupByRideId(String rideId) => '/group/$rideId';
   static String groupChatByTripId(String tripId) =>
       '/group-chat?tripId=$tripId';
   static String rideDetailsById(String rideId) => '/ride/$rideId';
+  static String activeRideById(String rideId) => '/active-ride?rideId=$rideId';
 }

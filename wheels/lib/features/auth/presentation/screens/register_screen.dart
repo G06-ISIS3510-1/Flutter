@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_spacing.dart';
+import '../../../../theme/app_theme_palette.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import '../../domain/entities/auth_entity.dart';
 import '../providers/auth_providers.dart';
@@ -148,6 +149,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       if (!mounted) return;
       final role = authEntity.role == 'driver'
           ? UserRole.driver
+          : authEntity.role == 'admin'
+          ? UserRole.admin
           : UserRole.passenger;
       _completeAuth(authEntity, role);
       _showSnackBar('Welcome back!');
@@ -206,7 +209,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F6FB),
+      backgroundColor: context.palette.background,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(

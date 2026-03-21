@@ -1,81 +1,324 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
+import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
-import '../mock/driver_active_ride_mock.dart';
+import '../../domain/entities/rides_entity.dart';
+import '../models/ride_listing.dart';
+import '../providers/rides_providers.dart';
 
-class ActiveRideScreen extends StatefulWidget {
-  const ActiveRideScreen({super.key});
+class ActiveRideScreen extends ConsumerWidget {
+  const ActiveRideScreen({this.rideId, super.key});
 
-  @override
-  State<ActiveRideScreen> createState() => _ActiveRideScreenState();
-}
-
-class _ActiveRideScreenState extends State<ActiveRideScreen>
-    with SingleTickerProviderStateMixin {
-  Map<String, dynamic> get _ride => DriverActiveRideMock.ride;
-  List<Map<String, dynamic>> get _passengers => DriverActiveRideMock.passengers;
-
-  late final AnimationController _statusController;
-  late final Animation<double> _statusOpacity;
-  bool _isRideStarted = false;
-
-  int get _occupiedSeats => _passengers.length;
+  final String? rideId;
 
   @override
-  void initState() {
-    super.initState();
-    _statusController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: true);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rideAsync = rideId == null
+        ? ref.watch(currentDriverRideProvider)
+        : ref.watch(rideProvider(rideId!));
 
-    _statusOpacity = Tween<double>(begin: 0.55, end: 1).animate(
-      CurvedAnimation(parent: _statusController, curve: Curves.easeInOut),
+    ref.listen<AsyncValue<void>>(rideStatusControllerProvider, (previous, next) {
+      next.whenOrNull(
+        error: (error, _) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(error.toString())));
+        },
+      );
+    });
+
+    return AppScaffold(
+      title: 'Active Ride',
+      showAppBar: false,
+      backgroundColor: AppColors.muted,
+      bottomNavigationBar: const AppBottomNav(
+        currentTab: AppBottomNavTab.middle,
+        role: UserRole.driver,
+      ),
+      child: rideAsync.when(
+        data: (ride) {
+          if (ride == null) {
+            return _EmptyActiveRide(
+              onCreateRide: () => context.go(AppRoutes.createRide),
+            );
+          }
+
+          final applicationsAsync = ref.watch(rideApplicationsProvider(ride.id));
+          final statusState = ref.watch(rideStatusControllerProvider);
+
+          return ListView(
+            padding: const EdgeInsets.all(AppSpacing.m),
+            children: [
+              _headerCard(ride),
+              const SizedBox(height: AppSpacing.m),
+              _routeCard(ride),
+              const SizedBox(height: AppSpacing.m),
+              applicationsAsync.when(
+                data: (applications) => _statusActions(
+                  context: context,
+                  ref: ref,
+                  ride: ride,
+                  applications: applications,
+                  isLoading: statusState.isLoading,
+                ),
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) => _errorCard(
+                  'We could not load passenger applications.',
+                  error.toString(),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.m),
+              applicationsAsync.when(
+                data: (applications) => _passengerSection(ride, applications),
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) => _errorCard(
+                  'We could not load passenger applications.',
+                  error.toString(),
+                ),
+              ),
+            ],
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => _errorCard(
+          'We could not load your current ride.',
+          error.toString(),
+        ),
+      ),
     );
   }
 
-  @override
-  void dispose() {
-    _statusController.dispose();
-    super.dispose();
+  Widget _headerCard(RidesEntity ride) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1A3A5C), Color(0xFF2D5A8E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        boxShadow: AppShadows.md,
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: Colors.white.withValues(alpha: 0.18),
+            child: Text(
+              ride.driverInitials,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.m),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  ride.driverName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  '${ride.availableSeats}/${ride.totalSeats} seats available',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.s,
+              vertical: AppSpacing.xs,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(AppRadius.xl),
+            ),
+            child: Text(
+              _rideStatusLabel(ride.status),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  void _startRide() {
-    if (!_isRideStarted) {
-      setState(() {
-        _isRideStarted = true;
-      });
+  Widget _routeCard(RidesEntity ride) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: AppShadows.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Ride details',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: AppColors.foreground,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.m),
+          _InfoRow(Icons.trip_origin, 'Origin', ride.origin),
+          const SizedBox(height: AppSpacing.s),
+          _InfoRow(Icons.place_outlined, 'Destination', ride.destination),
+          const SizedBox(height: AppSpacing.s),
+          _InfoRow(Icons.calendar_month_outlined, 'Date', ride.dateLabel),
+          const SizedBox(height: AppSpacing.s),
+          _InfoRow(Icons.schedule_outlined, 'Departure', ride.departureLabel),
+          const SizedBox(height: AppSpacing.s),
+          _InfoRow(Icons.timer_outlined, 'Duration', ride.durationLabel),
+          const SizedBox(height: AppSpacing.s),
+          _InfoRow(
+            Icons.attach_money,
+            'Price per seat',
+            '\$${ride.pricePerSeat}',
+          ),
+          if (ride.notes.trim().isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.s),
+            _InfoRow(Icons.notes_outlined, 'Notes', ride.notes),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _statusActions({
+    required BuildContext context,
+    required WidgetRef ref,
+    required RidesEntity ride,
+    required List<RideApplicationEntity> applications,
+    required bool isLoading,
+  }) {
+    Future<void> updateStatus(String status, String successMessage) async {
+      await ref
+          .read(rideStatusControllerProvider.notifier)
+          .updateRideStatus(rideId: ride.id, status: status);
+
+      if (!context.mounted) {
+        return;
+      }
+
+      ref.read(rideStatusControllerProvider.notifier).clear();
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(successMessage)));
+
+      if (status == 'cancelled' || status == 'completed') {
+        context.go(AppRoutes.dashboard);
+      }
     }
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('\u00a1Viaje iniciado! Buen camino \ud83d\ude97'),
-          backgroundColor: Color(0xFF00D9A3),
-          behavior: SnackBarBehavior.floating,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ElevatedButton.icon(
+          onPressed: () => context.go(AppRoutes.groupChatByTripId(ride.id)),
+          icon: const Icon(Icons.forum_outlined),
+          label: const Text('Open Group Chat'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF5B89C8),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+          ),
         ),
-      );
+        const SizedBox(height: AppSpacing.s),
+        if (ride.status == 'open')
+          ElevatedButton(
+            onPressed: isLoading
+                ? null
+                : () => updateStatus('in_progress', 'Ride started successfully.'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.accent,
+              foregroundColor: AppColors.accentForeground,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+            ),
+            child: Text(isLoading ? 'Updating...' : 'Start Ride'),
+          ),
+        if (ride.status == 'in_progress') ...[
+          OutlinedButton.icon(
+            onPressed: isLoading
+                ? null
+                : () async {
+                    final shouldFinish = await _openPassengerReviewFlow(
+                      context,
+                      applications,
+                    );
+                    if (!shouldFinish) {
+                      return;
+                    }
+                    await updateStatus(
+                      'completed',
+                      'Ride finished and passenger ratings submitted.',
+                    );
+                  },
+            icon: const Icon(Icons.check_circle_outline),
+            label: Text(isLoading ? 'Updating...' : 'Finish Ride'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s),
+        ],
+        OutlinedButton(
+          onPressed: isLoading || ride.status == 'completed'
+              ? null
+              : () => updateStatus('cancelled', 'Ride cancelled.'),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+          ),
+          child: const Text('Cancel Ride'),
+        ),
+      ],
+    );
   }
 
-  void _openGroupChat() {
-    context.go(AppRoutes.groupByRideId('active-driver-ride'));
-  }
+  Future<bool> _openPassengerReviewFlow(
+    BuildContext context,
+    List<RideApplicationEntity> applications,
+  ) async {
+    if (applications.isEmpty) {
+      return true;
+    }
 
-  void _endRide() {
-    _openPassengerReviewFlow();
-  }
-
-  Future<void> _openPassengerReviewFlow() async {
     final ratings = <String, int>{
-      for (final passenger in _passengers) passenger['name'] as String: 5,
+      for (final application in applications) application.id: 5,
     };
 
     final submitted = await showModalBottomSheet<bool>(
@@ -129,21 +372,19 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                     Flexible(
                       child: SingleChildScrollView(
                         child: Column(
-                          children: _passengers.map((passenger) {
-                            final name = passenger['name'] as String;
-                            final faculty = passenger['faculty'] as String;
-                            final rating = ratings[name] ?? 5;
+                          children: applications.map((application) {
+                            final rating = ratings[application.id] ?? 5;
                             return Padding(
                               padding: const EdgeInsets.only(
                                 bottom: AppSpacing.s,
                               ),
                               child: _PassengerReviewTile(
-                                name: name,
-                                faculty: faculty,
+                                name: application.passengerName,
+                                subtitle: application.passengerEmail,
                                 rating: rating,
                                 onRatingChanged: (value) {
                                   setModalState(() {
-                                    ratings[name] = value;
+                                    ratings[application.id] = value;
                                   });
                                 },
                               ),
@@ -176,7 +417,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
                       width: double.infinity,
                       child: OutlinedButton(
                         onPressed: () => Navigator.of(context).pop(false),
-                        child: const Text('Go back'),
+                        child: const Text('Go Back'),
                       ),
                     ),
                   ],
@@ -188,180 +429,145 @@ class _ActiveRideScreenState extends State<ActiveRideScreen>
       },
     );
 
-    if (submitted != true || !mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('Ride finished and passenger ratings submitted.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    context.go(AppRoutes.dashboard);
+    return submitted ?? false;
   }
 
-  Future<void> _cancelRide() async {
-    final shouldCancel = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Cancelar viaje'),
-          content: const Text(
-            '\u00bfSeguro que quieres cancelar este viaje? Esta accion no se puede deshacer.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancelar'),
+  Widget _passengerSection(
+    RidesEntity ride,
+    List<RideApplicationEntity> applications,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: AppShadows.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Passengers (${applications.length}/${ride.totalSeats})',
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: AppColors.foreground,
             ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFEF4444),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          if (applications.isEmpty)
+            const Text(
+              'No passengers have applied yet.',
+              style: TextStyle(color: AppColors.textSecondary),
+            )
+          else
+            for (final application in applications) ...[
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor: AppColors.primary,
+                  child: Text(
+                    _initials(application.passengerName),
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+                title: Text(application.passengerName),
+                subtitle: Text(application.passengerEmail),
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.s,
+                    vertical: AppSpacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(AppRadius.xl),
+                  ),
+                  child: Text(
+                    application.status,
+                    style: const TextStyle(
+                      color: Color(0xFF2E7D32),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
               ),
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Confirmar cancelacion'),
+              if (application != applications.last)
+                const Divider(color: AppColors.border),
+            ],
+        ],
+      ),
+    );
+  }
+
+  Widget _errorCard(String title, String message) {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.m),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          boxShadow: AppShadows.sm,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, color: AppColors.error, size: 40),
+            const SizedBox(height: AppSpacing.s),
+            Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                color: AppColors.foreground,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.textSecondary),
             ),
           ],
-        );
-      },
+        ),
+      ),
     );
-
-    if (shouldCancel == true && mounted) {
-      context.go(AppRoutes.dashboard);
-    }
   }
 
-  void _onBottomNavTap(int index) {
-    switch (index) {
-      case 0:
-        context.go(AppRoutes.dashboard);
-        return;
-      case 1:
-        context.go(AppRoutes.activeRide);
-        return;
-      case 2:
-        context.go(AppRoutes.notifications);
-        return;
-      case 3:
-        context.go(AppRoutes.profile);
-        return;
+  String _rideStatusLabel(String status) {
+    switch (status) {
+      case 'open':
+        return 'Open';
+      case 'in_progress':
+        return 'In Progress';
+      case 'completed':
+        return 'Completed';
+      case 'cancelled':
+        return 'Cancelled';
       default:
-        return;
+        return status;
     }
   }
 
   String _initials(String name) {
-    final parts = name.split(' ').where((part) => part.isNotEmpty).toList();
-    if (parts.isEmpty) {
-      return '';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || name.trim().isEmpty) {
+      return 'P';
     }
     if (parts.length == 1) {
-      return parts.first.substring(0, 1).toUpperCase();
+      return parts.first[0].toUpperCase();
     }
-    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final seats = _ride['seats'] as int;
-
-    return AppScaffold(
-      title: 'Viaje Activo',
-      showAppBar: false,
-      padding: EdgeInsets.zero,
-      backgroundColor: AppColors.muted,
-      bottomNavigationBar: _BottomDock(
-        isRideStarted: _isRideStarted,
-        onStartRide: _startRide,
-        onCancelRide: _cancelRide,
-        onOpenGroupChat: _openGroupChat,
-        onEndRide: _endRide,
-        onNavTap: _onBottomNavTap,
-      ),
-      child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: const SystemUiOverlayStyle(
-          statusBarColor: Color(0xFF1A3A5C),
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-        ),
-        child: Column(
-          children: [
-            _Header(statusOpacity: _statusOpacity),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(AppSpacing.m),
-                children: [
-                  _RouteCard(ride: _ride),
-                  const SizedBox(height: AppSpacing.m),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Pasajeros confirmados',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.foreground,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE8F0F9),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          '$_occupiedSeats/$seats asientos ocupados',
-                          style: const TextStyle(
-                            color: Color(0xFF1A3A5C),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.s),
-                  ..._passengers.map((passenger) {
-                    final name = passenger['name'] as String;
-                    final faculty = passenger['faculty'] as String;
-                    final confirmed = passenger['confirmed'] as bool;
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.s),
-                      child: _PassengerCard(
-                        initials: _initials(name),
-                        name: name,
-                        faculty: faculty,
-                        confirmed: confirmed,
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return '${parts.first[0]}${parts[1][0]}'.toUpperCase();
   }
 }
 
 class _PassengerReviewTile extends StatelessWidget {
   const _PassengerReviewTile({
     required this.name,
-    required this.faculty,
+    required this.subtitle,
     required this.rating,
     required this.onRatingChanged,
   });
 
   final String name;
-  final String faculty;
+  final String subtitle;
   final int rating;
   final ValueChanged<int> onRatingChanged;
 
@@ -386,7 +592,7 @@ class _PassengerReviewTile extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            faculty,
+            subtitle,
             style: const TextStyle(
               color: AppColors.textSecondary,
               fontSize: 12,
@@ -414,528 +620,77 @@ class _PassengerReviewTile extends StatelessWidget {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.statusOpacity});
+class _InfoRow extends StatelessWidget {
+  const _InfoRow(this.icon, this.label, this.value);
 
-  final Animation<double> statusOpacity;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.m,
-        AppSpacing.m,
-        AppSpacing.m,
-        AppSpacing.l,
-      ),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF1A3A5C), Color(0xFF2D5A8E)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(AppRadius.lg),
-          bottomRight: Radius.circular(AppRadius.lg),
-        ),
-      ),
-      child: Row(
-        children: [
-          const Expanded(
-            child: Text(
-              'Viaje Activo',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          AnimatedBuilder(
-            animation: statusOpacity,
-            builder: (context, child) {
-              return Opacity(opacity: statusOpacity.value, child: child);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-              decoration: BoxDecoration(
-                color: const Color(0xFF00D9A3).withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Text(
-                '\u25cf EN CURSO',
-                style: TextStyle(
-                  color: Color(0xFF00D9A3),
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RouteCard extends StatelessWidget {
-  const _RouteCard({required this.ride});
-
-  final Map<String, dynamic> ride;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.m),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        boxShadow: AppShadows.md,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Ruta del viaje',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.foreground,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDBEAFE).withValues(alpha: 0.8),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  'ETA ${ride['eta']}',
-                  style: const TextStyle(
-                    color: Color(0xFF1D4ED8),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.m),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Column(
-                children: const [
-                  Icon(Icons.trip_origin, color: Color(0xFF00D9A3), size: 18),
-                  SizedBox(height: 6),
-                  _VerticalDashedLine(height: 22),
-                  SizedBox(height: 6),
-                  Icon(Icons.location_on, color: Color(0xFF1A3A5C), size: 20),
-                ],
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Origen',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
-                    Text(
-                      ride['origin'] as String,
-                      style: const TextStyle(
-                        color: Color(0xFF0F172A),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.l),
-                    const Text(
-                      'Destino',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
-                    Text(
-                      ride['destination'] as String,
-                      style: const TextStyle(
-                        color: Color(0xFF0F172A),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.m),
-          Divider(color: Colors.black.withValues(alpha: 0.06), height: 1),
-          const SizedBox(height: AppSpacing.s),
-          Row(
-            children: [
-              Expanded(
-                child: _TripInfoPill(
-                  label: 'Salida',
-                  value: ride['departureTime'] as String,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.s),
-              Expanded(
-                child: _TripInfoPill(
-                  label: 'Llegada',
-                  value: ride['eta'] as String,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PassengerCard extends StatelessWidget {
-  const _PassengerCard({
-    required this.initials,
-    required this.name,
-    required this.faculty,
-    required this.confirmed,
-  });
-
-  final String initials;
-  final String name;
-  final String faculty;
-  final bool confirmed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.m),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        boxShadow: AppShadows.sm,
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: const Color(0xFF2D5A8E),
-            child: Text(
-              initials,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.m),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    color: Color(0xFF0F172A),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  faculty,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: confirmed
-                  ? const Color(0xFF00D9A3).withValues(alpha: 0.14)
-                  : const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: confirmed
-                    ? const Color(0xFF00D9A3)
-                    : const Color(0xFFE2E8F0),
-              ),
-            ),
-            child: Icon(
-              Icons.check,
-              color: confirmed
-                  ? const Color(0xFF00D9A3)
-                  : const Color(0xFF94A3B8),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BottomDock extends StatelessWidget {
-  const _BottomDock({
-    required this.isRideStarted,
-    required this.onStartRide,
-    required this.onCancelRide,
-    required this.onOpenGroupChat,
-    required this.onEndRide,
-    required this.onNavTap,
-  });
-
-  final bool isRideStarted;
-  final VoidCallback onStartRide;
-  final VoidCallback onCancelRide;
-  final VoidCallback onOpenGroupChat;
-  final VoidCallback onEndRide;
-  final ValueChanged<int> onNavTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            offset: const Offset(0, -2),
-            blurRadius: 12,
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.m,
-                AppSpacing.m,
-                AppSpacing.m,
-                AppSpacing.s,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (!isRideStarted) ...[
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF00D9A3), Color(0xFF00B38B)],
-                        ),
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: onStartRide,
-                          borderRadius: BorderRadius.circular(AppRadius.md),
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 14),
-                            child: Text(
-                              'Iniciar Viaje',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.s),
-                    const Text(
-                      'Cancelar con poca antelacion puede generar penalizacion.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.s),
-                    OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(
-                          color: Color(0xFFFCA5A5),
-                          width: 1.2,
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.md),
-                        ),
-                      ),
-                      onPressed: onCancelRide,
-                      child: const Text(
-                        'Cancelar Viaje',
-                        style: TextStyle(
-                          color: Color(0xFFEF4444),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ] else ...[
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF5B89C8),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.md),
-                        ),
-                      ),
-                      onPressed: onOpenGroupChat,
-                      icon: const Icon(Icons.forum_outlined),
-                      label: const Text(
-                        'Open Group Chat',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.s),
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFFE2E8F0)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.md),
-                        ),
-                      ),
-                      onPressed: onEndRide,
-                      icon: const Icon(
-                        Icons.check_circle_outline,
-                        color: AppColors.primary,
-                      ),
-                      label: const Text(
-                        'Terminar Viaje',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const Divider(height: 1, color: AppColors.border),
-            BottomNavigationBar(
-              currentIndex: 1,
-              type: BottomNavigationBarType.fixed,
-              backgroundColor: Colors.white,
-              elevation: 0,
-              selectedItemColor: const Color(0xFF00D9A3),
-              unselectedItemColor: const Color(0xFF94A3B8),
-              onTap: onNavTap,
-              items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.home_outlined),
-                  activeIcon: Icon(Icons.home),
-                  label: 'Home',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.directions_car_outlined),
-                  activeIcon: Icon(Icons.directions_car),
-                  label: 'Mis Viajes',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.chat_bubble_outline),
-                  activeIcon: Icon(Icons.chat_bubble),
-                  label: 'Mensajes',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.person_outline),
-                  activeIcon: Icon(Icons.person),
-                  label: 'Perfil',
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TripInfoPill extends StatelessWidget {
-  const _TripInfoPill({required this.label, required this.value});
-
+  final IconData icon;
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.m),
-      decoration: BoxDecoration(
-        color: AppColors.input,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-      ),
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 11,
-            ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: AppColors.secondary),
+        const SizedBox(width: AppSpacing.s),
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w600,
           ),
-          const SizedBox(height: 4),
-          Text(
+        ),
+        Expanded(
+          child: Text(
             value,
             style: const TextStyle(
-              color: Color(0xFF0F172A),
-              fontWeight: FontWeight.w700,
-              fontSize: 18,
+              color: AppColors.foreground,
+              fontWeight: FontWeight.w600,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-class _VerticalDashedLine extends StatelessWidget {
-  const _VerticalDashedLine({required this.height});
+class _EmptyActiveRide extends StatelessWidget {
+  const _EmptyActiveRide({required this.onCreateRide});
 
-  final double height;
+  final VoidCallback onCreateRide;
 
   @override
   Widget build(BuildContext context) {
-    const dashHeight = 4.0;
-    const dashGap = 3.0;
-    final dashCount = (height / (dashHeight + dashGap)).floor();
-
-    return SizedBox(
-      width: 2,
-      height: height,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: List.generate(dashCount, (_) {
-          return Container(
-            width: 2,
-            height: dashHeight,
-            color: const Color(0xFFE2E8F0),
-          );
-        }),
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(AppSpacing.m),
+        padding: const EdgeInsets.all(AppSpacing.l),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          boxShadow: AppShadows.sm,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.directions_car_outlined, size: 56),
+            const SizedBox(height: AppSpacing.s),
+            const Text(
+              'You do not have an active ride right now.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.foreground,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.s),
+            ElevatedButton(
+              onPressed: onCreateRide,
+              child: const Text('Create a ride'),
+            ),
+          ],
+        ),
       ),
     );
   }
