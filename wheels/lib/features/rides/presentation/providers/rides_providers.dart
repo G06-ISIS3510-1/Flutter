@@ -34,6 +34,15 @@ final currentDriverRideProvider = StreamProvider<RidesEntity?>((ref) {
   return ref.watch(ridesRepositoryProvider).watchCurrentDriverRide(user.uid);
 });
 
+final currentPassengerRideProvider = StreamProvider<RidesEntity?>((ref) {
+  final user = ref.watch(authUserProvider);
+  if (user == null) {
+    return Stream<RidesEntity?>.value(null);
+  }
+
+  return ref.watch(ridesRepositoryProvider).watchCurrentPassengerRide(user.uid);
+});
+
 final rideApplicationsProvider =
     StreamProvider.family<List<RideApplicationEntity>, String>((ref, rideId) {
       return ref.watch(ridesRepositoryProvider).watchRideApplications(rideId);

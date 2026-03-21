@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../features/auth/presentation/providers/auth_providers.dart';
+import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../theme/app_colors.dart';
@@ -84,6 +86,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
               ride.hasAvailableSeats &&
               !hasApplied &&
               currentUser != null;
+          final canOpenPayment = hasApplied && !isOwnRide;
 
           return ListView(
             children: [
@@ -211,6 +214,8 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
                               passengerEmail: currentUser.email,
                             );
                       }
+                    : canOpenPayment
+                        ? () => context.go(AppRoutes.paymentByRideId(ride.id))
                     : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.accent,
@@ -273,7 +278,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
       return 'This is your ride';
     }
     if (hasApplied) {
-      return 'Application sent';
+      return 'Continue to payment';
     }
     if (!hasAvailableSeats) {
       return 'Ride full';

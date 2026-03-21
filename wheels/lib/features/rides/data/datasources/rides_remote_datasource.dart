@@ -53,6 +53,26 @@ class RidesRemoteDataSource {
         });
   }
 
+  Stream<RidesEntity?> watchCurrentPassengerRide(String passengerId) {
+    return _ridesCollection
+        .where('passengerIds', arrayContains: passengerId)
+        .snapshots()
+        .map((snapshot) {
+          final rides = snapshot.docs
+              .map(RidesModel.fromFirestore)
+              .where((ride) {
+                return ride.status == 'open' || ride.status == 'in_progress';
+              })
+              .toList()
+            ..sort((a, b) => a.departureAt.compareTo(b.departureAt));
+
+          if (rides.isEmpty) {
+            return null;
+          }
+          return rides.first;
+        });
+  }
+
   Stream<List<RideApplicationEntity>> watchRideApplications(String rideId) {
     return _applicationsCollection(
       rideId,

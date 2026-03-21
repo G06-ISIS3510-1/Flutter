@@ -134,7 +134,9 @@ class AppRouter {
       ),
       GoRoute(
         path: AppRoutes.payment,
-        builder: (context, state) => const PaymentScreen(),
+        builder: (context, state) => PaymentScreen(
+          rideId: state.uri.queryParameters['rideId'],
+        ),
       ),
       GoRoute(
         path: AppRoutes.profile,

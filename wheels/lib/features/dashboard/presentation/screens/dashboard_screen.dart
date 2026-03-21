@@ -302,18 +302,159 @@ class _CurrentRideCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.palette;
-    final rideAsync = ref.watch(currentDriverRideProvider);
     final role = ref.watch(currentUserRoleProvider);
 
     if (role != UserRole.driver) {
-      return _InfoCard(
-        title: 'Passenger Home',
-        subtitle: 'Search available rides and apply with your account.',
-        actionLabel: 'Search Rides',
-        onAction: () => context.go(AppRoutes.rides),
+      final passengerRideAsync = ref.watch(currentPassengerRideProvider);
+      return passengerRideAsync.when(
+        loading: () => const _LoadingCard(title: 'Your Ride'),
+        error: (error, _) => _InfoCard(
+          title: 'Your Ride',
+          subtitle: error.toString(),
+        ),
+        data: (ride) {
+          if (ride == null) {
+            return _InfoCard(
+              title: 'Passenger Home',
+              subtitle: 'Search available rides and apply with your account.',
+              actionLabel: 'Search Rides',
+              onAction: () => context.go(AppRoutes.rides),
+            );
+          }
+
+          return GestureDetector(
+            onTap: () => context.go(AppRoutes.rideDetailsById(ride.id)),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: palette.card,
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: AppShadows.lg,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Your current ride',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            color: palette.textPrimary,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: palette.accentSoft,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          ride.isInProgress ? 'In Progress' : 'Applied',
+                          style: TextStyle(
+                            color: palette.accent,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 27,
+                        backgroundColor: palette.primaryLight,
+                        child: Text(
+                          ride.driverInitials,
+                          style: TextStyle(
+                            color: palette.primaryForeground,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              ride.driverName,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                color: palette.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Driver assigned to your ride',
+                              style: TextStyle(color: palette.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _SmallActionButton(
+                        icon: Icons.payments_outlined,
+                        onTap: () => context.go(AppRoutes.paymentByRideId(ride.id)),
+                      ),
+                      const SizedBox(width: 8),
+                      _SmallActionButton(
+                        icon: Icons.arrow_forward_outlined,
+                        onTap: () => context.go(AppRoutes.rideDetailsById(ride.id)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Divider(color: palette.border),
+                  const SizedBox(height: 10),
+                  _InfoRow(
+                    icon: Icons.trip_origin,
+                    iconColor: palette.secondary,
+                    label: 'Origin',
+                    value: ride.origin,
+                  ),
+                  const SizedBox(height: 10),
+                  _InfoRow(
+                    icon: Icons.location_on_outlined,
+                    iconColor: palette.textSecondary,
+                    label: 'Destination',
+                    value: ride.destination,
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _MiniMetric(
+                          title: 'Departure',
+                          value: ride.departureLabel,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _MiniMetric(
+                          title: 'Fare',
+                          value: ride.priceLabel,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       );
     }
 
+    final rideAsync = ref.watch(currentDriverRideProvider);
     return rideAsync.when(
       loading: () => const _LoadingCard(title: 'Current Ride'),
       error: (error, _) => _InfoCard(
@@ -471,10 +612,15 @@ class _UpdatesSection extends ConsumerWidget {
     final palette = context.palette;
     final role = ref.watch(currentUserRoleProvider);
     final user = ref.watch(authUserProvider);
-    final currentRide = ref.watch(currentDriverRideProvider).valueOrNull;
-    final paymentRecordAsync = ref.watch(paymentRecordStreamProvider('ride_123'));
-    final isRidePaid =
-        paymentRecordAsync.valueOrNull?.status.trim().toLowerCase() == 'approved';
+    final driverRide = ref.watch(currentDriverRideProvider).valueOrNull;
+    final passengerRide = ref.watch(currentPassengerRideProvider).valueOrNull;
+    final paymentRecord = passengerRide == null
+        ? null
+        : ref.watch(paymentRecordStreamProvider(passengerRide.id)).valueOrNull;
+    final paymentStatus = paymentRecord?.status.trim().toLowerCase();
+    final isRidePaid = paymentStatus == 'approved';
+    final isPaymentPending =
+        paymentStatus == 'pending' || paymentStatus == 'in_process';
     final firstName = user?.fullName.split(RegExp(r'\s+')).first ?? 'User';
 
     return Column(
@@ -491,39 +637,70 @@ class _UpdatesSection extends ConsumerWidget {
         const SizedBox(height: 10),
         if (role == UserRole.driver)
           _UpdateCard(
-            icon: currentRide == null
+            icon: driverRide == null
                 ? Icons.directions_car_outlined
                 : Icons.people_alt_outlined,
             iconBg: palette.accent,
-            title: currentRide == null
+            title: driverRide == null
                 ? 'No live ride yet'
                 : 'Manage your current ride',
-            subtitle: currentRide == null
+            subtitle: driverRide == null
                 ? 'Create a ride to start receiving passenger applications.'
                 : 'Open your live trip and review the passenger group.',
             highlight: true,
-            actionLabel: currentRide == null ? 'Create Ride' : 'Open Ride',
+            actionLabel: driverRide == null ? 'Create Ride' : 'Open Ride',
             onAction: () => context.go(
-              currentRide == null
+              driverRide == null
                   ? AppRoutes.createRide
-                  : AppRoutes.activeRideById(currentRide.id),
+                  : AppRoutes.activeRideById(driverRide.id),
             ),
+          )
+        else if (passengerRide == null)
+          _UpdateCard(
+            icon: Icons.search_outlined,
+            iconBg: palette.accent,
+            title: 'Welcome, $firstName',
+            subtitle:
+                'You do not have an active ride yet. Search available rides and apply to one first.',
+            highlight: true,
+            actionLabel: 'Search Rides',
+            onAction: () => context.go(AppRoutes.rides),
           )
         else
           _UpdateCard(
-            icon: isRidePaid ? Icons.check_circle_rounded : Icons.near_me,
+            icon: isRidePaid
+                ? Icons.check_circle_rounded
+                : isPaymentPending
+                    ? Icons.hourglass_top_rounded
+                    : Icons.payments_outlined,
             iconBg: isRidePaid ? palette.accentSoft : palette.accent,
             iconColor: isRidePaid ? palette.accent : palette.primaryForeground,
             title: isRidePaid
                 ? 'Ride already paid'
-                : 'Welcome, $firstName',
+                : isPaymentPending
+                    ? 'Payment under review'
+                    : 'Payment needed',
             subtitle: isRidePaid
-                ? 'This ride was already paid successfully.'
-                : 'Browse available rides or pay quickly for your current trip.',
+                ? 'Your ride with ${passengerRide.driverName} was paid successfully.'
+                : isPaymentPending
+                    ? 'We are still verifying the payment for your current ride.'
+                    : 'Complete the payment for ${passengerRide.origin} to ${passengerRide.destination}.',
             highlight: true,
-            actionLabel: isRidePaid ? null : 'Quick Pay',
-            onAction: isRidePaid ? null : () => context.go(AppRoutes.payment),
-            trailing: isRidePaid ? 'Paid' : null,
+            actionLabel: isRidePaid
+                ? 'View Ride'
+                : isPaymentPending
+                    ? 'Open Payment'
+                    : 'Quick Pay',
+            onAction: () => context.go(
+              isRidePaid
+                  ? AppRoutes.rideDetailsById(passengerRide.id)
+                  : AppRoutes.paymentByRideId(passengerRide.id),
+            ),
+            trailing: isRidePaid
+                ? 'Paid'
+                : isPaymentPending
+                    ? 'Pending'
+                    : passengerRide.priceLabel,
           ),
         const SizedBox(height: 10),
         _UpdateCard(
