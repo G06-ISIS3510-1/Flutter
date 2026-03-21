@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/datasources/auth_remote_datasource.dart';
@@ -12,10 +13,15 @@ enum UserRole { passenger, driver }
 
 final firebaseReadyProvider = Provider<bool>((ref) => true);
 
+final firebaseAnalyticsProvider = Provider<FirebaseAnalytics>((ref) {
+  return FirebaseAnalytics.instance;
+});
+
 final authServiceProvider = Provider<AuthService>((ref) {
   return AuthService(
     firebaseAuth: firebase_auth.FirebaseAuth.instance,
     firestore: FirebaseFirestore.instance,
+    analytics: ref.watch(firebaseAnalyticsProvider),
   );
 });
 
