@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../features/auth/presentation/providers/auth_providers.dart';
+import '../../../../features/payments/presentation/providers/payment_provider.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
@@ -103,12 +104,10 @@ class _DashboardHeader extends StatelessWidget {
           Row(
             children: [
               Builder(
-                builder: (context) {
-                  return _CircleIconButton(
-                    icon: Icons.menu,
-                    onTap: () => Scaffold.of(context).openDrawer(),
-                  );
-                },
+                builder: (context) => _CircleIconButton(
+                  icon: Icons.menu,
+                  onTap: () => Scaffold.of(context).openDrawer(),
+                ),
               ),
               const SizedBox(width: AppSpacing.s),
               Expanded(
@@ -473,6 +472,9 @@ class _UpdatesSection extends ConsumerWidget {
     final role = ref.watch(currentUserRoleProvider);
     final user = ref.watch(authUserProvider);
     final currentRide = ref.watch(currentDriverRideProvider).valueOrNull;
+    final paymentRecordAsync = ref.watch(paymentRecordStreamProvider('ride_123'));
+    final isRidePaid =
+        paymentRecordAsync.valueOrNull?.status.trim().toLowerCase() == 'approved';
     final firstName = user?.fullName.split(RegExp(r'\s+')).first ?? 'User';
 
     return Column(
@@ -509,23 +511,28 @@ class _UpdatesSection extends ConsumerWidget {
           )
         else
           _UpdateCard(
-            icon: Icons.near_me,
-            iconBg: palette.accent,
-            title: 'Welcome, $firstName',
-            subtitle: 'Browse available rides or pay quickly for your current trip.',
+            icon: isRidePaid ? Icons.check_circle_rounded : Icons.near_me,
+            iconBg: isRidePaid ? palette.accentSoft : palette.accent,
+            iconColor: isRidePaid ? palette.accent : palette.primaryForeground,
+            title: isRidePaid
+                ? 'Ride already paid'
+                : 'Welcome, $firstName',
+            subtitle: isRidePaid
+                ? 'This ride was already paid successfully.'
+                : 'Browse available rides or pay quickly for your current trip.',
             highlight: true,
-            actionLabel: 'Quick Pay',
-            onAction: () => context.go(AppRoutes.payment),
+            actionLabel: isRidePaid ? null : 'Quick Pay',
+            onAction: isRidePaid ? null : () => context.go(AppRoutes.payment),
+            trailing: isRidePaid ? 'Paid' : null,
           ),
         const SizedBox(height: 10),
         _UpdateCard(
           icon: Icons.person_outline,
           iconBg: palette.border,
           iconColor: palette.secondary,
-          title: 'Profile and notifications',
-          subtitle: 'Review your activity, alerts, and account preferences.',
-          trailing: 'Open',
-          onAction: null,
+          title: 'Signed in account',
+          subtitle: user?.email ?? 'No account data available.',
+          trailing: role == UserRole.driver ? 'Driver' : 'Passenger',
         ),
       ],
     );
