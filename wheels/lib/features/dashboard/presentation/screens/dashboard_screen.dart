@@ -6,8 +6,10 @@ import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
-import '../../../../theme/app_colors.dart';
+import '../../../../shared/widgets/app_theme_drawer.dart';
+import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
+import '../../../../theme/app_theme_palette.dart';
 import '../../../rides/presentation/models/ride_listing.dart';
 import '../../../rides/presentation/providers/rides_providers.dart';
 import '../providers/dashboard_providers.dart';
@@ -17,6 +19,7 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.palette;
     final summary = ref.watch(dashboardSummaryProvider);
     final role = ref.watch(currentUserRoleProvider);
     final user = ref.watch(authUserProvider);
@@ -28,12 +31,13 @@ class DashboardScreen extends ConsumerWidget {
     return AppScaffold(
       title: 'Dashboard',
       showAppBar: false,
-      backgroundColor: AppColors.background,
+      backgroundColor: palette.background,
       maxScrollableWidth: 440,
       scrollableHeader: _DashboardHeader(
         firstName: firstName,
         email: user?.email ?? 'No email available',
       ),
+      drawer: const AppNavigationDrawer(),
       bottomNavigationBar: AppBottomNav(
         currentTab: AppBottomNavTab.home,
         role: role,
@@ -60,7 +64,7 @@ class DashboardScreen extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
             child: Text(
               summary,
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: palette.textSecondary),
             ),
           ),
           const SizedBox(height: AppSpacing.l),
@@ -78,6 +82,8 @@ class _DashboardHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.m,
@@ -85,9 +91,9 @@ class _DashboardHeader extends StatelessWidget {
         AppSpacing.m,
         AppSpacing.l,
       ),
-      decoration: const BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: palette.primary,
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(26),
           bottomRight: Radius.circular(26),
         ),
@@ -96,24 +102,31 @@ class _DashboardHeader extends StatelessWidget {
         children: [
           Row(
             children: [
-              const _CircleIconButton(icon: Icons.menu),
+              Builder(
+                builder: (context) {
+                  return _CircleIconButton(
+                    icon: Icons.menu,
+                    onTap: () => Scaffold.of(context).openDrawer(),
+                  );
+                },
+              ),
               const SizedBox(width: AppSpacing.s),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Welcome back',
                       style: TextStyle(
-                        color: Colors.white70,
+                        color: palette.primaryForeground.withValues(alpha: 0.8),
                         fontSize: 13,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       firstName,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: palette.primaryForeground,
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
                       ),
@@ -123,8 +136,8 @@ class _DashboardHeader extends StatelessWidget {
                       email,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white70,
+                      style: TextStyle(
+                        color: palette.primaryForeground.withValues(alpha: 0.72),
                         fontSize: 12,
                       ),
                     ),
@@ -138,41 +151,65 @@ class _DashboardHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.m),
-          const Row(
-            children: [
-              Expanded(child: _StatCard(value: 'Live', label: 'Session')),
-              SizedBox(width: AppSpacing.s),
-              Expanded(child: _StatCard(value: 'Firebase', label: 'Auth')),
-              SizedBox(width: AppSpacing.s),
-              Expanded(child: _StatCard(value: 'Wheels', label: 'App')),
-            ],
-          ),
+          const _StatsRow(),
         ],
       ),
     );
   }
 }
 
-class _StatCard extends StatelessWidget {
-  const _StatCard({required this.value, required this.label});
-
-  final String value;
-  final String label;
+class _StatsRow extends StatelessWidget {
+  const _StatsRow();
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    return Row(
+      children: [
+        const Expanded(child: _StatCard(value: '12', label: 'Rides')),
+        const SizedBox(width: AppSpacing.s),
+        Expanded(
+          child: _StatCard(
+            value: '98%',
+            label: 'Score',
+            valueColor: palette.accent,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.s),
+        const Expanded(child: _StatCard(value: '4.9', label: 'Rating')),
+      ],
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.value,
+    required this.label,
+    this.valueColor,
+  });
+
+  final String value;
+  final String label;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.m),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.18),
+        color: palette.primaryForeground.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         children: [
           Text(
             value,
-            style: const TextStyle(
-              color: AppColors.primaryForeground,
+            style: TextStyle(
+              color: valueColor ?? palette.primaryForeground,
               fontSize: 18,
               fontWeight: FontWeight.w800,
             ),
@@ -180,8 +217,8 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
-              color: Colors.white70,
+            style: TextStyle(
+              color: palette.primaryForeground.withValues(alpha: 0.8),
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -197,25 +234,21 @@ class _MapCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       height: 200,
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            blurRadius: 20,
-            color: Colors.black.withValues(alpha: 0.06),
-            offset: const Offset(0, 10),
-          ),
-        ],
+        boxShadow: AppShadows.lg,
       ),
       child: Stack(
         children: [
           Positioned.fill(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(22),
-              child: CustomPaint(painter: _GridPainter()),
+              child: CustomPaint(painter: _GridPainter(palette: palette)),
             ),
           ),
           Positioned(
@@ -224,34 +257,38 @@ class _MapCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: AppColors.card,
+                color: palette.card,
                 borderRadius: BorderRadius.circular(999),
-                boxShadow: [
-                  BoxShadow(
-                    blurRadius: 18,
-                    color: Colors.black.withValues(alpha: 0.08),
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+                boxShadow: AppShadows.sm,
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(Icons.schedule, size: 18, color: AppColors.accent),
-                  SizedBox(width: 8),
+                  Icon(Icons.schedule, size: 18, color: palette.accent),
+                  const SizedBox(width: 8),
                   Text(
                     'Campus rides',
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
+                      color: palette.textPrimary,
                     ),
                   ),
                 ],
               ),
             ),
           ),
-          const Positioned.fill(
+          Positioned.fill(
             child: Center(
-              child: Icon(Icons.near_me, color: AppColors.primary, size: 34),
+              child: Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  color: palette.card,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: palette.accent, width: 4),
+                  boxShadow: AppShadows.lg,
+                ),
+                child: Icon(Icons.near_me, color: palette.primary),
+              ),
             ),
           ),
         ],
@@ -265,6 +302,7 @@ class _CurrentRideCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.palette;
     final rideAsync = ref.watch(currentDriverRideProvider);
     final role = ref.watch(currentUserRoleProvider);
 
@@ -298,28 +336,22 @@ class _CurrentRideCard extends ConsumerWidget {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.card,
+              color: palette.card,
               borderRadius: BorderRadius.circular(22),
-              boxShadow: [
-                BoxShadow(
-                  blurRadius: 20,
-                  color: Colors.black.withValues(alpha: 0.06),
-                  offset: const Offset(0, 10),
-                ),
-              ],
+              boxShadow: AppShadows.lg,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Current Ride',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w900,
-                          color: AppColors.textPrimary,
+                          color: palette.textPrimary,
                         ),
                       ),
                     ),
@@ -329,13 +361,13 @@ class _CurrentRideCard extends ConsumerWidget {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFD1FAE5),
+                        color: palette.accentSoft,
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        ride.status == 'in_progress' ? 'In Progress' : 'Open',
-                        style: const TextStyle(
-                          color: AppColors.accentHover,
+                        ride.isInProgress ? 'In Progress' : 'Open',
+                        style: TextStyle(
+                          color: palette.accent,
                           fontWeight: FontWeight.w800,
                           fontSize: 12,
                         ),
@@ -348,11 +380,11 @@ class _CurrentRideCard extends ConsumerWidget {
                   children: [
                     CircleAvatar(
                       radius: 27,
-                      backgroundColor: AppColors.primaryLight,
+                      backgroundColor: palette.primaryLight,
                       child: Text(
                         ride.driverInitials,
-                        style: const TextStyle(
-                          color: AppColors.primaryForeground,
+                        style: TextStyle(
+                          color: palette.primaryForeground,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -364,17 +396,15 @@ class _CurrentRideCard extends ConsumerWidget {
                         children: [
                           Text(
                             ride.driverName,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.w900,
-                              color: AppColors.textPrimary,
+                              color: palette.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             '${ride.availableSeats}/${ride.totalSeats} seats left',
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                            ),
+                            style: TextStyle(color: palette.textSecondary),
                           ),
                         ],
                       ),
@@ -392,18 +422,18 @@ class _CurrentRideCard extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                Divider(color: Colors.black.withValues(alpha: 0.06)),
+                Divider(color: palette.border),
                 const SizedBox(height: 10),
                 _InfoRow(
                   icon: Icons.trip_origin,
-                  iconColor: AppColors.secondary,
+                  iconColor: palette.secondary,
                   label: 'Origin',
                   value: ride.origin,
                 ),
                 const SizedBox(height: 10),
                 _InfoRow(
                   icon: Icons.location_on_outlined,
-                  iconColor: AppColors.textSecondary,
+                  iconColor: palette.textSecondary,
                   label: 'Destination',
                   value: ride.destination,
                 ),
@@ -418,7 +448,10 @@ class _CurrentRideCard extends ConsumerWidget {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _MiniMetric(title: 'Fare', value: ride.priceLabel),
+                      child: _MiniMetric(
+                        title: 'Fare',
+                        value: ride.priceLabel,
+                      ),
                     ),
                   ],
                 ),
@@ -436,6 +469,7 @@ class _UpdatesSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.palette;
     final role = ref.watch(currentUserRoleProvider);
     final user = ref.watch(authUserProvider);
     final currentRide = ref.watch(currentDriverRideProvider).valueOrNull;
@@ -444,12 +478,12 @@ class _UpdatesSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Updates',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w900,
-            color: AppColors.textPrimary,
+            color: palette.textPrimary,
           ),
         ),
         const SizedBox(height: 10),
@@ -458,15 +492,15 @@ class _UpdatesSection extends ConsumerWidget {
             icon: currentRide == null
                 ? Icons.directions_car_outlined
                 : Icons.people_alt_outlined,
-            iconBg: AppColors.accent,
+            iconBg: palette.accent,
             title: currentRide == null
                 ? 'No live ride yet'
-                : 'Your ride is visible now',
+                : 'Manage your current ride',
             subtitle: currentRide == null
-                ? 'Create a ride so passengers can find and apply to it.'
-                : '${currentRide.origin} to ${currentRide.destination} is already accepting passengers.',
+                ? 'Create a ride to start receiving passenger applications.'
+                : 'Open your live trip and review the passenger group.',
             highlight: true,
-            actionLabel: currentRide == null ? 'Create Ride' : 'View Ride',
+            actionLabel: currentRide == null ? 'Create Ride' : 'Open Ride',
             onAction: () => context.go(
               currentRide == null
                   ? AppRoutes.createRide
@@ -475,23 +509,23 @@ class _UpdatesSection extends ConsumerWidget {
           )
         else
           _UpdateCard(
-            icon: Icons.search_outlined,
-            iconBg: AppColors.accent,
-            title: 'Find your next ride',
-            subtitle:
-                '$firstName, browse active campus rides and apply with your current account.',
+            icon: Icons.near_me,
+            iconBg: palette.accent,
+            title: 'Welcome, $firstName',
+            subtitle: 'Browse available rides or pay quickly for your current trip.',
             highlight: true,
-            actionLabel: 'Search Rides',
-            onAction: () => context.go(AppRoutes.rides),
+            actionLabel: 'Quick Pay',
+            onAction: () => context.go(AppRoutes.payment),
           ),
         const SizedBox(height: 10),
         _UpdateCard(
           icon: Icons.person_outline,
-          iconBg: AppColors.border,
-          iconColor: AppColors.secondary,
-          title: 'Signed in account',
-          subtitle: user?.email ?? 'No account data available.',
-          trailing: role == UserRole.driver ? 'Driver' : 'Passenger',
+          iconBg: palette.border,
+          iconColor: palette.secondary,
+          title: 'Profile and notifications',
+          subtitle: 'Review your activity, alerts, and account preferences.',
+          trailing: 'Open',
+          onAction: null,
         ),
       ],
     );
@@ -513,34 +547,30 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            blurRadius: 20,
-            color: Colors.black.withValues(alpha: 0.06),
-            offset: const Offset(0, 10),
-          ),
-        ],
+        boxShadow: AppShadows.lg,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w900,
-              color: AppColors.textPrimary,
+              color: palette.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             subtitle,
-            style: const TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: palette.textSecondary),
           ),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: 14),
@@ -562,10 +592,12 @@ class _LoadingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(22),
       ),
       child: Column(
@@ -573,10 +605,10 @@ class _LoadingCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w900,
-              color: AppColors.textPrimary,
+              color: palette.textPrimary,
             ),
           ),
           const SizedBox(height: 16),
@@ -612,15 +644,17 @@ class _UpdateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: highlight ? const Color(0xFFECFDF5) : Colors.white,
+        color: highlight ? palette.accentSoft : palette.card,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: highlight
-              ? const Color(0xFFBBF7D0)
-              : Colors.black.withValues(alpha: 0.06),
+              ? palette.accent.withValues(alpha: 0.35)
+              : palette.border,
         ),
       ),
       child: Row(
@@ -632,7 +666,7 @@ class _UpdateCard extends StatelessWidget {
               color: iconBg,
               borderRadius: BorderRadius.circular(999),
             ),
-            child: Icon(icon, color: iconColor ?? Colors.white),
+            child: Icon(icon, color: iconColor ?? palette.primaryForeground),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -641,30 +675,54 @@ class _UpdateCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w900,
-                    color: AppColors.textPrimary,
+                    color: palette.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: const TextStyle(color: AppColors.textSecondary),
+                  style: TextStyle(color: palette.textSecondary),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 10),
           if (actionLabel != null && onAction != null)
-            TextButton(
-              onPressed: onAction,
-              child: Text(actionLabel!),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [palette.accent, palette.accent.withBlue(140)],
+                ),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onAction,
+                  borderRadius: BorderRadius.circular(999),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    child: Text(
+                      actionLabel!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             )
           else if (trailing != null)
             Text(
               trailing!,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
+              style: TextStyle(
+                color: palette.textSecondary,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -682,27 +740,29 @@ class _MiniMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
-        color: AppColors.input,
+        color: palette.input,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
+        border: Border.all(color: palette.border),
       ),
       child: Column(
         children: [
           Text(
             title,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: palette.textSecondary,
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: palette.textPrimary,
               fontWeight: FontWeight.w900,
               fontSize: 16,
             ),
@@ -728,6 +788,8 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -739,16 +801,16 @@ class _InfoRow extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: palette.textSecondary,
                   fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
+                style: TextStyle(
+                  color: palette.textPrimary,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -768,6 +830,8 @@ class _SmallActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
@@ -775,23 +839,25 @@ class _SmallActionButton extends StatelessWidget {
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
+          color: palette.surfaceMuted,
           borderRadius: BorderRadius.circular(999),
         ),
-        child: Icon(icon, color: AppColors.primary),
+        child: Icon(icon, color: palette.primary),
       ),
     );
   }
 }
 
 class _CircleIconButton extends StatelessWidget {
-  const _CircleIconButton({required this.icon, this.onTap});
+  const _CircleIconButton({required this.icon, required this.onTap});
 
   final IconData icon;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
@@ -799,23 +865,27 @@ class _CircleIconButton extends StatelessWidget {
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.18),
+          color: palette.primaryForeground.withValues(alpha: 0.18),
           borderRadius: BorderRadius.circular(999),
         ),
-        child: Icon(icon, color: AppColors.primaryForeground),
+        child: Icon(icon, color: palette.primaryForeground),
       ),
     );
   }
 }
 
 class _GridPainter extends CustomPainter {
+  const _GridPainter({required this.palette});
+
+  final AppThemePalette palette;
+
   @override
   void paint(Canvas canvas, Size size) {
-    final bg = Paint()..color = AppColors.input;
+    final bg = Paint()..color = palette.input;
     canvas.drawRect(Offset.zero & size, bg);
 
     final gridPaint = Paint()
-      ..color = AppColors.border
+      ..color = palette.border
       ..strokeWidth = 1;
 
     const step = 46.0;
@@ -825,8 +895,50 @@ class _GridPainter extends CustomPainter {
     for (double y = 0; y < size.height; y += step) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
+
+    final pathPaint = Paint()
+      ..color = palette.textSecondary.withValues(alpha: 0.75)
+      ..strokeWidth = 4
+      ..style = PaintingStyle.stroke;
+
+    final path = Path()
+      ..moveTo(size.width * 0.2, size.height * 0.75)
+      ..quadraticBezierTo(
+        size.width * 0.55,
+        size.height * 0.45,
+        size.width * 0.82,
+        size.height * 0.35,
+      );
+
+    const dash = 10.0;
+    const gap = 8.0;
+    for (final metric in path.computeMetrics()) {
+      double distance = 0;
+      while (distance < metric.length) {
+        canvas.drawPath(
+          metric.extractPath(distance, distance + dash),
+          pathPaint,
+        );
+        distance += dash + gap;
+      }
+    }
+
+    final pickupDot = Paint()..color = palette.secondary;
+    canvas.drawCircle(Offset(size.width * 0.27, size.height * 0.78), 5, pickupDot);
+
+    final rideDot = Paint()..color = palette.accent;
+    canvas.drawCircle(Offset(size.width * 0.58, size.height * 0.48), 8, rideDot);
+
+    final destinationDot = Paint()..color = palette.textPrimary;
+    canvas.drawCircle(
+      Offset(size.width * 0.83, size.height * 0.36),
+      6,
+      destinationDot,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _GridPainter oldDelegate) {
+    return oldDelegate.palette != palette;
+  }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_spacing.dart';
+import '../../theme/app_theme_palette.dart';
 
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
@@ -13,6 +14,7 @@ class AppScaffold extends StatelessWidget {
     this.backgroundColor,
     this.scrollableHeader,
     this.maxScrollableWidth,
+    this.drawer,
     super.key,
   });
 
@@ -25,12 +27,16 @@ class AppScaffold extends StatelessWidget {
   final Color? backgroundColor;
   final Widget? scrollableHeader;
   final double? maxScrollableWidth;
+  final Widget? drawer;
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     if (scrollableHeader != null) {
       return Scaffold(
-        backgroundColor: backgroundColor,
+        backgroundColor: backgroundColor ?? palette.background,
+        drawer: drawer,
         bottomNavigationBar: bottomNavigationBar,
         body: SafeArea(
           child: Center(
@@ -46,7 +52,8 @@ class AppScaffold extends StatelessWidget {
     }
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: backgroundColor ?? palette.background,
+      drawer: drawer,
       appBar: showAppBar ? AppBar(title: Text(title), actions: actions) : null,
       bottomNavigationBar: bottomNavigationBar,
       body: SafeArea(

@@ -9,7 +9,7 @@ import '../../data/services/auth_service.dart';
 import '../../domain/entities/auth_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
 
-enum UserRole { passenger, driver }
+enum UserRole { passenger, driver, admin }
 
 final firebaseReadyProvider = Provider<bool>((ref) => true);
 
@@ -50,6 +50,9 @@ final authSessionReadyProvider = StateProvider<bool>((ref) => false);
 
 final isDriverProvider = Provider<bool>(
   (ref) => ref.watch(currentUserRoleProvider) == UserRole.driver,
+);
+final isAdminProvider = Provider<bool>(
+  (ref) => ref.watch(currentUserRoleProvider) == UserRole.admin,
 );
 final isPassengerProvider = Provider<bool>(
   (ref) => ref.watch(currentUserRoleProvider) == UserRole.passenger,
@@ -94,8 +97,18 @@ class AuthSessionController {
 
   void _syncState(AuthEntity? authEntity) {
     _ref.read(authUserProvider.notifier).state = authEntity;
-    _ref.read(currentUserRoleProvider.notifier).state =
-        authEntity?.role == 'driver' ? UserRole.driver : UserRole.passenger;
+    _ref.read(currentUserRoleProvider.notifier).state = _mapRole(authEntity?.role);
     _ref.read(authStepProvider.notifier).state = authEntity == null ? 0 : 1;
+  }
+
+  UserRole _mapRole(String? role) {
+    switch (role) {
+      case 'driver':
+        return UserRole.driver;
+      case 'admin':
+        return UserRole.admin;
+      default:
+        return UserRole.passenger;
+    }
   }
 }
