@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../theme/app_colors.dart';
+import '../../../auth/presentation/providers/auth_providers.dart';
 
 class ProfileViewData {
   const ProfileViewData({
@@ -75,35 +75,42 @@ class ProfileMenuItemData {
 final profileViewDataProvider = Provider<ProfileViewData>((ref) {
   final user = ref.watch(authUserProvider);
   final role = ref.watch(currentUserRoleProvider);
-  final fullName = (user?.fullName.trim().isNotEmpty ?? false)
-      ? user!.fullName.trim()
-      : 'Wheels User';
-  final email = user?.email ?? 'No email available';
+  final rawName = user?.fullName.trim() ?? '';
+  final shouldUseMockIdentity =
+      rawName.isEmpty || rawName.toLowerCase() == 'dev access';
+
+  final fullName = shouldUseMockIdentity ? 'Maria Gonzalez' : rawName;
+  final email = user?.email.trim().isNotEmpty == true
+      ? user!.email.trim()
+      : 'm.gonzalez@uniandes.edu.co';
 
   return ProfileViewData(
     fullName: fullName,
     initials: _buildInitials(fullName),
-    badgeLabel: role == UserRole.driver ? 'Driver Account' : 'Passenger Account',
-    memberSince: 'Signed in as $email',
-    metrics: [
+    badgeLabel: role == UserRole.driver
+        ? 'Verified Driver'
+        : 'Verified Student',
+    memberSince: 'Member since Jan 2025',
+    metrics: const [
       ProfileMetricData(
-        value: role == UserRole.driver ? 'Driver' : 'Passenger',
-        label: 'Role',
+        value: '16',
+        label: 'Rides',
         valueColor: AppColors.primary,
       ),
-      const ProfileMetricData(
-        value: 'Active',
-        label: 'Status',
+      ProfileMetricData(
+        value: '98%',
+        label: 'Score',
         valueColor: AppColors.accent,
       ),
       ProfileMetricData(
-        value: user == null ? '--' : user.uid.substring(0, 6).toUpperCase(),
-        label: 'User ID',
+        value: '5',
+        label: 'Rating',
         valueColor: AppColors.warning,
+        route: AppRoutes.reviews,
       ),
-      const ProfileMetricData(
-        value: 'Firebase',
-        label: 'Auth',
+      ProfileMetricData(
+        value: '142',
+        label: 'Points',
         valueColor: AppColors.secondary,
       ),
     ],
@@ -113,10 +120,10 @@ final profileViewDataProvider = Provider<ProfileViewData>((ref) {
         value: email,
         icon: Icons.mail_outline_rounded,
       ),
-      ProfileContactData(
-        label: 'Role',
-        value: role == UserRole.driver ? 'Driver' : 'Passenger',
-        icon: Icons.badge_outlined,
+      const ProfileContactData(
+        label: 'Phone',
+        value: '+57 300 123 4567',
+        icon: Icons.phone_outlined,
       ),
     ],
     menuSections: const [
@@ -134,6 +141,11 @@ final profileViewDataProvider = Provider<ProfileViewData>((ref) {
             subtitle: 'Manage your payment options',
             icon: Icons.credit_card_outlined,
             route: AppRoutes.payment,
+          ),
+          ProfileMenuItemData(
+            title: 'Rewards & Points',
+            subtitle: 'Redeem your 142 points',
+            icon: Icons.workspace_premium_outlined,
           ),
         ],
       ),
@@ -164,7 +176,7 @@ final profileViewDataProvider = Provider<ProfileViewData>((ref) {
 
 final profileSummaryProvider = Provider<String>((ref) {
   final data = ref.watch(profileViewDataProvider);
-  return '${data.fullName} is signed in and using the ${data.metrics.first.value.toLowerCase()} profile.';
+  return '${data.fullName} has ${data.metrics.first.value} rides and a ${data.metrics[2].value}-star rating.';
 });
 
 final profileCompletionProvider = StateProvider<int>((ref) => 98);
@@ -172,7 +184,7 @@ final profileCompletionProvider = StateProvider<int>((ref) => 98);
 String _buildInitials(String fullName) {
   final parts = fullName.trim().split(RegExp(r'\s+'));
   if (parts.isEmpty || fullName.trim().isEmpty) {
-    return 'WU';
+    return 'MG';
   }
   if (parts.length == 1) {
     return parts.first.substring(0, 1).toUpperCase();
