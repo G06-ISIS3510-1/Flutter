@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:firebase_analytics/firebase_analytics.dart';
 
 import '../../domain/entities/auth_entity.dart';
 import '../datasources/auth_remote_datasource.dart';
@@ -8,11 +9,14 @@ class AuthService {
   const AuthService({
     required firebase_auth.FirebaseAuth firebaseAuth,
     required FirebaseFirestore firestore,
+    required FirebaseAnalytics analytics,
   }) : _firebaseAuth = firebaseAuth,
-       _firestore = firestore;
+       _firestore = firestore,
+       _analytics = analytics;
 
   final firebase_auth.FirebaseAuth _firebaseAuth;
   final FirebaseFirestore _firestore;
+  final FirebaseAnalytics _analytics;
 
   Future<AuthEntity> registerWithUniversityEmail({
     required String firstName,
@@ -46,6 +50,8 @@ class AuthService {
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      await _logSuccessfulRegistration(role: role);
 
       return AuthEntity(
         uid: createdUser.uid,
@@ -162,6 +168,18 @@ class AuthService {
     'invalid-user-token',
     'user-token-expired',
   };
+
+  Future<void> _logSuccessfulRegistration({required String role}) async {
+    try {
+      await _analytics.logSignUp(signUpMethod: 'email');
+      await _analytics.logEvent(
+        name: 'user_registered',
+        parameters: <String, Object>{'role': role},
+      );
+    } catch (_) {
+      // Analytics should never block a successful registration.
+    }
+  }
 
   String _mapFirebaseAuthError(firebase_auth.FirebaseAuthException error) {
     switch (error.code) {
