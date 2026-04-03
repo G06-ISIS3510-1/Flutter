@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
+import '../../../../shared/services/current_location_service.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../shared/widgets/app_gradient_header.dart';
@@ -23,6 +24,7 @@ class RidesSearchScreen extends ConsumerStatefulWidget {
 }
 
 class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
+  final _currentLocationService = const CurrentLocationService();
   static const List<String> _campusLocations = <String>[
     'Main Campus',
     'North Residence Hall',
@@ -39,11 +41,15 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
 
   DateTime _selectedDate = DateTime.now();
   RideSortOption _sort = RideSortOption.earliest;
+  bool _isResolvingOriginFromGps = false;
+  String? _originLocationError;
+  String? _currentLocationSuggestion;
 
   @override
   void initState() {
     super.initState();
     _dateController.text = _formatDate(_selectedDate);
+    Future.microtask(_prefillOriginWithCurrentLocation);
   }
 
   @override
@@ -52,6 +58,72 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     _destinationController.dispose();
     _dateController.dispose();
     super.dispose();
+  }
+
+  Future<void> _prefillOriginWithCurrentLocation() async {
+    if (_originController.text.trim().isNotEmpty) {
+      return;
+    }
+
+    try {
+      final address = await _currentLocationService.getCurrentAddress();
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _originController.text = address;
+        _currentLocationSuggestion = address;
+        _originLocationError = null;
+      });
+    } catch (_) {
+      // Leave the field empty if location cannot be resolved on screen load.
+    }
+  }
+
+  Future<void> _useCurrentLocationAsOrigin() async {
+    setState(() {
+      _isResolvingOriginFromGps = true;
+      _originLocationError = null;
+    });
+
+    try {
+      final address = await _currentLocationService.getCurrentAddress();
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _originController.text = address;
+        _currentLocationSuggestion = address;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Origin updated from your current location.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _originLocationError = error.toString().replaceFirst('Exception: ', '');
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _originLocationError ?? 'Unable to read current location.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isResolvingOriginFromGps = false;
+        });
+      }
+    }
   }
 
   Future<void> _pickDate() async {
@@ -77,6 +149,25 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     final day = value.day.toString().padLeft(2, '0');
     final month = value.month.toString().padLeft(2, '0');
     return '$day/$month/${value.year}';
+  }
+
+  List<String> _locationSuggestionsFor(String query) {
+    final normalizedQuery = query.trim().toLowerCase();
+    final baseSuggestions = <String>[
+      ...(_currentLocationSuggestion == null
+          ? const <String>[]
+          : <String>[_currentLocationSuggestion!]),
+      ..._campusLocations,
+    ];
+
+    final uniqueSuggestions = baseSuggestions.toSet().toList();
+    if (normalizedQuery.isEmpty) {
+      return uniqueSuggestions;
+    }
+
+    return uniqueSuggestions.where((location) {
+      return location.toLowerCase().contains(normalizedQuery);
+    }).toList();
   }
 
   List<RidesEntity> _applyFilters(List<RidesEntity> rides) {
@@ -195,7 +286,40 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
             hint: 'Where are you leaving from?',
             icon: Icons.my_location,
             iconColor: palette.primary,
+            suffixIcon: _isResolvingOriginFromGps
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : IconButton(
+                    tooltip: 'Use current location',
+                    onPressed: _useCurrentLocationAsOrigin,
+                    icon: Icon(Icons.near_me_outlined, color: palette.primary),
+                  ),
           ),
+          if (_originLocationError != null) ...[
+            const SizedBox(height: AppSpacing.s),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline, size: 16, color: palette.error),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Text(
+                    _originLocationError!,
+                    style: TextStyle(
+                      color: palette.error,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: AppSpacing.s),
           _autocompleteField(
             controller: _destinationController,
@@ -410,18 +534,13 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     required String hint,
     required IconData icon,
     required Color iconColor,
+    Widget? suffixIcon,
   }) {
     final palette = context.palette;
 
     return Autocomplete<String>(
       optionsBuilder: (textEditingValue) {
-        final query = textEditingValue.text.toLowerCase().trim();
-        if (query.isEmpty) {
-          return _campusLocations;
-        }
-        return _campusLocations.where(
-          (location) => location.toLowerCase().contains(query),
-        );
+        return _locationSuggestionsFor(textEditingValue.text);
       },
       onSelected: (value) {
         controller.text = value;
@@ -442,6 +561,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
             labelText: label,
             hintText: hint,
             prefixIcon: Icon(icon, color: iconColor),
+            suffixIcon: suffixIcon,
             filled: true,
             fillColor: palette.input,
             border: OutlineInputBorder(
