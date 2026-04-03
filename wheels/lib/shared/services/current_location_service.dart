@@ -171,9 +171,9 @@ class CurrentLocationService {
     final normalizedName = _normalizeAddress(placemark.name);
 
     final candidates = <String>[
-      if (streetAddress != null) streetAddress,
-      if (normalizedStreet != null) normalizedStreet,
-      if (normalizedName != null) normalizedName,
+      ?streetAddress,
+      ?normalizedStreet,
+      ?normalizedName,
     ];
 
     for (final candidate in candidates) {
@@ -189,9 +189,12 @@ class CurrentLocationService {
   }
 
   String? _joinAddressParts(String? first, String? second) {
+    final normalizedFirst = _normalizeAddress(first);
+    final normalizedSecond = _normalizeAddress(second);
+
     final parts = <String>[
-      if (first != null && first.trim().isNotEmpty) first.trim(),
-      if (second != null && second.trim().isNotEmpty) second.trim(),
+      ?normalizedFirst,
+      ?normalizedSecond,
     ];
 
     if (parts.isEmpty) {
