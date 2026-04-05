@@ -100,10 +100,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
         payerEmail: payerEmail,
         userId: userId,
       );
-      final checkoutUrl =
-          (session.sandboxInitPoint?.trim().isNotEmpty ?? false)
-              ? session.sandboxInitPoint!.trim()
-              : session.initPoint;
+      final checkoutUrl = session.initPoint;
 
       bindPaymentStream(rideId);
 
@@ -111,7 +108,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
         status: PaymentFlowStatus.checkoutOpened,
         checkoutUrl: checkoutUrl,
         rideId: rideId,
-        message: 'Test checkout opened. Finish the payment inside Wheels.',
+        message: 'Checkout opened. Finish the payment inside Wheels.',
       );
     } catch (error) {
       state = state.copyWith(
