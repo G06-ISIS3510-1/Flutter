@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
+import '../../../../shared/services/navigation_launcher_service.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../theme/app_colors.dart';
@@ -16,6 +17,8 @@ import '../providers/rides_providers.dart';
 
 class ActiveRideScreen extends ConsumerWidget {
   const ActiveRideScreen({this.rideId, super.key});
+
+  static const _navigationLauncher = NavigationLauncherService();
 
   final String? rideId;
 
@@ -214,6 +217,26 @@ class ActiveRideScreen extends ConsumerWidget {
     required List<RideApplicationEntity> applications,
     required bool isLoading,
   }) {
+    Future<void> openNavigation() async {
+      final opened = await _navigationLauncher.openDrivingDirections(
+        destination: ride.destination,
+      );
+
+      if (!context.mounted) {
+        return;
+      }
+
+      if (!opened) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('We could not open Google Maps for this route.'),
+            ),
+          );
+      }
+    }
+
     Future<void> updateStatus(String status, String successMessage) async {
       await ref
           .read(rideStatusControllerProvider.notifier)
@@ -227,6 +250,14 @@ class ActiveRideScreen extends ConsumerWidget {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(content: Text(successMessage)));
+
+      if (status == 'in_progress') {
+        await openNavigation();
+      }
+
+      if (!context.mounted) {
+        return;
+      }
 
       if (status == 'cancelled' || status == 'completed') {
         context.go(AppRoutes.dashboard);
@@ -266,6 +297,21 @@ class ActiveRideScreen extends ConsumerWidget {
             child: Text(isLoading ? 'Updating...' : 'Start Ride'),
           ),
         if (ride.status == 'in_progress') ...[
+          const SizedBox(height: AppSpacing.s),
+          ElevatedButton.icon(
+            onPressed: isLoading ? null : openNavigation,
+            icon: const Icon(Icons.navigation_outlined),
+            label: const Text('Open Navigation'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF5B89C8),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s),
           OutlinedButton.icon(
             onPressed: isLoading
                 ? null
