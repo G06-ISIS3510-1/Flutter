@@ -25,6 +25,7 @@ class RidesSearchScreen extends ConsumerStatefulWidget {
 
 class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   final _currentLocationService = const CurrentLocationService();
+
   static const List<String> _campusLocations = <String>[
     'Main Campus',
     'North Residence Hall',
@@ -40,7 +41,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   final _dateController = TextEditingController();
 
   DateTime _selectedDate = DateTime.now();
-  RideSortOption _sort = RideSortOption.earliest;
+  RideSortOption _sort = RideSortOption.smartMatch;
   bool _isResolvingOriginFromGps = false;
   String? _originLocationError;
   String? _currentLocationSuggestion;
@@ -99,7 +100,9 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Origin updated from your current location.')),
+        const SnackBar(
+          content: Text('Origin updated from your current location.'),
+        ),
       );
     } catch (error) {
       if (!mounted) {
@@ -170,6 +173,56 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     }).toList();
   }
 
+  int _compareBySmartMatch(RidesEntity left, RidesEntity right) {
+    final leftScore = _smartMatchScore(left);
+    final rightScore = _smartMatchScore(right);
+
+    final scoreComparison = rightScore.compareTo(leftScore);
+    if (scoreComparison != 0) {
+      return scoreComparison;
+    }
+
+    final ratingComparison = right.driverRating.compareTo(left.driverRating);
+    if (ratingComparison != 0) {
+      return ratingComparison;
+    }
+
+    return left.departureAt.compareTo(right.departureAt);
+  }
+
+  double _smartMatchScore(RidesEntity ride) {
+    final now = DateTime.now();
+    final minutesUntilDeparture = ride.departureAt.difference(now).inMinutes;
+
+    final ratingScore = ride.driverRating * 12;
+    final punctualityScore = ride.onTimeRate * 0.35;
+    final reviewConfidenceScore = ride.reviewCount.clamp(0, 20).toDouble();
+    final verificationBonus = ride.verifiedByUniversity ? 30.0 : 0.0;
+    final seatsScore = ride.availableSeats.clamp(0, 4) * 4.0;
+    final pricePenalty = (ride.pricePerSeat / 1000) * 2.0;
+
+    double departureScore;
+    if (minutesUntilDeparture < 0) {
+      departureScore = -50;
+    } else if (minutesUntilDeparture <= 20) {
+      departureScore = 8;
+    } else if (minutesUntilDeparture <= 90) {
+      departureScore = 16;
+    } else if (minutesUntilDeparture <= 180) {
+      departureScore = 10;
+    } else {
+      departureScore = 4;
+    }
+
+    return ratingScore +
+        punctualityScore +
+        reviewConfidenceScore +
+        verificationBonus +
+        seatsScore +
+        departureScore -
+        pricePenalty;
+  }
+
   List<RidesEntity> _applyFilters(List<RidesEntity> rides) {
     final selectedDay = DateTime(
       _selectedDate.year,
@@ -200,6 +253,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
 
     filtered.sort(
       (a, b) => switch (_sort) {
+        RideSortOption.smartMatch => _compareBySmartMatch(a, b),
         RideSortOption.earliest => a.departureAt.compareTo(b.departureAt),
         RideSortOption.cheapest => a.pricePerSeat.compareTo(b.pricePerSeat),
         RideSortOption.highestRated => b.driverRating.compareTo(a.driverRating),
@@ -236,6 +290,10 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
             _searchCard(),
             const SizedBox(height: AppSpacing.m),
             _sortBar(),
+            if (_sort == RideSortOption.smartMatch) ...[
+              const SizedBox(height: AppSpacing.m),
+              _smartMatchNotice(),
+            ],
             const SizedBox(height: AppSpacing.l),
             ridesAsync.when(
               data: (rides) {
@@ -245,10 +303,14 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
                     _sectionTitle('Available Drivers', '${results.length} rides'),
                     const SizedBox(height: AppSpacing.s),
                     if (results.isEmpty) _emptyState(),
-                    for (final ride in results) ...[
+                    for (var index = 0; index < results.length; index++) ...[
                       _RideResultCard(
-                        ride: ride,
-                        onTap: () => context.go(AppRoutes.rideDetailsById(ride.id)),
+                        ride: results[index],
+                        isBestMatch:
+                            _sort == RideSortOption.smartMatch && index == 0,
+                        onTap: () => context.go(
+                          AppRoutes.rideDetailsById(results[index].id),
+                        ),
                       ),
                       const SizedBox(height: AppSpacing.m),
                     ],
@@ -437,6 +499,51 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     );
   }
 
+  Widget _smartMatchNotice() {
+    final palette = context.palette;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: palette.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(
+          color: palette.primary.withValues(alpha: 0.18),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.auto_awesome, color: palette.primary),
+          const SizedBox(width: AppSpacing.s),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Smart Match is on',
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Results are ranked using driver rating, punctuality, university verification, available seats, price, and how soon the ride departs.',
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _sectionTitle(String left, String right) {
     final palette = context.palette;
 
@@ -576,10 +683,15 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
 }
 
 class _RideResultCard extends StatefulWidget {
-  const _RideResultCard({required this.ride, required this.onTap});
+  const _RideResultCard({
+    required this.ride,
+    required this.onTap,
+    this.isBestMatch = false,
+  });
 
   final RidesEntity ride;
   final VoidCallback onTap;
+  final bool isBestMatch;
 
   @override
   State<_RideResultCard> createState() => _RideResultCardState();
@@ -614,6 +726,37 @@ class _RideResultCardState extends State<_RideResultCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (widget.isBestMatch) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.s,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: palette.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.auto_awesome,
+                          size: 14,
+                          color: palette.primary,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Best match',
+                          style: TextStyle(
+                            color: palette.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.s),
+                ],
                 Row(
                   children: [
                     CircleAvatar(
