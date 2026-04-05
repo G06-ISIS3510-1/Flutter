@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
-import 'package:geocoding/geocoding.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
+import '../../../../shared/services/current_location_service.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../shared/widgets/app_gradient_header.dart';
@@ -24,6 +23,7 @@ class CreateRideScreen extends ConsumerStatefulWidget {
 }
 
 class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
+  final _currentLocationService = const CurrentLocationService();
   final _formKey = GlobalKey<FormState>();
   final _originFieldKey = GlobalKey<FormFieldState<String>>();
   final _notesController = TextEditingController();
@@ -54,6 +54,12 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    Future.microtask(_prefillOriginWithCurrentLocation);
+  }
+
+  @override
   void dispose() {
     _notesController.dispose();
     _dateController.dispose();
@@ -63,6 +69,28 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     super.dispose();
   }
 
+  Future<void> _prefillOriginWithCurrentLocation() async {
+    if (_origin.trim().isNotEmpty) {
+      return;
+    }
+
+    try {
+      final address = await _currentLocationService.getCurrentAddress();
+      if (!mounted) {
+        return;
+      }
+
+      _originFieldKey.currentState?.didChange(address);
+      setState(() {
+        _origin = address;
+        _currentLocationSuggestion = address;
+        _originLocationError = null;
+      });
+    } catch (_) {
+      // Keep the field empty if the app cannot resolve the location on load.
+    }
+  }
+
   Future<void> _useCurrentLocationAsOrigin() async {
     setState(() {
       _isResolvingOriginFromGps = true;
@@ -70,27 +98,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     });
 
     try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        throw Exception('Location services are disabled on this device.');
-      }
-
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        throw Exception('Location permission was not granted.');
-      }
-
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
-      );
-      final address = await _reverseGeocodePosition(position);
+      final address = await _currentLocationService.getCurrentAddress();
 
       _originFieldKey.currentState?.didChange(address);
 
@@ -131,47 +139,6 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
           _isResolvingOriginFromGps = false;
         });
       }
-    }
-  }
-
-  Future<String> _reverseGeocodePosition(Position position) async {
-    final fallbackAddress =
-        'Current location (${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)})';
-
-    try {
-      final placemarks = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
-      );
-
-      if (placemarks.isEmpty) {
-        return fallbackAddress;
-      }
-
-      final placemark = placemarks.first;
-      final parts =
-          <String?>[
-                placemark.street,
-                placemark.subLocality,
-                placemark.locality,
-                placemark.administrativeArea,
-                placemark.country,
-              ]
-              .whereType<String>()
-              .map((part) => part.trim())
-              .where((part) => part.isNotEmpty)
-              .toList();
-
-      if (parts.isEmpty) {
-        return fallbackAddress;
-      }
-
-      return parts.toSet().join(', ');
-    } catch (error, stackTrace) {
-      debugPrint('Reverse geocoding failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-
-      return fallbackAddress;
     }
   }
 
@@ -441,7 +408,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                               tooltip: 'Use current location',
                               onPressed: _useCurrentLocationAsOrigin,
                               icon: const Icon(
-                                Icons.my_location,
+                                Icons.near_me_outlined,
                                 color: AppColors.secondary,
                               ),
                             ),
