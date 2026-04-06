@@ -5,6 +5,7 @@ import '../../domain/entities/payment_record.dart';
 class PaymentRecordModel extends PaymentRecord {
   const PaymentRecordModel({
     required super.rideId,
+    required super.passengerId,
     required super.status,
     super.paymentId,
     super.mpStatus,
@@ -15,14 +16,25 @@ class PaymentRecordModel extends PaymentRecord {
 
   factory PaymentRecordModel.fromJson(Map<String, dynamic> json) {
     final rideId = _readString(json['rideId']) ?? _readString(json['ride_id']);
+    final passengerId =
+        _readString(json['passengerId']) ??
+        _readString(json['passenger_id']) ??
+        _readString(json['userId']) ??
+        _readString(json['user_id']);
     final status = _readString(json['status']) ?? 'unknown';
 
     if (rideId == null || rideId.isEmpty) {
       throw const FormatException('Payment status response is missing rideId.');
     }
+    if (passengerId == null || passengerId.isEmpty) {
+      throw const FormatException(
+        'Payment status response is missing passengerId.',
+      );
+    }
 
     return PaymentRecordModel(
       rideId: rideId,
+      passengerId: passengerId,
       status: status,
       paymentId:
           _readString(json['paymentId']) ?? _readString(json['payment_id']),
@@ -51,6 +63,13 @@ class PaymentRecordModel extends PaymentRecord {
       rideId:
           _readString(data['rideId']) ??
           _readString(data['ride_id']) ??
+          _readString((snapshot.reference.parent.parent)?.id) ??
+          snapshot.id,
+      passengerId:
+          _readString(data['passengerId']) ??
+          _readString(data['passenger_id']) ??
+          _readString(data['userId']) ??
+          _readString(data['user_id']) ??
           snapshot.id,
       status: _readString(data['status']) ?? 'unknown',
       paymentId:
@@ -71,6 +90,7 @@ class PaymentRecordModel extends PaymentRecord {
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'rideId': rideId,
+      'passengerId': passengerId,
       'status': status,
       'paymentId': paymentId,
       'mpStatus': mpStatus,

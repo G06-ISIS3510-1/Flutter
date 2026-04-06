@@ -15,6 +15,7 @@ class RidesModel extends RidesEntity {
     required super.totalSeats,
     required super.availableSeats,
     required super.pricePerSeat,
+    required super.paymentOption,
     required super.status,
     required super.notes,
     required super.passengerIds,
@@ -55,6 +56,9 @@ class RidesModel extends RidesEntity {
       totalSeats: (data['totalSeats'] as num?)?.toInt() ?? 1,
       availableSeats: (data['availableSeats'] as num?)?.toInt() ?? 0,
       pricePerSeat: (data['pricePerSeat'] as num?)?.toInt() ?? 0,
+      paymentOption: ridePaymentOptionFromStorage(
+        data['paymentOption'] as String?,
+      ),
       status: (data['status'] as String?) ?? 'open',
       notes: (data['notes'] as String?) ?? '',
       passengerIds:
@@ -66,8 +70,7 @@ class RidesModel extends RidesEntity {
       driverRating: (data['driverRating'] as num?)?.toDouble() ?? 5,
       reviewCount: (data['reviewCount'] as num?)?.toInt() ?? 0,
       onTimeRate: (data['onTimeRate'] as num?)?.toInt() ?? 100,
-      verifiedByUniversity:
-          (data['verifiedByUniversity'] as bool?) ?? true,
+      verifiedByUniversity: (data['verifiedByUniversity'] as bool?) ?? true,
     );
   }
 
@@ -85,6 +88,7 @@ class RidesModel extends RidesEntity {
       'totalSeats': totalSeats,
       'availableSeats': availableSeats,
       'pricePerSeat': pricePerSeat,
+      'paymentOption': paymentOption.storageValue,
       'status': status,
       'notes': notes,
       'passengerIds': passengerIds,
@@ -106,7 +110,12 @@ class RideApplicationModel extends RideApplicationEntity {
     required super.passengerName,
     required super.passengerEmail,
     required super.status,
+    required super.paymentStatus,
+    required super.paymentMethod,
+    required super.isPaymentLocked,
     required super.appliedAt,
+    super.paymentStatusSource,
+    super.paymentUpdatedAt,
   });
 
   factory RideApplicationModel.fromFirestore(
@@ -122,9 +131,18 @@ class RideApplicationModel extends RideApplicationEntity {
       passengerName: (data['passengerName'] as String?) ?? 'Passenger',
       passengerEmail: (data['passengerEmail'] as String?) ?? '',
       status: (data['status'] as String?) ?? 'applied',
-      appliedAt: appliedAt is Timestamp
-          ? appliedAt.toDate()
-          : DateTime.now(),
+      paymentStatus: ridePassengerPaymentStatusFromStorage(
+        data['paymentStatus'] as String?,
+      ),
+      paymentMethod: ridePassengerPaymentMethodFromStorage(
+        data['paymentMethod'] as String?,
+      ),
+      isPaymentLocked: (data['isPaymentLocked'] as bool?) ?? false,
+      appliedAt: appliedAt is Timestamp ? appliedAt.toDate() : DateTime.now(),
+      paymentStatusSource: data['paymentStatusSource'] as String?,
+      paymentUpdatedAt: data['paymentUpdatedAt'] is Timestamp
+          ? (data['paymentUpdatedAt'] as Timestamp).toDate()
+          : null,
     );
   }
 
@@ -135,7 +153,14 @@ class RideApplicationModel extends RideApplicationEntity {
       'passengerName': passengerName,
       'passengerEmail': passengerEmail,
       'status': status,
+      'paymentStatus': paymentStatus.storageValue,
+      'paymentMethod': paymentMethod.storageValue,
+      'isPaymentLocked': isPaymentLocked,
       'appliedAt': Timestamp.fromDate(appliedAt),
+      'paymentStatusSource': paymentStatusSource,
+      'paymentUpdatedAt': paymentUpdatedAt == null
+          ? null
+          : Timestamp.fromDate(paymentUpdatedAt!),
     };
   }
 }

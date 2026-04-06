@@ -8,11 +8,13 @@ class CheckoutWebViewScreen extends ConsumerStatefulWidget {
   const CheckoutWebViewScreen({
     required this.checkoutUrl,
     required this.rideId,
+    required this.passengerId,
     super.key,
   });
 
   final String checkoutUrl;
   final String rideId;
+  final String passengerId;
 
   @override
   ConsumerState<CheckoutWebViewScreen> createState() =>
@@ -31,7 +33,12 @@ class _CheckoutWebViewScreenState extends ConsumerState<CheckoutWebViewScreen> {
       if (!mounted) {
         return;
       }
-      ref.read(paymentProvider.notifier).bindPaymentStream(widget.rideId);
+      ref
+          .read(paymentProvider.notifier)
+          .bindPaymentStream(
+            rideId: widget.rideId,
+            passengerId: widget.passengerId,
+          );
     });
 
     _controller = WebViewController()

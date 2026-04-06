@@ -37,4 +37,6 @@ extension RidePresentation on RidesEntity {
     final year = departureAt.year.toString();
     return '$day/$month/$year';
   }
+
+  String get paymentOptionLabel => paymentOption.label;
 }

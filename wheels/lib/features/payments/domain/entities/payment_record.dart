@@ -1,6 +1,7 @@
 class PaymentRecord {
   const PaymentRecord({
     required this.rideId,
+    required this.passengerId,
     required this.status,
     this.paymentId,
     this.mpStatus,
@@ -10,6 +11,7 @@ class PaymentRecord {
   });
 
   final String rideId;
+  final String passengerId;
   final String status;
   final String? paymentId;
   final String? mpStatus;

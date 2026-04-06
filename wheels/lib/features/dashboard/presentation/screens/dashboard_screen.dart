@@ -11,6 +11,7 @@ import '../../../../shared/widgets/app_theme_drawer.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
 import '../../../../theme/app_theme_palette.dart';
+import '../../../rides/domain/entities/rides_entity.dart';
 import '../../../rides/presentation/models/ride_listing.dart';
 import '../../../rides/presentation/providers/rides_providers.dart';
 import '../providers/dashboard_providers.dart';
@@ -136,7 +137,9 @@ class _DashboardHeader extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: palette.primaryForeground.withValues(alpha: 0.72),
+                        color: palette.primaryForeground.withValues(
+                          alpha: 0.72,
+                        ),
                         fontSize: 12,
                       ),
                     ),
@@ -166,7 +169,9 @@ class _StatsRow extends StatelessWidget {
 
     return Row(
       children: [
-        const Expanded(child: _StatCard(value: '12', label: 'Rides')),
+        const Expanded(
+          child: _StatCard(value: '12', label: 'Rides'),
+        ),
         const SizedBox(width: AppSpacing.s),
         Expanded(
           child: _StatCard(
@@ -176,18 +181,16 @@ class _StatsRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: AppSpacing.s),
-        const Expanded(child: _StatCard(value: '4.9', label: 'Rating')),
+        const Expanded(
+          child: _StatCard(value: '4.9', label: 'Rating'),
+        ),
       ],
     );
   }
 }
 
 class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.value,
-    required this.label,
-    this.valueColor,
-  });
+  const _StatCard({required this.value, required this.label, this.valueColor});
 
   final String value;
   final String label;
@@ -308,10 +311,8 @@ class _CurrentRideCard extends ConsumerWidget {
       final passengerRideAsync = ref.watch(currentPassengerRideProvider);
       return passengerRideAsync.when(
         loading: () => const _LoadingCard(title: 'Your Ride'),
-        error: (error, _) => _InfoCard(
-          title: 'Your Ride',
-          subtitle: error.toString(),
-        ),
+        error: (error, _) =>
+            _InfoCard(title: 'Your Ride', subtitle: error.toString()),
         data: (ride) {
           if (ride == null) {
             return _InfoCard(
@@ -403,12 +404,14 @@ class _CurrentRideCard extends ConsumerWidget {
                       const SizedBox(width: 8),
                       _SmallActionButton(
                         icon: Icons.payments_outlined,
-                        onTap: () => context.go(AppRoutes.paymentByRideId(ride.id)),
+                        onTap: () =>
+                            context.go(AppRoutes.paymentByRideId(ride.id)),
                       ),
                       const SizedBox(width: 8),
                       _SmallActionButton(
                         icon: Icons.arrow_forward_outlined,
-                        onTap: () => context.go(AppRoutes.rideDetailsById(ride.id)),
+                        onTap: () =>
+                            context.go(AppRoutes.rideDetailsById(ride.id)),
                       ),
                     ],
                   ),
@@ -457,10 +460,8 @@ class _CurrentRideCard extends ConsumerWidget {
     final rideAsync = ref.watch(currentDriverRideProvider);
     return rideAsync.when(
       loading: () => const _LoadingCard(title: 'Current Ride'),
-      error: (error, _) => _InfoCard(
-        title: 'Current Ride',
-        subtitle: error.toString(),
-      ),
+      error: (error, _) =>
+          _InfoCard(title: 'Current Ride', subtitle: error.toString()),
       data: (ride) {
         if (ride == null) {
           return _InfoCard(
@@ -552,12 +553,14 @@ class _CurrentRideCard extends ConsumerWidget {
                     const SizedBox(width: 8),
                     _SmallActionButton(
                       icon: Icons.chat_bubble_outline,
-                      onTap: () => context.go(AppRoutes.groupChatByTripId(ride.id)),
+                      onTap: () =>
+                          context.go(AppRoutes.groupChatByTripId(ride.id)),
                     ),
                     const SizedBox(width: 8),
                     _SmallActionButton(
                       icon: Icons.arrow_forward_outlined,
-                      onTap: () => context.go(AppRoutes.activeRideById(ride.id)),
+                      onTap: () =>
+                          context.go(AppRoutes.activeRideById(ride.id)),
                     ),
                   ],
                 ),
@@ -588,10 +591,7 @@ class _CurrentRideCard extends ConsumerWidget {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _MiniMetric(
-                        title: 'Fare',
-                        value: ride.priceLabel,
-                      ),
+                      child: _MiniMetric(title: 'Fare', value: ride.priceLabel),
                     ),
                   ],
                 ),
@@ -614,13 +614,55 @@ class _UpdatesSection extends ConsumerWidget {
     final user = ref.watch(authUserProvider);
     final driverRide = ref.watch(currentDriverRideProvider).valueOrNull;
     final passengerRide = ref.watch(currentPassengerRideProvider).valueOrNull;
-    final paymentRecord = passengerRide == null
+    final passengerApplication = passengerRide == null
         ? null
-        : ref.watch(paymentRecordStreamProvider(passengerRide.id)).valueOrNull;
+        : ref
+              .watch(passengerRideApplicationProvider(passengerRide.id))
+              .valueOrNull;
+    final paymentRecord = passengerRide == null || user == null
+        ? null
+        : ref
+              .watch(
+                paymentRecordStreamProvider(
+                  PaymentRecordRequest(
+                    rideId: passengerRide.id,
+                    passengerId: user.uid,
+                  ),
+                ),
+              )
+              .valueOrNull;
     final paymentStatus = paymentRecord?.status.trim().toLowerCase();
-    final isRidePaid = paymentStatus == 'approved';
+    final manualPaymentStatus =
+        passengerApplication?.paymentStatus ??
+        RidePassengerPaymentStatus.pending;
+    final selectedPaymentMethod =
+        passengerApplication?.paymentMethod ??
+        (passengerRide == null
+            ? RidePassengerPaymentMethod.pendingSelection
+            : passengerRide.isManualTransferOnly
+            ? RidePassengerPaymentMethod.bankTransfer
+            : RidePassengerPaymentMethod.pendingSelection);
+    final requiresPaymentSelection =
+        passengerRide != null &&
+        passengerRide.acceptsCardPayments &&
+        selectedPaymentMethod == RidePassengerPaymentMethod.pendingSelection &&
+        !(passengerApplication?.isPaymentLocked ?? false);
+    final lockedWithoutPaymentMethod =
+        selectedPaymentMethod == RidePassengerPaymentMethod.pendingSelection &&
+        (passengerApplication?.isPaymentLocked ?? false);
+    final usesCardPayment =
+        selectedPaymentMethod == RidePassengerPaymentMethod.card;
+    final isRidePaid = requiresPaymentSelection || lockedWithoutPaymentMethod
+        ? false
+        : usesCardPayment
+        ? paymentStatus == 'approved'
+        : manualPaymentStatus == RidePassengerPaymentStatus.paid;
     final isPaymentPending =
-        paymentStatus == 'pending' || paymentStatus == 'in_process';
+        requiresPaymentSelection || lockedWithoutPaymentMethod
+        ? false
+        : usesCardPayment
+        ? paymentStatus == 'pending' || paymentStatus == 'in_process'
+        : manualPaymentStatus == RidePassengerPaymentStatus.pending;
     final firstName = user?.fullName.split(RegExp(r'\s+')).first ?? 'User';
 
     return Column(
@@ -670,27 +712,55 @@ class _UpdatesSection extends ConsumerWidget {
           _UpdateCard(
             icon: isRidePaid
                 ? Icons.check_circle_rounded
+                : requiresPaymentSelection
+                ? Icons.tune_rounded
+                : lockedWithoutPaymentMethod
+                ? Icons.lock_outline_rounded
                 : isPaymentPending
-                    ? Icons.hourglass_top_rounded
-                    : Icons.payments_outlined,
+                ? Icons.hourglass_top_rounded
+                : Icons.payments_outlined,
             iconBg: isRidePaid ? palette.accentSoft : palette.accent,
             iconColor: isRidePaid ? palette.accent : palette.primaryForeground,
             title: isRidePaid
                 ? 'Ride already paid'
+                : requiresPaymentSelection
+                ? 'Choose your payment method'
+                : lockedWithoutPaymentMethod
+                ? 'Payment marked unpaid'
                 : isPaymentPending
-                    ? 'Payment under review'
-                    : 'Payment needed',
+                ? usesCardPayment
+                      ? 'Payment under review'
+                      : 'Waiting for transfer confirmation'
+                : usesCardPayment
+                ? 'Payment needed'
+                : 'Transfer marked unpaid',
             subtitle: isRidePaid
-                ? 'Your ride with ${passengerRide.driverName} was paid successfully.'
+                ? usesCardPayment
+                      ? 'Your ride with ${passengerRide.driverName} was paid successfully.'
+                      : 'Your driver confirmed the transfer for this ride.'
+                : requiresPaymentSelection
+                ? 'Choose whether you will pay with card inside the app or transfer directly to ${passengerRide.driverName}.'
+                : lockedWithoutPaymentMethod
+                ? 'This ride finished before you selected a payment method, so your payment was marked as unpaid and locked.'
                 : isPaymentPending
-                    ? 'We are still verifying the payment for your current ride.'
-                    : 'Complete the payment for ${passengerRide.origin} to ${passengerRide.destination}.',
+                ? usesCardPayment
+                      ? 'We are still verifying the payment for your current ride.'
+                      : 'Complete the transfer directly with ${passengerRide.driverName}. They must confirm it before the ride can finish.'
+                : usesCardPayment
+                ? 'Complete the payment for ${passengerRide.origin} to ${passengerRide.destination}.'
+                : 'Your driver still has this transfer marked as unpaid.',
             highlight: true,
             actionLabel: isRidePaid
                 ? 'View Ride'
-                : isPaymentPending
-                    ? 'Open Payment'
-                    : 'Quick Pay',
+                : requiresPaymentSelection
+                ? 'Choose Method'
+                : lockedWithoutPaymentMethod
+                ? 'View Payment'
+                : usesCardPayment
+                ? isPaymentPending
+                      ? 'Open Payment'
+                      : 'Quick Pay'
+                : 'View Payment',
             onAction: () => context.go(
               isRidePaid
                   ? AppRoutes.rideDetailsById(passengerRide.id)
@@ -698,9 +768,15 @@ class _UpdatesSection extends ConsumerWidget {
             ),
             trailing: isRidePaid
                 ? 'Paid'
+                : requiresPaymentSelection
+                ? 'Pending'
+                : lockedWithoutPaymentMethod
+                ? 'Unpaid'
                 : isPaymentPending
-                    ? 'Pending'
-                    : passengerRide.priceLabel,
+                ? 'Pending'
+                : usesCardPayment
+                ? passengerRide.priceLabel
+                : 'Unpaid',
           ),
         const SizedBox(height: 10),
         _UpdateCard(
@@ -752,16 +828,10 @@ class _InfoCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            subtitle,
-            style: TextStyle(color: palette.textSecondary),
-          ),
+          Text(subtitle, style: TextStyle(color: palette.textSecondary)),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: 14),
-            ElevatedButton(
-              onPressed: onAction,
-              child: Text(actionLabel!),
-            ),
+            ElevatedButton(onPressed: onAction, child: Text(actionLabel!)),
           ],
         ],
       ),
@@ -865,10 +935,7 @@ class _UpdateCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(color: palette.textSecondary),
-                ),
+                Text(subtitle, style: TextStyle(color: palette.textSecondary)),
               ],
             ),
           ),
@@ -1108,10 +1175,18 @@ class _GridPainter extends CustomPainter {
     }
 
     final pickupDot = Paint()..color = palette.secondary;
-    canvas.drawCircle(Offset(size.width * 0.27, size.height * 0.78), 5, pickupDot);
+    canvas.drawCircle(
+      Offset(size.width * 0.27, size.height * 0.78),
+      5,
+      pickupDot,
+    );
 
     final rideDot = Paint()..color = palette.accent;
-    canvas.drawCircle(Offset(size.width * 0.58, size.height * 0.48), 8, rideDot);
+    canvas.drawCircle(
+      Offset(size.width * 0.58, size.height * 0.48),
+      8,
+      rideDot,
+    );
 
     final destinationDot = Paint()..color = palette.textPrimary;
     canvas.drawCircle(

@@ -55,6 +55,7 @@ class RidesRepositoryImpl extends RidesRepository {
     required int estimatedDurationMinutes,
     required int totalSeats,
     required int pricePerSeat,
+    required RidePaymentOption paymentOption,
     required String notes,
   }) {
     return _remoteDataSource.createRide(
@@ -67,6 +68,7 @@ class RidesRepositoryImpl extends RidesRepository {
       estimatedDurationMinutes: estimatedDurationMinutes,
       totalSeats: totalSeats,
       pricePerSeat: pricePerSeat,
+      paymentOption: paymentOption,
       notes: notes,
     );
   }
@@ -92,5 +94,29 @@ class RidesRepositoryImpl extends RidesRepository {
     required String status,
   }) {
     return _remoteDataSource.updateRideStatus(rideId: rideId, status: status);
+  }
+
+  @override
+  Future<void> updatePassengerPaymentStatus({
+    required String rideId,
+    required String passengerId,
+    required RidePassengerPaymentMethod paymentMethod,
+    required RidePassengerPaymentStatus paymentStatus,
+    required bool isPaymentLocked,
+    required String paymentStatusSource,
+  }) {
+    return _remoteDataSource.updatePassengerPaymentStatus(
+      rideId: rideId,
+      passengerId: passengerId,
+      paymentMethod: paymentMethod,
+      paymentStatus: paymentStatus,
+      isPaymentLocked: isPaymentLocked,
+      paymentStatusSource: paymentStatusSource,
+    );
+  }
+
+  @override
+  Future<void> confirmCardRidePayments({required String rideId}) {
+    return _remoteDataSource.confirmCardRidePayments(rideId: rideId);
   }
 }

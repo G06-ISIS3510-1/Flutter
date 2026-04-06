@@ -16,6 +16,7 @@ class PaymentState {
     this.status = PaymentFlowStatus.idle,
     this.checkoutUrl,
     this.rideId,
+    this.passengerId,
     this.message,
     this.paymentRecord,
   });
@@ -23,6 +24,7 @@ class PaymentState {
   final PaymentFlowStatus status;
   final String? checkoutUrl;
   final String? rideId;
+  final String? passengerId;
   final String? message;
   final PaymentRecord? paymentRecord;
 
@@ -32,6 +34,8 @@ class PaymentState {
     bool clearCheckoutUrl = false,
     String? rideId,
     bool clearRideId = false,
+    String? passengerId,
+    bool clearPassengerId = false,
     String? message,
     bool clearMessage = false,
     PaymentRecord? paymentRecord,
@@ -41,6 +45,7 @@ class PaymentState {
       status: status ?? this.status,
       checkoutUrl: clearCheckoutUrl ? null : (checkoutUrl ?? this.checkoutUrl),
       rideId: clearRideId ? null : (rideId ?? this.rideId),
+      passengerId: clearPassengerId ? null : (passengerId ?? this.passengerId),
       message: clearMessage ? null : (message ?? this.message),
       paymentRecord: clearPaymentRecord
           ? null
@@ -59,20 +64,21 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
   StreamSubscription<Uri>? _deepLinkSubscription;
   StreamSubscription<PaymentRecord?>? _paymentSubscription;
 
-  void observeRide(String rideId) {
-    if (rideId.isEmpty) {
+  void observeRide({required String rideId, required String passengerId}) {
+    if (rideId.isEmpty || passengerId.isEmpty) {
       return;
     }
 
-    if (state.rideId != rideId) {
+    if (state.rideId != rideId || state.passengerId != passengerId) {
       state = PaymentState(
         status: PaymentFlowStatus.idle,
         rideId: rideId,
+        passengerId: passengerId,
         message: 'Ready to pay for this ride.',
       );
     }
 
-    bindPaymentStream(rideId);
+    bindPaymentStream(rideId: rideId, passengerId: passengerId);
   }
 
   Future<void> startCheckout({
@@ -82,10 +88,12 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     required int quantity,
     required String payerEmail,
     required String userId,
+    required String passengerId,
   }) async {
     state = state.copyWith(
       status: PaymentFlowStatus.loading,
       rideId: rideId,
+      passengerId: passengerId,
       message: 'Creating Mercado Pago checkout...',
       clearCheckoutUrl: true,
       clearPaymentRecord: true,
@@ -99,10 +107,11 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
         quantity: quantity,
         payerEmail: payerEmail,
         userId: userId,
+        passengerId: passengerId,
       );
       final checkoutUrl = session.initPoint;
 
-      bindPaymentStream(rideId);
+      bindPaymentStream(rideId: rideId, passengerId: passengerId);
 
       state = state.copyWith(
         status: PaymentFlowStatus.checkoutOpened,
@@ -125,17 +134,25 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
 
   Future<void> refreshStatus() async {
     final rideId = state.rideId;
-    if (rideId == null || rideId.isEmpty) {
+    final passengerId = state.passengerId;
+    if (rideId == null ||
+        rideId.isEmpty ||
+        passengerId == null ||
+        passengerId.isEmpty) {
       state = state.copyWith(
         status: PaymentFlowStatus.error,
-        message: 'We could not identify the ride to validate the payment.',
+        message:
+            'We could not identify the passenger payment to validate right now.',
         clearCheckoutUrl: true,
       );
       return;
     }
 
     try {
-      final paymentRecord = await _repository.getPaymentStatus(rideId);
+      final paymentRecord = await _repository.getPaymentStatus(
+        rideId: rideId,
+        passengerId: passengerId,
+      );
       state = state.copyWith(
         status: _mapStatus(paymentRecord.status),
         paymentRecord: paymentRecord,
@@ -154,32 +171,39 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     }
   }
 
-  void bindPaymentStream(String rideId) {
+  void bindPaymentStream({
+    required String rideId,
+    required String passengerId,
+  }) {
     _paymentSubscription?.cancel();
-    _paymentSubscription = _repository.watchPaymentStatus(rideId).listen(
-      (paymentRecord) {
-        if (paymentRecord == null) {
-          return;
-        }
+    _paymentSubscription = _repository
+        .watchPaymentStatus(rideId: rideId, passengerId: passengerId)
+        .listen(
+          (paymentRecord) {
+            if (paymentRecord == null) {
+              return;
+            }
 
-        state = state.copyWith(
-          rideId: rideId,
-          paymentRecord: paymentRecord,
-          status: _mapStatus(paymentRecord.status),
-          message: _statusMessage(paymentRecord.status),
-          clearCheckoutUrl: state.status != PaymentFlowStatus.checkoutOpened,
+            state = state.copyWith(
+              rideId: rideId,
+              passengerId: passengerId,
+              paymentRecord: paymentRecord,
+              status: _mapStatus(paymentRecord.status),
+              message: _statusMessage(paymentRecord.status),
+              clearCheckoutUrl:
+                  state.status != PaymentFlowStatus.checkoutOpened,
+            );
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            state = state.copyWith(
+              status: PaymentFlowStatus.error,
+              message: _readableError(
+                error,
+                fallback: 'We lost the payment observer connection.',
+              ),
+            );
+          },
         );
-      },
-      onError: (Object error, StackTrace stackTrace) {
-        state = state.copyWith(
-          status: PaymentFlowStatus.error,
-          message: _readableError(
-            error,
-            fallback: 'We lost the payment observer connection.',
-          ),
-        );
-      },
-    );
   }
 
   void handleRedirectSuccess() {
@@ -263,7 +287,10 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     final rideIdFromLink = uri.queryParameters['rideId'];
     if (rideIdFromLink != null && rideIdFromLink.isNotEmpty) {
       state = state.copyWith(rideId: rideIdFromLink);
-      bindPaymentStream(rideIdFromLink);
+      final passengerId = state.passengerId;
+      if (passengerId != null && passengerId.isNotEmpty) {
+        bindPaymentStream(rideId: rideIdFromLink, passengerId: passengerId);
+      }
     }
 
     final path = uri.path.toLowerCase();
@@ -282,6 +309,10 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
 
   PaymentFlowStatus _mapStatus(String? rawStatus) {
     switch (rawStatus?.trim().toLowerCase()) {
+      case 'created':
+      case 'not_started':
+      case 'initialized':
+        return PaymentFlowStatus.idle;
       case 'approved':
       case 'success':
       case 'sucess':
@@ -301,6 +332,8 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
 
   String _statusMessage(String? rawStatus) {
     switch (_mapStatus(rawStatus)) {
+      case PaymentFlowStatus.idle:
+        return 'Choose a payment method or start checkout when you are ready.';
       case PaymentFlowStatus.approved:
         return 'Payment approved and confirmed in Firestore.';
       case PaymentFlowStatus.pending:
@@ -309,7 +342,6 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
         return 'Payment failed or was cancelled.';
       case PaymentFlowStatus.error:
         return 'Payment status is unavailable right now.';
-      case PaymentFlowStatus.idle:
       case PaymentFlowStatus.loading:
       case PaymentFlowStatus.checkoutOpened:
         return 'Waiting for payment confirmation...';
@@ -329,15 +361,17 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
   }
 }
 
-final paymentRemoteDataSourceProvider = Provider<PaymentRemoteDataSource>((ref) {
+final paymentRemoteDataSourceProvider = Provider<PaymentRemoteDataSource>((
+  ref,
+) {
   return PaymentRemoteDataSource();
 });
 
-final paymentFirestoreDataSourceProvider = Provider<PaymentFirestoreDataSource>((
-  ref,
-) {
-  return PaymentFirestoreDataSource();
-});
+final paymentFirestoreDataSourceProvider = Provider<PaymentFirestoreDataSource>(
+  (ref) {
+    return PaymentFirestoreDataSource();
+  },
+);
 
 final paymentRepositoryProvider = Provider<PaymentRepository>((ref) {
   return PaymentRepositoryImpl(
@@ -346,9 +380,31 @@ final paymentRepositoryProvider = Provider<PaymentRepository>((ref) {
   );
 });
 
+class PaymentRecordRequest {
+  const PaymentRecordRequest({required this.rideId, required this.passengerId});
+
+  final String rideId;
+  final String passengerId;
+
+  @override
+  bool operator ==(Object other) {
+    return other is PaymentRecordRequest &&
+        other.rideId == rideId &&
+        other.passengerId == passengerId;
+  }
+
+  @override
+  int get hashCode => Object.hash(rideId, passengerId);
+}
+
 final paymentRecordStreamProvider =
-    StreamProvider.family<PaymentRecord?, String>((ref, rideId) {
-      return ref.watch(paymentRepositoryProvider).watchPaymentStatus(rideId);
+    StreamProvider.family<PaymentRecord?, PaymentRecordRequest>((ref, request) {
+      return ref
+          .watch(paymentRepositoryProvider)
+          .watchPaymentStatus(
+            rideId: request.rideId,
+            passengerId: request.passengerId,
+          );
     });
 
 final paymentProvider = StateNotifierProvider<PaymentNotifier, PaymentState>((

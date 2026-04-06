@@ -22,6 +22,7 @@ class PaymentRepositoryImpl implements PaymentRepository {
     required int quantity,
     required String payerEmail,
     required String userId,
+    required String passengerId,
   }) {
     return _remoteDataSource.createPreference(
       rideId: rideId,
@@ -30,16 +31,29 @@ class PaymentRepositoryImpl implements PaymentRepository {
       quantity: quantity,
       payerEmail: payerEmail,
       userId: userId,
+      passengerId: passengerId,
     );
   }
 
   @override
-  Future<PaymentRecord> getPaymentStatus(String rideId) {
-    return _remoteDataSource.getPaymentStatus(rideId);
+  Future<PaymentRecord> getPaymentStatus({
+    required String rideId,
+    required String passengerId,
+  }) {
+    return _remoteDataSource.getPaymentStatus(
+      rideId: rideId,
+      passengerId: passengerId,
+    );
   }
 
   @override
-  Stream<PaymentRecord?> watchPaymentStatus(String rideId) {
-    return _firestoreDataSource.watchPaymentStatus(rideId);
+  Stream<PaymentRecord?> watchPaymentStatus({
+    required String rideId,
+    required String passengerId,
+  }) {
+    return _firestoreDataSource.watchPaymentStatus(
+      rideId: rideId,
+      passengerId: passengerId,
+    );
   }
 }

@@ -30,9 +30,30 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   static const _quantity = 1;
 
   String? _observedRideId;
+  String? _observedPassengerId;
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<void>>(ridePaymentControllerProvider, (
+      previous,
+      next,
+    ) {
+      next.whenOrNull(
+        error: (error, _) {
+          if (!mounted) {
+            return;
+          }
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(error.toString().replaceFirst('Exception: ', '')),
+              ),
+            );
+        },
+      );
+    });
+
     ref.listen<PaymentState>(paymentProvider, (previous, next) {
       final shouldOpenCheckout =
           next.status == PaymentFlowStatus.checkoutOpened &&
@@ -53,6 +74,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             builder: (_) => CheckoutWebViewScreen(
               checkoutUrl: next.checkoutUrl!,
               rideId: next.rideId ?? _observedRideId ?? '',
+              passengerId: next.passengerId ?? _observedPassengerId ?? '',
             ),
           ),
         );
@@ -61,14 +83,25 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
     final fallbackRide = ref.watch(currentPassengerRideProvider).valueOrNull;
     final resolvedRideId = widget.rideId ?? fallbackRide?.id;
+    final currentUser = ref.watch(authUserProvider);
+    final resolvedPassengerId = currentUser?.uid;
 
-    if (resolvedRideId != null && _observedRideId != resolvedRideId) {
+    if (resolvedRideId != null &&
+        resolvedPassengerId != null &&
+        (_observedRideId != resolvedRideId ||
+            _observedPassengerId != resolvedPassengerId)) {
       _observedRideId = resolvedRideId;
+      _observedPassengerId = resolvedPassengerId;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           return;
         }
-        ref.read(paymentProvider.notifier).observeRide(resolvedRideId);
+        ref
+            .read(paymentProvider.notifier)
+            .observeRide(
+              rideId: resolvedRideId,
+              passengerId: resolvedPassengerId,
+            );
       });
     }
 
@@ -101,7 +134,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             ride: ride,
             quantity: _quantity,
             paymentState: ref.watch(paymentProvider),
-            currentUser: ref.watch(authUserProvider),
+            passengerApplication: ref
+                .watch(passengerRideApplicationProvider(ride.id))
+                .valueOrNull,
+            currentUser: currentUser,
             onBack: () => _goBack(context),
             onStartCheckout: () {
               final user = ref.read(authUserProvider);
@@ -109,13 +145,16 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 return;
               }
 
-              ref.read(paymentProvider.notifier).startCheckout(
+              ref
+                  .read(paymentProvider.notifier)
+                  .startCheckout(
                     rideId: ride.id,
                     title: _checkoutTitle(ride),
                     unitPrice: ride.pricePerSeat.toDouble(),
                     quantity: _quantity,
                     payerEmail: user.email,
                     userId: user.uid,
+                    passengerId: user.uid,
                   );
             },
           );
@@ -137,11 +176,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 }
 
-class _PaymentContent extends StatelessWidget {
+class _PaymentContent extends ConsumerWidget {
   const _PaymentContent({
     required this.ride,
     required this.quantity,
     required this.paymentState,
+    required this.passengerApplication,
     required this.currentUser,
     required this.onBack,
     required this.onStartCheckout,
@@ -150,12 +190,136 @@ class _PaymentContent extends StatelessWidget {
   final RidesEntity ride;
   final int quantity;
   final PaymentState paymentState;
+  final RideApplicationEntity? passengerApplication;
   final AuthEntity? currentUser;
   final VoidCallback onBack;
   final VoidCallback onStartCheckout;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedPaymentMethod =
+        passengerApplication?.paymentMethod ??
+        (ride.isManualTransferOnly
+            ? RidePassengerPaymentMethod.bankTransfer
+            : RidePassengerPaymentMethod.pendingSelection);
+    final paymentMethodLocked =
+        passengerApplication?.isPaymentLocked == true ||
+        paymentState.status == PaymentFlowStatus.approved;
+
+    ref.listen<PaymentState>(paymentProvider, (previous, next) {
+      final application = passengerApplication;
+      if (!ride.acceptsCardPayments ||
+          application == null ||
+          application.isPaymentLocked ||
+          application.paymentMethod != RidePassengerPaymentMethod.card) {
+        return;
+      }
+
+      final sync = _cardSyncFromPaymentState(next.status);
+      if (sync == null) {
+        return;
+      }
+
+      final alreadySynced =
+          application.paymentStatus == sync.paymentStatus &&
+          application.isPaymentLocked == sync.isLocked &&
+          application.paymentStatusSource == 'mercado_pago';
+      if (alreadySynced) {
+        return;
+      }
+
+      ref
+          .read(ridePaymentControllerProvider.notifier)
+          .updatePassengerPaymentStatus(
+            rideId: ride.id,
+            passengerId: application.passengerId,
+            paymentMethod: RidePassengerPaymentMethod.card,
+            paymentStatus: sync.paymentStatus,
+            isPaymentLocked: sync.isLocked,
+            paymentStatusSource: 'mercado_pago',
+          );
+    });
+
+    Future<void> selectPaymentMethod(
+      RidePassengerPaymentMethod paymentMethod,
+    ) async {
+      final application = passengerApplication;
+      if (application == null || currentUser == null || paymentMethodLocked) {
+        return;
+      }
+
+      final currentMethod = application.paymentMethod;
+      final currentStatus = application.paymentStatus;
+      if (currentMethod == paymentMethod &&
+          currentStatus == RidePassengerPaymentStatus.pending &&
+          !application.isPaymentLocked) {
+        return;
+      }
+
+      await ref
+          .read(ridePaymentControllerProvider.notifier)
+          .updatePassengerPaymentStatus(
+            rideId: ride.id,
+            passengerId: application.passengerId,
+            paymentMethod: paymentMethod,
+            paymentStatus: RidePassengerPaymentStatus.pending,
+            isPaymentLocked: false,
+            paymentStatusSource: 'passenger_selection',
+          );
+      ref.read(ridePaymentControllerProvider.notifier).clear();
+    }
+
+    if (ride.isManualTransferOnly ||
+        selectedPaymentMethod == RidePassengerPaymentMethod.bankTransfer) {
+      final manualStatus =
+          passengerApplication?.paymentStatus ??
+          RidePassengerPaymentStatus.pending;
+
+      return SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ManualTransferHeroCard(
+              amount: ride.pricePerSeat.toDouble(),
+              ride: ride,
+              paymentStatus: manualStatus,
+            ),
+            if (ride.acceptsCardPayments) ...[
+              const SizedBox(height: AppSpacing.l),
+              _PaymentMethodSelectorCard(
+                selectedMethod: selectedPaymentMethod,
+                isLocked: paymentMethodLocked,
+                onSelected: selectPaymentMethod,
+              ),
+            ],
+            const SizedBox(height: AppSpacing.l),
+            _ManualTransferStatusCard(
+              paymentStatus: manualStatus,
+              isLocked: passengerApplication?.isPaymentLocked ?? false,
+            ),
+            const SizedBox(height: AppSpacing.l),
+            _DetailsCard(
+              paymentState: paymentState,
+              ride: ride,
+              unitPrice: ride.pricePerSeat.toDouble(),
+              quantity: quantity,
+              payerEmail: currentUser?.email ?? 'No email available',
+              userId: currentUser?.uid ?? 'No signed-in user',
+              fullName: currentUser?.fullName ?? 'No signed-in user',
+              paymentMethodLabel: selectedPaymentMethod.label,
+              manualPaymentStatus: manualStatus.label,
+            ),
+            const SizedBox(height: AppSpacing.l),
+            AppButton(
+              label: 'Back to dashboard',
+              onPressed: onBack,
+              isPrimary: false,
+            ),
+          ],
+        ),
+      );
+    }
+
     final isLoading = paymentState.status == PaymentFlowStatus.loading;
     final isApproved = paymentState.status == PaymentFlowStatus.approved;
     final isPending = paymentState.status == PaymentFlowStatus.pending;
@@ -165,16 +329,97 @@ class _PaymentContent extends StatelessWidget {
     final fullName = currentUser?.fullName ?? 'No signed-in user';
     final amount = ride.pricePerSeat.toDouble();
     final canStartCheckout =
+        selectedPaymentMethod == RidePassengerPaymentMethod.card &&
         !isLoading &&
         !isApproved &&
         !isPending &&
+        !paymentMethodLocked &&
+        !ride.isCompleted &&
         userId != null &&
         payerEmail.trim().isNotEmpty;
+
+    if (selectedPaymentMethod == RidePassengerPaymentMethod.pendingSelection &&
+        paymentMethodLocked) {
+      return SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _LockedPaymentCard(
+              title: 'Payment closed',
+              message:
+                  'This ride finished before a payment method was completed, so your payment was marked as unpaid and locked.',
+            ),
+            const SizedBox(height: AppSpacing.l),
+            _DetailsCard(
+              paymentState: paymentState,
+              ride: ride,
+              unitPrice: amount,
+              quantity: quantity,
+              payerEmail: payerEmail,
+              userId: userId ?? 'No signed-in user',
+              fullName: fullName,
+              paymentMethodLabel: selectedPaymentMethod.label,
+              manualPaymentStatus: null,
+            ),
+            const SizedBox(height: AppSpacing.l),
+            AppButton(
+              label: 'Back to dashboard',
+              onPressed: onBack,
+              isPrimary: false,
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (ride.acceptsCardPayments &&
+        selectedPaymentMethod == RidePassengerPaymentMethod.pendingSelection) {
+      return SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _MethodSelectionHeroCard(amount: amount, ride: ride),
+            const SizedBox(height: AppSpacing.l),
+            _PaymentMethodSelectorCard(
+              selectedMethod: selectedPaymentMethod,
+              isLocked: paymentMethodLocked,
+              onSelected: selectPaymentMethod,
+            ),
+            const SizedBox(height: AppSpacing.l),
+            _DetailsCard(
+              paymentState: paymentState,
+              ride: ride,
+              unitPrice: amount,
+              quantity: quantity,
+              payerEmail: payerEmail,
+              userId: userId ?? 'No signed-in user',
+              fullName: fullName,
+              paymentMethodLabel: selectedPaymentMethod.label,
+              manualPaymentStatus: null,
+            ),
+            const SizedBox(height: AppSpacing.l),
+            AppButton(
+              label: 'Back to dashboard',
+              onPressed: onBack,
+              isPrimary: false,
+            ),
+          ],
+        ),
+      );
+    }
 
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (ride.acceptsCardPayments) ...[
+            _PaymentMethodSelectorCard(
+              selectedMethod: selectedPaymentMethod,
+              isLocked: paymentMethodLocked,
+              onSelected: selectPaymentMethod,
+            ),
+            const SizedBox(height: AppSpacing.l),
+          ],
           _HeroCard(
             amount: amount,
             rideId: ride.id,
@@ -201,6 +446,8 @@ class _PaymentContent extends StatelessWidget {
             payerEmail: payerEmail,
             userId: userId ?? 'No signed-in user',
             fullName: fullName,
+            paymentMethodLabel: selectedPaymentMethod.label,
+            manualPaymentStatus: null,
           ),
           const SizedBox(height: AppSpacing.l),
           if (canStartCheckout)
@@ -214,7 +461,7 @@ class _PaymentContent extends StatelessWidget {
               onPressed: onBack,
               isPrimary: false,
             ),
-            if (isRejected) ...[
+            if (isRejected && !paymentMethodLocked && !ride.isCompleted) ...[
               const SizedBox(height: AppSpacing.s),
               AppButton(
                 label: 'Try payment again',
@@ -225,6 +472,31 @@ class _PaymentContent extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  _CardPaymentSync? _cardSyncFromPaymentState(PaymentFlowStatus status) {
+    switch (status) {
+      case PaymentFlowStatus.approved:
+        return const _CardPaymentSync(
+          paymentStatus: RidePassengerPaymentStatus.paid,
+          isLocked: true,
+        );
+      case PaymentFlowStatus.pending:
+      case PaymentFlowStatus.loading:
+      case PaymentFlowStatus.checkoutOpened:
+        return const _CardPaymentSync(
+          paymentStatus: RidePassengerPaymentStatus.pending,
+          isLocked: false,
+        );
+      case PaymentFlowStatus.rejected:
+      case PaymentFlowStatus.error:
+        return const _CardPaymentSync(
+          paymentStatus: RidePassengerPaymentStatus.unpaid,
+          isLocked: false,
+        );
+      case PaymentFlowStatus.idle:
+        return null;
+    }
   }
 }
 
@@ -256,20 +528,315 @@ class _MissingRideCard extends StatelessWidget {
             Text(
               'No ride ready for payment',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.primary,
-                  ),
+                fontWeight: FontWeight.w800,
+                color: AppColors.primary,
+              ),
             ),
             const SizedBox(height: AppSpacing.s),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ManualTransferHeroCard extends StatelessWidget {
+  const _ManualTransferHeroCard({
+    required this.amount,
+    required this.ride,
+    required this.paymentStatus,
+  });
+
+  final double amount;
+  final RidesEntity ride;
+  final RidePassengerPaymentStatus paymentStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.l),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF265D3A), Color(0xFF4B8E57)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Direct bank transfer',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 22,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          Text(
+            'Send the payment directly to the driver outside the app and wait for their confirmation before the ride ends.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Colors.white.withValues(alpha: 0.9),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.l),
+          Text(
+            '\$${amount.toStringAsFixed(0)} COP',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          Text(
+            'Ride payment - ${ride.origin} to ${ride.destination}\nStatus: ${paymentStatus.label}',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Colors.white.withValues(alpha: 0.92),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MethodSelectionHeroCard extends StatelessWidget {
+  const _MethodSelectionHeroCard({required this.amount, required this.ride});
+
+  final double amount;
+  final RidesEntity ride;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.l),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1A3A5C), Color(0xFF2D5A8E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Choose how you will pay',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 22,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          Text(
+            'This ride accepts card payments inside Wheels or direct transfer to the driver.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Colors.white.withValues(alpha: 0.9),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.l),
+          Text(
+            '\$${amount.toStringAsFixed(0)} COP',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          Text(
+            '${ride.origin} -> ${ride.destination}',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Colors.white.withValues(alpha: 0.92),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentMethodSelectorCard extends StatelessWidget {
+  const _PaymentMethodSelectorCard({
+    required this.selectedMethod,
+    required this.isLocked,
+    required this.onSelected,
+  });
+
+  final RidePassengerPaymentMethod selectedMethod;
+  final bool isLocked;
+  final ValueChanged<RidePassengerPaymentMethod> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Payment method',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          Text(
+            isLocked
+                ? 'This payment is already closed and can no longer be changed.'
+                : 'Choose the method you want to use for this ride.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.m),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ChoiceChip(
+                label: const Text('Card in app'),
+                selected: selectedMethod == RidePassengerPaymentMethod.card,
+                onSelected: isLocked
+                    ? null
+                    : (_) => onSelected(RidePassengerPaymentMethod.card),
+              ),
+              ChoiceChip(
+                label: const Text('Direct transfer'),
+                selected:
+                    selectedMethod == RidePassengerPaymentMethod.bankTransfer,
+                onSelected: isLocked
+                    ? null
+                    : (_) =>
+                          onSelected(RidePassengerPaymentMethod.bankTransfer),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LockedPaymentCard extends StatelessWidget {
+  const _LockedPaymentCard({required this.title, required this.message});
+
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          Text(
+            message,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ManualTransferStatusCard extends StatelessWidget {
+  const _ManualTransferStatusCard({
+    required this.paymentStatus,
+    required this.isLocked,
+  });
+
+  final RidePassengerPaymentStatus paymentStatus;
+  final bool isLocked;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = switch (paymentStatus) {
+      RidePassengerPaymentStatus.paid => 'Payment confirmed by driver',
+      RidePassengerPaymentStatus.unpaid => 'Payment marked as unpaid',
+      RidePassengerPaymentStatus.pending => 'Waiting for driver confirmation',
+    };
+    final message = switch (paymentStatus) {
+      RidePassengerPaymentStatus.paid =>
+        'The driver has confirmed your transfer. No further action is needed.',
+      RidePassengerPaymentStatus.unpaid =>
+        'The driver still shows this ride as unpaid. Coordinate the transfer directly before the ride ends.',
+      RidePassengerPaymentStatus.pending =>
+        'This ride uses direct bank transfer. Complete the transfer with the driver and they will mark it as paid or unpaid before finishing the ride.',
+    };
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          Text(
+            message,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+          ),
+          if (isLocked) ...[
+            const SizedBox(height: AppSpacing.s),
+            const Text(
+              'This confirmation is locked.',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -309,31 +876,31 @@ class _HeroCard extends StatelessWidget {
           Text(
             _heroTitle(status),
             style: theme.textTheme.titleLarge?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: AppSpacing.s),
           Text(
             _heroSubtitle(status),
             style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.88),
-                ),
+              color: Colors.white.withValues(alpha: 0.88),
+            ),
           ),
           const SizedBox(height: AppSpacing.l),
           Text(
             '\$${amount.toStringAsFixed(0)} COP',
             style: theme.textTheme.headlineMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: AppSpacing.s),
           Text(
             '$title\nRide ID: $rideId',
             style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.92),
-                ),
+              color: Colors.white.withValues(alpha: 0.92),
+            ),
           ),
         ],
       ),
@@ -420,16 +987,16 @@ class _UserStatusCard extends StatelessWidget {
           Text(
             _userTitle(status),
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.primary,
-                ),
+              fontWeight: FontWeight.w800,
+              color: AppColors.primary,
+            ),
           ),
           const SizedBox(height: AppSpacing.s),
           Text(
             _userDescription(status, paymentState.message),
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.m),
           AppButton(
@@ -506,6 +1073,8 @@ class _DetailsCard extends StatelessWidget {
     required this.payerEmail,
     required this.userId,
     required this.fullName,
+    required this.paymentMethodLabel,
+    required this.manualPaymentStatus,
   });
 
   final PaymentState paymentState;
@@ -515,6 +1084,8 @@ class _DetailsCard extends StatelessWidget {
   final String payerEmail;
   final String userId;
   final String fullName;
+  final String paymentMethodLabel;
+  final String? manualPaymentStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -532,16 +1103,20 @@ class _DetailsCard extends StatelessWidget {
           Text(
             'Payment details',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
-                ),
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+            ),
           ),
           const SizedBox(height: AppSpacing.m),
           _DetailRow(label: 'Passenger', value: fullName),
           _DetailRow(label: 'Payer', value: payerEmail),
           _DetailRow(label: 'User ID', value: userId),
           _DetailRow(label: 'Driver', value: ride.driverName),
-          _DetailRow(label: 'Route', value: '${ride.origin} -> ${ride.destination}'),
+          _DetailRow(label: 'Payment method', value: paymentMethodLabel),
+          _DetailRow(
+            label: 'Route',
+            value: '${ride.origin} -> ${ride.destination}',
+          ),
           _DetailRow(label: 'Date', value: ride.dateLabel),
           _DetailRow(label: 'Departure', value: ride.departureLabel),
           _DetailRow(label: 'Quantity', value: quantity.toString()),
@@ -550,6 +1125,11 @@ class _DetailsCard extends StatelessWidget {
             value: '\$${unitPrice.toStringAsFixed(0)} COP',
           ),
           _DetailRow(label: 'Ride ID', value: paymentState.rideId ?? ride.id),
+          if (manualPaymentStatus != null)
+            _DetailRow(
+              label: 'Driver confirmation',
+              value: manualPaymentStatus!,
+            ),
           _DetailRow(label: 'Flow status', value: paymentState.status.name),
           _DetailRow(
             label: 'DB status',
@@ -559,6 +1139,13 @@ class _DetailsCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CardPaymentSync {
+  const _CardPaymentSync({required this.paymentStatus, required this.isLocked});
+
+  final RidePassengerPaymentStatus paymentStatus;
+  final bool isLocked;
 }
 
 class _DetailRow extends StatelessWidget {
@@ -579,18 +1166,18 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           const SizedBox(width: AppSpacing.s),
           Expanded(
             child: Text(
               value,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.primary,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppColors.primary),
             ),
           ),
         ],

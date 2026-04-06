@@ -13,6 +13,7 @@ import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
+import '../../domain/entities/rides_entity.dart';
 import '../providers/rides_providers.dart';
 
 class CreateRideScreen extends ConsumerStatefulWidget {
@@ -37,7 +38,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   int _availableSeats = 3;
   String _origin = '';
   String _destination = '';
-  DriverPaymentOption _paymentOption = DriverPaymentOption.card;
+  RidePaymentOption _paymentOption = RidePaymentOption.card;
   bool _isResolvingOriginFromGps = false;
   String? _originLocationError;
   String? _currentLocationSuggestion;
@@ -220,7 +221,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   double get _platformFixedFee => 800;
   double get _platformPercentageFee => _estimatedEarnings * 0.033;
   double get _estimatedNetAfterPlatformFee =>
-      _paymentOption == DriverPaymentOption.card
+      _paymentOption == RidePaymentOption.card
       ? (_estimatedEarnings - _platformFixedFee - _platformPercentageFee).clamp(
           0,
           double.infinity,
@@ -262,25 +263,26 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
 
     if (!departureAt.isAfter(DateTime.now())) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Departure time must be in the future.'),
-        ),
+        const SnackBar(content: Text('Departure time must be in the future.')),
       );
       return;
     }
 
-    final rideId = await ref.read(createRideControllerProvider.notifier).createRide(
-      driverId: currentUser.uid,
-      driverName: currentUser.fullName,
-      driverEmail: currentUser.email,
-      origin: _origin.trim(),
-      destination: _destination.trim(),
-      departureAt: departureAt,
-      estimatedDurationMinutes: _durationMinutes,
-      totalSeats: _availableSeats,
-      pricePerSeat: _pricePerSeat,
-      notes: _notesController.text.trim(),
-    );
+    final rideId = await ref
+        .read(createRideControllerProvider.notifier)
+        .createRide(
+          driverId: currentUser.uid,
+          driverName: currentUser.fullName,
+          driverEmail: currentUser.email,
+          origin: _origin.trim(),
+          destination: _destination.trim(),
+          departureAt: departureAt,
+          estimatedDurationMinutes: _durationMinutes,
+          totalSeats: _availableSeats,
+          pricePerSeat: _pricePerSeat,
+          paymentOption: _paymentOption,
+          notes: _notesController.text.trim(),
+        );
 
     if (!mounted || rideId == null) {
       return;
@@ -595,7 +597,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Choose how riders will pay for this trip.',
+                      'Choose what payment methods this ride will allow.',
                       style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 14,
@@ -603,32 +605,32 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                     ),
                     const SizedBox(height: AppSpacing.m),
                     _PaymentOptionTile(
-                      title: 'Accept card payments',
+                      title: 'Card plus transfer',
                       subtitle:
                           'Wheels keeps \$800 COP + 3.3% of the purchase.',
                       helper:
-                          'Recommended if you want riders to pay inside the app with Mercado Pago.',
+                          'Passengers can either pay in-app with Mercado Pago or transfer directly to you.',
                       icon: Icons.credit_card_rounded,
-                      isSelected: _paymentOption == DriverPaymentOption.card,
+                      isSelected: _paymentOption == RidePaymentOption.card,
                       onTap: () {
                         setState(() {
-                          _paymentOption = DriverPaymentOption.card;
+                          _paymentOption = RidePaymentOption.card;
                         });
                       },
                     ),
                     const SizedBox(height: AppSpacing.s),
                     _PaymentOptionTile(
-                      title: 'Direct bank transfer',
+                      title: 'Transfer only',
                       subtitle:
                           'The rider pays you directly outside the platform.',
                       helper:
                           'Use this if you prefer manual payment coordination.',
                       icon: Icons.account_balance_rounded,
                       isSelected:
-                          _paymentOption == DriverPaymentOption.bankTransfer,
+                          _paymentOption == RidePaymentOption.bankTransfer,
                       onTap: () {
                         setState(() {
-                          _paymentOption = DriverPaymentOption.bankTransfer;
+                          _paymentOption = RidePaymentOption.bankTransfer;
                         });
                       },
                     ),
@@ -645,8 +647,8 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _paymentOption == DriverPaymentOption.card
-                                ? 'Estimated net after platform fee'
+                            _paymentOption == RidePaymentOption.card
+                                ? 'Estimated net if riders choose card'
                                 : 'Estimated amount you receive',
                             style: const TextStyle(
                               color: AppColors.textSecondary,
@@ -662,10 +664,10 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                               fontWeight: FontWeight.w800,
                             ),
                           ),
-                          if (_paymentOption == DriverPaymentOption.card) ...[
+                          if (_paymentOption == RidePaymentOption.card) ...[
                             const SizedBox(height: AppSpacing.xs),
                             Text(
-                              'Gross: \$${_estimatedEarnings.toStringAsFixed(0)} | Fee: \$${(_platformFixedFee + _platformPercentageFee).toStringAsFixed(0)}',
+                              'Riders can still transfer directly. If they pay by card, gross is \$${_estimatedEarnings.toStringAsFixed(0)} and fees are \$${(_platformFixedFee + _platformPercentageFee).toStringAsFixed(0)}.',
                               style: const TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 12,
@@ -984,8 +986,6 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     );
   }
 }
-
-enum DriverPaymentOption { card, bankTransfer }
 
 class _FieldLabel extends StatelessWidget {
   const _FieldLabel({required this.icon, required this.text});

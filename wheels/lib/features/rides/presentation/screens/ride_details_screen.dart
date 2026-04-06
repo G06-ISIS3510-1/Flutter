@@ -10,6 +10,7 @@ import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
+import '../../domain/entities/rides_entity.dart';
 import '../models/ride_listing.dart';
 import '../providers/rides_providers.dart';
 
@@ -57,9 +58,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
             ..hideCurrentSnackBar()
             ..showSnackBar(
               SnackBar(
-                content: Text(
-                  error.toString().replaceFirst('Exception: ', ''),
-                ),
+                content: Text(error.toString().replaceFirst('Exception: ', '')),
               ),
             );
         },
@@ -165,17 +164,21 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
                     ),
                     const SizedBox(height: AppSpacing.s),
                     _DetailRow(
+                      ride.acceptsCardPayments
+                          ? Icons.credit_card_outlined
+                          : Icons.account_balance_outlined,
+                      'Payment',
+                      ride.paymentOptionLabel,
+                    ),
+                    const SizedBox(height: AppSpacing.s),
+                    _DetailRow(
                       Icons.info_outline,
                       'Status',
                       _statusLabel(ride.status),
                     ),
                     if (ride.notes.trim().isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.s),
-                      _DetailRow(
-                        Icons.notes_outlined,
-                        'Notes',
-                        ride.notes,
-                      ),
+                      _DetailRow(Icons.notes_outlined, 'Notes', ride.notes),
                     ],
                   ],
                 ),
@@ -215,7 +218,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
                             );
                       }
                     : canOpenPayment
-                        ? () => context.go(AppRoutes.paymentByRideId(ride.id))
+                    ? () => context.go(AppRoutes.paymentByRideId(ride.id))
                     : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.accent,
@@ -227,24 +230,23 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
                     borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),
                 ),
-                child: Text(_actionLabel(
-                  isOwnRide: isOwnRide,
-                  hasApplied: hasApplied,
-                  rideStatus: ride.status,
-                  hasAvailableSeats: ride.hasAvailableSeats,
-                  isLoading: applyState.isLoading,
-                )),
+                child: Text(
+                  _actionLabel(
+                    isOwnRide: isOwnRide,
+                    hasApplied: hasApplied,
+                    paymentOption: ride.paymentOption,
+                    rideStatus: ride.status,
+                    hasAvailableSeats: ride.hasAvailableSeats,
+                    isLoading: applyState.isLoading,
+                  ),
+                ),
               ),
             ],
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Text(
-            error.toString(),
-            textAlign: TextAlign.center,
-          ),
-        ),
+        error: (error, _) =>
+            Center(child: Text(error.toString(), textAlign: TextAlign.center)),
       ),
     );
   }
@@ -267,6 +269,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
   String _actionLabel({
     required bool isOwnRide,
     required bool hasApplied,
+    required RidePaymentOption paymentOption,
     required String rideStatus,
     required bool hasAvailableSeats,
     required bool isLoading,
@@ -278,7 +281,9 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
       return 'This is your ride';
     }
     if (hasApplied) {
-      return 'Continue to payment';
+      return paymentOption == RidePaymentOption.card
+          ? 'Choose payment method'
+          : 'View payment instructions';
     }
     if (!hasAvailableSeats) {
       return 'Ride full';
@@ -308,10 +313,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text(
-            message,
-            style: const TextStyle(color: AppColors.textSecondary),
-          ),
+          Text(message, style: const TextStyle(color: AppColors.textSecondary)),
         ],
       ),
     );

@@ -55,10 +55,9 @@ final passengerRideApplicationProvider =
         return Stream<RideApplicationEntity?>.value(null);
       }
 
-      return ref.watch(ridesRepositoryProvider).watchPassengerApplication(
-        rideId: rideId,
-        passengerId: user.uid,
-      );
+      return ref
+          .watch(ridesRepositoryProvider)
+          .watchPassengerApplication(rideId: rideId, passengerId: user.uid);
     });
 
 final createRideControllerProvider =
@@ -76,6 +75,11 @@ final rideStatusControllerProvider =
       return RideStatusController(ref.watch(ridesRepositoryProvider));
     });
 
+final ridePaymentControllerProvider =
+    StateNotifierProvider<RidePaymentController, AsyncValue<void>>((ref) {
+      return RidePaymentController(ref.watch(ridesRepositoryProvider));
+    });
+
 class CreateRideController extends StateNotifier<AsyncValue<String?>> {
   CreateRideController(this._repository) : super(const AsyncValue.data(null));
 
@@ -91,6 +95,7 @@ class CreateRideController extends StateNotifier<AsyncValue<String?>> {
     required int estimatedDurationMinutes,
     required int totalSeats,
     required int pricePerSeat,
+    required RidePaymentOption paymentOption,
     required String notes,
   }) async {
     state = const AsyncValue.loading();
@@ -105,6 +110,7 @@ class CreateRideController extends StateNotifier<AsyncValue<String?>> {
         estimatedDurationMinutes: estimatedDurationMinutes,
         totalSeats: totalSeats,
         pricePerSeat: pricePerSeat,
+        paymentOption: paymentOption,
         notes: notes,
       );
       state = AsyncValue.data(ride.id);
@@ -163,6 +169,52 @@ class RideStatusController extends StateNotifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
     try {
       await _repository.updateRideStatus(rideId: rideId, status: status);
+      state = const AsyncValue.data(null);
+    } catch (error, stackTrace) {
+      state = AsyncValue<void>.error(error, stackTrace);
+      rethrow;
+    }
+  }
+
+  void clear() {
+    state = const AsyncValue.data(null);
+  }
+}
+
+class RidePaymentController extends StateNotifier<AsyncValue<void>> {
+  RidePaymentController(this._repository) : super(const AsyncValue.data(null));
+
+  final RidesRepository _repository;
+
+  Future<void> updatePassengerPaymentStatus({
+    required String rideId,
+    required String passengerId,
+    required RidePassengerPaymentMethod paymentMethod,
+    required RidePassengerPaymentStatus paymentStatus,
+    required bool isPaymentLocked,
+    required String paymentStatusSource,
+  }) async {
+    state = const AsyncValue.loading();
+    try {
+      await _repository.updatePassengerPaymentStatus(
+        rideId: rideId,
+        passengerId: passengerId,
+        paymentMethod: paymentMethod,
+        paymentStatus: paymentStatus,
+        isPaymentLocked: isPaymentLocked,
+        paymentStatusSource: paymentStatusSource,
+      );
+      state = const AsyncValue.data(null);
+    } catch (error, stackTrace) {
+      state = AsyncValue<void>.error(error, stackTrace);
+      rethrow;
+    }
+  }
+
+  Future<void> confirmCardRidePayments({required String rideId}) async {
+    state = const AsyncValue.loading();
+    try {
+      await _repository.confirmCardRidePayments(rideId: rideId);
       state = const AsyncValue.data(null);
     } catch (error, stackTrace) {
       state = AsyncValue<void>.error(error, stackTrace);

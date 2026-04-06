@@ -25,6 +25,7 @@ class PaymentRemoteDataSource {
     required int quantity,
     required String payerEmail,
     required String userId,
+    required String passengerId,
   }) async {
     final response = await _client.post(
       _createPreferenceUri,
@@ -36,6 +37,7 @@ class PaymentRemoteDataSource {
         'quantity': quantity,
         'payerEmail': payerEmail,
         'userId': userId,
+        'passengerId': passengerId,
       }),
     );
 
@@ -52,10 +54,16 @@ class PaymentRemoteDataSource {
     return PaymentSessionModel.fromJson(payload);
   }
 
-  Future<PaymentRecordModel> getPaymentStatus(String rideId) async {
+  Future<PaymentRecordModel> getPaymentStatus({
+    required String rideId,
+    required String passengerId,
+  }) async {
     final response = await _client.get(
       _paymentStatusUri.replace(
-        queryParameters: <String, String>{'rideId': rideId},
+        queryParameters: <String, String>{
+          'rideId': rideId,
+          'passengerId': passengerId,
+        },
       ),
     );
 
@@ -71,6 +79,12 @@ class PaymentRemoteDataSource {
     final payload = _unwrapPayload(jsonMap);
     final normalizedPayload = <String, dynamic>{
       'rideId': payload['rideId'] ?? payload['ride_id'] ?? rideId,
+      'passengerId':
+          payload['passengerId'] ??
+          payload['passenger_id'] ??
+          payload['userId'] ??
+          payload['user_id'] ??
+          passengerId,
       ...payload,
     };
     return PaymentRecordModel.fromJson(normalizedPayload);
