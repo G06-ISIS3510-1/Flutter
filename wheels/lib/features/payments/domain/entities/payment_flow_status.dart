@@ -5,5 +5,6 @@ enum PaymentFlowStatus {
   pending,
   approved,
   rejected,
+  expired,
   error,
 }

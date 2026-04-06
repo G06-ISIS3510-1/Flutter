@@ -11,6 +11,7 @@ class RidesEntity {
     required this.totalSeats,
     required this.availableSeats,
     required this.pricePerSeat,
+    required this.paymentOption,
     required this.status,
     required this.notes,
     required this.passengerIds,
@@ -33,6 +34,7 @@ class RidesEntity {
   final int totalSeats;
   final int availableSeats;
   final int pricePerSeat;
+  final RidePaymentOption paymentOption;
   final String status;
   final String notes;
   final List<String> passengerIds;
@@ -47,6 +49,10 @@ class RidesEntity {
   bool get isInProgress => status == 'in_progress';
   bool get isCompleted => status == 'completed';
   bool get isCancelled => status == 'cancelled';
+  bool get acceptsCardPayments => paymentOption == RidePaymentOption.card;
+  bool get acceptsManualTransfer => true;
+  bool get isManualTransferOnly =>
+      paymentOption == RidePaymentOption.bankTransfer;
   bool get hasAvailableSeats => availableSeats > 0;
   int get bookedSeats => totalSeats - availableSeats;
 
@@ -70,7 +76,12 @@ class RideApplicationEntity {
     required this.passengerName,
     required this.passengerEmail,
     required this.status,
+    required this.paymentStatus,
+    required this.paymentMethod,
+    required this.isPaymentLocked,
     required this.appliedAt,
+    this.paymentStatusSource,
+    this.paymentUpdatedAt,
   });
 
   final String id;
@@ -79,7 +90,106 @@ class RideApplicationEntity {
   final String passengerName;
   final String passengerEmail;
   final String status;
+  final RidePassengerPaymentStatus paymentStatus;
+  final RidePassengerPaymentMethod paymentMethod;
+  final bool isPaymentLocked;
   final DateTime appliedAt;
+  final String? paymentStatusSource;
+  final DateTime? paymentUpdatedAt;
+
+  bool get requiresPaymentMethodSelection =>
+      paymentMethod == RidePassengerPaymentMethod.pendingSelection;
+  bool get usesCardPayment => paymentMethod == RidePassengerPaymentMethod.card;
+  bool get usesManualTransfer =>
+      paymentMethod == RidePassengerPaymentMethod.bankTransfer;
+}
+
+enum RidePaymentOption { card, bankTransfer }
+
+extension RidePaymentOptionX on RidePaymentOption {
+  String get storageValue => switch (this) {
+    RidePaymentOption.card => 'card',
+    RidePaymentOption.bankTransfer => 'bank_transfer',
+  };
+
+  String get label => switch (this) {
+    RidePaymentOption.card => 'Card or direct transfer',
+    RidePaymentOption.bankTransfer => 'Direct bank transfer only',
+  };
+}
+
+RidePaymentOption ridePaymentOptionFromStorage(String? rawValue) {
+  switch (rawValue?.trim().toLowerCase()) {
+    case 'bank_transfer':
+    case 'banktransfer':
+      return RidePaymentOption.bankTransfer;
+    case 'card':
+    default:
+      return RidePaymentOption.card;
+  }
+}
+
+enum RidePassengerPaymentStatus { pending, paid, unpaid }
+
+extension RidePassengerPaymentStatusX on RidePassengerPaymentStatus {
+  String get storageValue => switch (this) {
+    RidePassengerPaymentStatus.pending => 'pending',
+    RidePassengerPaymentStatus.paid => 'paid',
+    RidePassengerPaymentStatus.unpaid => 'unpaid',
+  };
+
+  String get label => switch (this) {
+    RidePassengerPaymentStatus.pending => 'Pending',
+    RidePassengerPaymentStatus.paid => 'Paid',
+    RidePassengerPaymentStatus.unpaid => 'Unpaid',
+  };
+}
+
+enum RidePassengerPaymentMethod { pendingSelection, card, bankTransfer }
+
+extension RidePassengerPaymentMethodX on RidePassengerPaymentMethod {
+  String get storageValue => switch (this) {
+    RidePassengerPaymentMethod.pendingSelection => 'pending_selection',
+    RidePassengerPaymentMethod.card => 'card',
+    RidePassengerPaymentMethod.bankTransfer => 'bank_transfer',
+  };
+
+  String get label => switch (this) {
+    RidePassengerPaymentMethod.pendingSelection =>
+      'Payment method not selected',
+    RidePassengerPaymentMethod.card => 'Card payment',
+    RidePassengerPaymentMethod.bankTransfer => 'Direct bank transfer',
+  };
+}
+
+RidePassengerPaymentMethod ridePassengerPaymentMethodFromStorage(
+  String? rawValue,
+) {
+  switch (rawValue?.trim().toLowerCase()) {
+    case 'card':
+      return RidePassengerPaymentMethod.card;
+    case 'bank_transfer':
+    case 'banktransfer':
+      return RidePassengerPaymentMethod.bankTransfer;
+    case 'pending_selection':
+    case 'pendingselection':
+    default:
+      return RidePassengerPaymentMethod.pendingSelection;
+  }
+}
+
+RidePassengerPaymentStatus ridePassengerPaymentStatusFromStorage(
+  String? rawValue,
+) {
+  switch (rawValue?.trim().toLowerCase()) {
+    case 'paid':
+      return RidePassengerPaymentStatus.paid;
+    case 'unpaid':
+      return RidePassengerPaymentStatus.unpaid;
+    case 'pending':
+    default:
+      return RidePassengerPaymentStatus.pending;
+  }
 }
 
 class RideFailure implements Exception {

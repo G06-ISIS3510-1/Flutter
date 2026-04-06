@@ -5,11 +5,13 @@ import 'package:go_router/go_router.dart';
 import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
+import '../../../../shared/utils/app_formatter.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
+import '../../domain/entities/rides_entity.dart';
 import '../models/ride_listing.dart';
 import '../providers/rides_providers.dart';
 
@@ -57,9 +59,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
             ..hideCurrentSnackBar()
             ..showSnackBar(
               SnackBar(
-                content: Text(
-                  error.toString().replaceFirst('Exception: ', ''),
-                ),
+                content: Text(error.toString().replaceFirst('Exception: ', '')),
               ),
             );
         },
@@ -78,8 +78,9 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
             return const Center(child: Text('Ride not found'));
           }
 
+          final passengerApplication = applicationAsync.valueOrNull;
           final isOwnRide = currentUser?.uid == ride.driverId;
-          final hasApplied = applicationAsync.valueOrNull != null;
+          final hasApplied = passengerApplication != null;
           final canApply =
               !isOwnRide &&
               ride.isOpen &&
@@ -165,21 +166,29 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
                     ),
                     const SizedBox(height: AppSpacing.s),
                     _DetailRow(
+                      ride.acceptsCardPayments
+                          ? Icons.credit_card_outlined
+                          : Icons.account_balance_outlined,
+                      'Payment',
+                      ride.paymentOptionLabel,
+                    ),
+                    const SizedBox(height: AppSpacing.s),
+                    _DetailRow(
                       Icons.info_outline,
                       'Status',
                       _statusLabel(ride.status),
                     ),
                     if (ride.notes.trim().isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.s),
-                      _DetailRow(
-                        Icons.notes_outlined,
-                        'Notes',
-                        ride.notes,
-                      ),
+                      _DetailRow(Icons.notes_outlined, 'Notes', ride.notes),
                     ],
                   ],
                 ),
               ),
+              if (ride.acceptsCardPayments) ...[
+                const SizedBox(height: AppSpacing.m),
+                _CardPayoutEstimateCard(ride: ride),
+              ],
               const SizedBox(height: AppSpacing.m),
               if (isOwnRide)
                 _messageCard(
@@ -215,7 +224,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
                             );
                       }
                     : canOpenPayment
-                        ? () => context.go(AppRoutes.paymentByRideId(ride.id))
+                    ? () => context.go(AppRoutes.paymentByRideId(ride.id))
                     : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.accent,
@@ -227,24 +236,24 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
                     borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),
                 ),
-                child: Text(_actionLabel(
-                  isOwnRide: isOwnRide,
-                  hasApplied: hasApplied,
-                  rideStatus: ride.status,
-                  hasAvailableSeats: ride.hasAvailableSeats,
-                  isLoading: applyState.isLoading,
-                )),
+                child: Text(
+                  _actionLabel(
+                    isOwnRide: isOwnRide,
+                    hasApplied: hasApplied,
+                    passengerApplication: passengerApplication,
+                    paymentOption: ride.paymentOption,
+                    rideStatus: ride.status,
+                    hasAvailableSeats: ride.hasAvailableSeats,
+                    isLoading: applyState.isLoading,
+                  ),
+                ),
               ),
             ],
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Text(
-            error.toString(),
-            textAlign: TextAlign.center,
-          ),
-        ),
+        error: (error, _) =>
+            Center(child: Text(error.toString(), textAlign: TextAlign.center)),
       ),
     );
   }
@@ -267,6 +276,8 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
   String _actionLabel({
     required bool isOwnRide,
     required bool hasApplied,
+    required RideApplicationEntity? passengerApplication,
+    required RidePaymentOption paymentOption,
     required String rideStatus,
     required bool hasAvailableSeats,
     required bool isLoading,
@@ -278,7 +289,14 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
       return 'This is your ride';
     }
     if (hasApplied) {
-      return 'Continue to payment';
+      final paymentMethod =
+          passengerApplication?.paymentMethod ??
+          RidePassengerPaymentMethod.pendingSelection;
+      if (paymentOption == RidePaymentOption.card &&
+          paymentMethod == RidePassengerPaymentMethod.pendingSelection) {
+        return 'Choose payment method';
+      }
+      return 'View payment status';
     }
     if (!hasAvailableSeats) {
       return 'Ride full';
@@ -308,9 +326,66 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
+          Text(message, style: const TextStyle(color: AppColors.textSecondary)),
+        ],
+      ),
+    );
+  }
+}
+
+class _CardPayoutEstimateCard extends StatelessWidget {
+  const _CardPayoutEstimateCard({required this.ride});
+
+  final RidesEntity ride;
+
+  @override
+  Widget build(BuildContext context) {
+    final grossPerSeat = ride.pricePerSeat.toDouble();
+    final feePerSeat = AppFormatter.mercadoPagoCardFee(grossPerSeat);
+    final netPerSeat = AppFormatter.mercadoPagoCardNet(grossPerSeat);
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        boxShadow: AppShadows.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Card payment estimate',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: AppColors.foreground,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
           Text(
-            message,
+            'If a passenger pays in-app by card, the driver keeps about ${AppFormatter.cop(netPerSeat)} per seat.',
             style: const TextStyle(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.m),
+          _EstimateRow(label: 'Seat price', value: AppFormatter.cop(grossPerSeat)),
+          const SizedBox(height: AppSpacing.s),
+          _EstimateRow(
+            label: 'Estimated Mercado Pago fee',
+            value: AppFormatter.cop(feePerSeat),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          _EstimateRow(
+            label: 'Driver receives',
+            value: AppFormatter.cop(netPerSeat),
+            emphasize: true,
+          ),
+          const SizedBox(height: AppSpacing.s),
+          Text(
+            'Direct transfers still keep the full seat price.',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
           ),
         ],
       ),
@@ -345,6 +420,43 @@ class _DetailRow extends StatelessWidget {
               color: AppColors.foreground,
               fontWeight: FontWeight.w600,
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EstimateRow extends StatelessWidget {
+  const _EstimateRow({
+    required this.label,
+    required this.value,
+    this.emphasize = false,
+  });
+
+  final String label;
+  final String value;
+  final bool emphasize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.s),
+        Text(
+          value,
+          style: TextStyle(
+            color: emphasize ? AppColors.primary : AppColors.foreground,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ],

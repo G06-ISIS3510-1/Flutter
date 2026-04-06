@@ -9,9 +9,16 @@ abstract class PaymentRepository {
     required int quantity,
     required String payerEmail,
     required String userId,
+    required String passengerId,
   });
 
-  Future<PaymentRecord> getPaymentStatus(String rideId);
+  Future<PaymentRecord> getPaymentStatus({
+    required String rideId,
+    required String passengerId,
+  });
 
-  Stream<PaymentRecord?> watchPaymentStatus(String rideId);
+  Stream<PaymentRecord?> watchPaymentStatus({
+    required String rideId,
+    required String passengerId,
+  });
 }

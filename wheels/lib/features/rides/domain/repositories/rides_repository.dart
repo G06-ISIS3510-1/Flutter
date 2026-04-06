@@ -28,6 +28,7 @@ abstract class RidesRepository {
     required int estimatedDurationMinutes,
     required int totalSeats,
     required int pricePerSeat,
+    required RidePaymentOption paymentOption,
     required String notes,
   });
 
@@ -42,4 +43,15 @@ abstract class RidesRepository {
     required String rideId,
     required String status,
   });
+
+  Future<void> updatePassengerPaymentStatus({
+    required String rideId,
+    required String passengerId,
+    required RidePassengerPaymentMethod paymentMethod,
+    required RidePassengerPaymentStatus paymentStatus,
+    required bool isPaymentLocked,
+    required String paymentStatusSource,
+  });
+
+  Future<void> confirmCardRidePayments({required String rideId});
 }

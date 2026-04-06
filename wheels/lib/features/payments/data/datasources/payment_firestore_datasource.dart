@@ -8,15 +8,22 @@ class PaymentFirestoreDataSource {
 
   final FirebaseFirestore _firestore;
 
-  Stream<PaymentRecordModel?> watchPaymentStatus(String rideId) {
-    return _firestore.collection('payments').doc(rideId).snapshots().map((
-      snapshot,
-    ) {
-      if (!snapshot.exists || snapshot.data() == null) {
-        return null;
-      }
+  Stream<PaymentRecordModel?> watchPaymentStatus({
+    required String rideId,
+    required String passengerId,
+  }) {
+    return _firestore
+        .collection('payments')
+        .doc(rideId)
+        .collection('passengers')
+        .doc(passengerId)
+        .snapshots()
+        .map((snapshot) {
+          if (!snapshot.exists || snapshot.data() == null) {
+            return null;
+          }
 
-      return PaymentRecordModel.fromFirestore(snapshot);
-    });
+          return PaymentRecordModel.fromFirestore(snapshot);
+        });
   }
 }

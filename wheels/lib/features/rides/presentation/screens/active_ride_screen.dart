@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../features/auth/presentation/providers/auth_providers.dart';
+import '../../../../features/payments/domain/entities/payment_record.dart';
+import '../../../../features/payments/presentation/providers/payment_provider.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../shared/services/navigation_launcher_service.dart';
 import '../../../../shared/ui/app_scaffold.dart';
@@ -28,7 +30,22 @@ class ActiveRideScreen extends ConsumerWidget {
         ? ref.watch(currentDriverRideProvider)
         : ref.watch(rideProvider(rideId!));
 
-    ref.listen<AsyncValue<void>>(rideStatusControllerProvider, (previous, next) {
+    ref.listen<AsyncValue<void>>(rideStatusControllerProvider, (
+      previous,
+      next,
+    ) {
+      next.whenOrNull(
+        error: (error, _) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(error.toString())));
+        },
+      );
+    });
+    ref.listen<AsyncValue<void>>(ridePaymentControllerProvider, (
+      previous,
+      next,
+    ) {
       next.whenOrNull(
         error: (error, _) {
           ScaffoldMessenger.of(context)
@@ -54,8 +71,12 @@ class ActiveRideScreen extends ConsumerWidget {
             );
           }
 
-          final applicationsAsync = ref.watch(rideApplicationsProvider(ride.id));
+          final applicationsAsync = ref.watch(
+            rideApplicationsProvider(ride.id),
+          );
           final statusState = ref.watch(rideStatusControllerProvider);
+          final paymentState = ref.watch(ridePaymentControllerProvider);
+          final isLoading = statusState.isLoading || paymentState.isLoading;
 
           return ListView(
             padding: const EdgeInsets.all(AppSpacing.m),
@@ -70,7 +91,7 @@ class ActiveRideScreen extends ConsumerWidget {
                   ref: ref,
                   ride: ride,
                   applications: applications,
-                  isLoading: statusState.isLoading,
+                  isLoading: isLoading,
                 ),
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (error, _) => _errorCard(
@@ -201,6 +222,14 @@ class ActiveRideScreen extends ConsumerWidget {
             'Price per seat',
             '\$${ride.pricePerSeat}',
           ),
+          const SizedBox(height: AppSpacing.s),
+          _InfoRow(
+            ride.acceptsCardPayments
+                ? Icons.credit_card_outlined
+                : Icons.account_balance_outlined,
+            'Payment',
+            ride.paymentOptionLabel,
+          ),
           if (ride.notes.trim().isNotEmpty) ...[
             const SizedBox(height: AppSpacing.s),
             _InfoRow(Icons.notes_outlined, 'Notes', ride.notes),
@@ -264,6 +293,64 @@ class ActiveRideScreen extends ConsumerWidget {
       }
     }
 
+    Future<void> finishRide() async {
+      final cardPaymentStatuses = ride.acceptsCardPayments
+          ? await _loadCardPaymentStatuses(ref, ride, applications)
+          : null;
+      if (!context.mounted) {
+        return;
+      }
+
+      final review = await _openPassengerReviewFlow(
+        context,
+        ride,
+        applications,
+        cardPaymentStatuses,
+      );
+      if (review == null) {
+        return;
+      }
+
+      for (final application in applications) {
+        if (application.usesCardPayment) {
+          continue;
+        }
+
+        final reviewedStatus =
+            review.paymentStatuses[application.id] ??
+            RidePassengerPaymentStatus.pending;
+        final finalPaymentStatus =
+            reviewedStatus == RidePassengerPaymentStatus.paid
+            ? RidePassengerPaymentStatus.paid
+            : RidePassengerPaymentStatus.unpaid;
+        final paymentMethod = application.paymentMethod;
+        final paymentStatusSource =
+            application.usesCardPayment &&
+                finalPaymentStatus == RidePassengerPaymentStatus.paid
+            ? 'mercado_pago'
+            : application.usesManualTransfer &&
+                  finalPaymentStatus == RidePassengerPaymentStatus.paid
+            ? 'driver_manual'
+            : 'ride_completion_auto';
+        await ref
+            .read(ridePaymentControllerProvider.notifier)
+            .updatePassengerPaymentStatus(
+              rideId: ride.id,
+              passengerId: application.id,
+              paymentMethod: paymentMethod,
+              paymentStatus: finalPaymentStatus,
+              isPaymentLocked: true,
+              paymentStatusSource: paymentStatusSource,
+            );
+      }
+
+      ref.read(ridePaymentControllerProvider.notifier).clear();
+      await updateStatus(
+        'completed',
+        'Ride finished and manual payment statuses were saved.',
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -285,7 +372,8 @@ class ActiveRideScreen extends ConsumerWidget {
           ElevatedButton(
             onPressed: isLoading
                 ? null
-                : () => updateStatus('in_progress', 'Ride started successfully.'),
+                : () =>
+                      updateStatus('in_progress', 'Ride started successfully.'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.accent,
               foregroundColor: AppColors.accentForeground,
@@ -313,21 +401,7 @@ class ActiveRideScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.s),
           OutlinedButton.icon(
-            onPressed: isLoading
-                ? null
-                : () async {
-                    final shouldFinish = await _openPassengerReviewFlow(
-                      context,
-                      applications,
-                    );
-                    if (!shouldFinish) {
-                      return;
-                    }
-                    await updateStatus(
-                      'completed',
-                      'Ride finished and passenger ratings submitted.',
-                    );
-                  },
+            onPressed: isLoading ? null : finishRide,
             icon: const Icon(Icons.check_circle_outline),
             label: Text(isLoading ? 'Updating...' : 'Finish Ride'),
             style: OutlinedButton.styleFrom(
@@ -355,19 +429,41 @@ class ActiveRideScreen extends ConsumerWidget {
     );
   }
 
-  Future<bool> _openPassengerReviewFlow(
+  Future<_RideCompletionReviewResult?> _openPassengerReviewFlow(
     BuildContext context,
+    RidesEntity ride,
     List<RideApplicationEntity> applications,
+    Map<String, RidePassengerPaymentStatus>? cardPaymentStatuses,
   ) async {
     if (applications.isEmpty) {
-      return true;
+      return const _RideCompletionReviewResult(
+        <String, RidePassengerPaymentStatus>{},
+      );
     }
 
     final ratings = <String, int>{
       for (final application in applications) application.id: 5,
     };
+    final paymentStatuses = <String, RidePassengerPaymentStatus>{
+      for (final application in applications)
+        application.id: application.usesCardPayment
+            ? (cardPaymentStatuses?[application.id] ??
+                  application.paymentStatus)
+            : application.paymentStatus,
+    };
+    bool hasOpenPayments() {
+      return applications.any((application) {
+        final paymentStatus =
+            paymentStatuses[application.id] ??
+            RidePassengerPaymentStatus.pending;
+        if (application.requiresPaymentMethodSelection) {
+          return true;
+        }
+        return paymentStatus == RidePassengerPaymentStatus.pending;
+      });
+    }
 
-    final submitted = await showModalBottomSheet<bool>(
+    final submitted = await showModalBottomSheet<_RideCompletionReviewResult>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -407,11 +503,36 @@ class ActiveRideScreen extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: AppSpacing.s),
-                    const Text(
-                      'Before finishing the ride, tell us how each passenger behaved during the trip.',
-                      style: TextStyle(
+                    Text(
+                      ride.acceptsCardPayments
+                          ? 'When you finish the ride, every unresolved passenger payment will be locked. Approved card payments stay paid; anything still pending or without a selected method becomes unpaid automatically.'
+                          : 'Before finishing the ride, rate each passenger. Any transfer still left pending when you finish will be marked unpaid automatically.',
+                      style: const TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.s),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppSpacing.s),
+                      decoration: BoxDecoration(
+                        color: AppColors.input,
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Text(
+                        ride.acceptsCardPayments
+                            ? hasOpenPayments()
+                                  ? 'Some passengers are still unresolved. They will be marked unpaid when the ride finishes.'
+                                  : 'All passengers already have a final payment status.'
+                            : hasOpenPayments()
+                            ? 'Any transfer you leave pending will become unpaid when the ride finishes.'
+                            : 'All transfer payments already have a final status.',
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     const SizedBox(height: AppSpacing.m),
@@ -428,11 +549,31 @@ class ActiveRideScreen extends ConsumerWidget {
                                 name: application.passengerName,
                                 subtitle: application.passengerEmail,
                                 rating: rating,
+                                paymentStatus:
+                                    paymentStatuses[application.id] ??
+                                    RidePassengerPaymentStatus.pending,
+                                paymentLocked:
+                                    application.usesCardPayment ||
+                                    application.isPaymentLocked,
+                                paymentMethodLabel:
+                                    application.requiresPaymentMethodSelection
+                                    ? 'Passenger has not selected a payment method yet'
+                                    : application.paymentMethod.label,
                                 onRatingChanged: (value) {
                                   setModalState(() {
                                     ratings[application.id] = value;
                                   });
                                 },
+                                onPaymentStatusChanged:
+                                    application.usesManualTransfer &&
+                                        !application.isPaymentLocked
+                                    ? (value) {
+                                        setModalState(() {
+                                          paymentStatuses[application.id] =
+                                              value;
+                                        });
+                                      }
+                                    : null,
                               ),
                             );
                           }).toList(),
@@ -451,9 +592,11 @@ class ActiveRideScreen extends ConsumerWidget {
                             borderRadius: BorderRadius.circular(AppRadius.md),
                           ),
                         ),
-                        onPressed: () => Navigator.of(context).pop(true),
+                        onPressed: () => Navigator.of(
+                          context,
+                        ).pop(_RideCompletionReviewResult(paymentStatuses)),
                         child: const Text(
-                          'Submit ratings and finish ride',
+                          'Save payment statuses and finish ride',
                           style: TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ),
@@ -475,7 +618,7 @@ class ActiveRideScreen extends ConsumerWidget {
       },
     );
 
-    return submitted ?? false;
+    return submitted;
   }
 
   Widget _passengerSection(
@@ -507,34 +650,10 @@ class ActiveRideScreen extends ConsumerWidget {
             )
           else
             for (final application in applications) ...[
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: CircleAvatar(
-                  backgroundColor: AppColors.primary,
-                  child: Text(
-                    _initials(application.passengerName),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-                title: Text(application.passengerName),
-                subtitle: Text(application.passengerEmail),
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.s,
-                    vertical: AppSpacing.xs,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8F5E9),
-                    borderRadius: BorderRadius.circular(AppRadius.xl),
-                  ),
-                  child: Text(
-                    application.status,
-                    style: const TextStyle(
-                      color: Color(0xFF2E7D32),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
+              _PassengerPaymentTile(
+                ride: ride,
+                application: application,
+                initials: _initials(application.passengerName),
               ),
               if (application != applications.last)
                 const Divider(color: AppColors.border),
@@ -592,6 +711,46 @@ class ActiveRideScreen extends ConsumerWidget {
     }
   }
 
+  Future<Map<String, RidePassengerPaymentStatus>> _loadCardPaymentStatuses(
+    WidgetRef ref,
+    RidesEntity ride,
+    List<RideApplicationEntity> applications,
+  ) async {
+    final repository = ref.read(paymentRepositoryProvider);
+    final statuses = <String, RidePassengerPaymentStatus>{};
+
+    for (final application in applications) {
+      try {
+        if (!application.usesCardPayment) {
+          statuses[application.id] = application.paymentStatus;
+          continue;
+        }
+        final paymentRecord = await repository.getPaymentStatus(
+          rideId: ride.id,
+          passengerId: application.passengerId,
+        );
+        statuses[application.id] = _paymentStatusFromRecord(paymentRecord);
+      } catch (_) {
+        statuses[application.id] = RidePassengerPaymentStatus.pending;
+      }
+    }
+
+    return statuses;
+  }
+
+  RidePassengerPaymentStatus _paymentStatusFromRecord(PaymentRecord? record) {
+    final normalizedStatus = record?.effectiveStatus.trim().toLowerCase();
+    if (normalizedStatus == 'approved') {
+      return RidePassengerPaymentStatus.paid;
+    }
+    if (normalizedStatus == 'rejected' ||
+        normalizedStatus == 'cancelled' ||
+        normalizedStatus == 'expired') {
+      return RidePassengerPaymentStatus.unpaid;
+    }
+    return RidePassengerPaymentStatus.pending;
+  }
+
   String _initials(String name) {
     final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || name.trim().isEmpty) {
@@ -604,18 +763,137 @@ class ActiveRideScreen extends ConsumerWidget {
   }
 }
 
+class _PassengerPaymentTile extends ConsumerWidget {
+  const _PassengerPaymentTile({
+    required this.ride,
+    required this.application,
+    required this.initials,
+  });
+
+  final RidesEntity ride;
+  final RideApplicationEntity application;
+  final String initials;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final paymentStatus = application.usesCardPayment
+        ? _paymentStatusFromRecord(
+            ref
+                .watch(
+                  paymentRecordStreamProvider(
+                    PaymentRecordRequest(
+                      rideId: ride.id,
+                      passengerId: application.passengerId,
+                    ),
+                  ),
+                )
+                .valueOrNull,
+          )
+        : application.requiresPaymentMethodSelection
+        ? application.isPaymentLocked
+              ? application.paymentStatus
+              : RidePassengerPaymentStatus.pending
+        : application.paymentStatus;
+
+    final paymentSummary = application.requiresPaymentMethodSelection
+        ? application.isPaymentLocked
+              ? 'No payment method was selected before the ride finished. This passenger was marked as unpaid.'
+              : 'Passenger still needs to choose card or direct transfer.'
+        : application.usesCardPayment
+        ? paymentStatus == RidePassengerPaymentStatus.paid
+              ? 'Card payment confirmed by Mercado Pago.'
+              : paymentStatus == RidePassengerPaymentStatus.unpaid
+              ? 'Card payment failed or was rejected.'
+              : 'Waiting for card payment confirmation.'
+        : 'Transfer status: ${paymentStatus.label}.';
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: CircleAvatar(
+        backgroundColor: AppColors.primary,
+        child: Text(initials, style: const TextStyle(color: Colors.white)),
+      ),
+      title: Text(application.passengerName),
+      subtitle: Text(
+        '${application.passengerEmail}\n${application.paymentMethod.label}\n$paymentSummary',
+      ),
+      isThreeLine: true,
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s,
+          vertical: AppSpacing.xs,
+        ),
+        decoration: BoxDecoration(
+          color: _paymentBadgeBackground(paymentStatus),
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+        ),
+        child: Text(
+          paymentStatus.label,
+          style: TextStyle(
+            color: _paymentBadgeForeground(paymentStatus),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  RidePassengerPaymentStatus _paymentStatusFromRecord(PaymentRecord? record) {
+    final normalizedStatus = record?.effectiveStatus.trim().toLowerCase();
+    if (normalizedStatus == 'approved') {
+      return RidePassengerPaymentStatus.paid;
+    }
+    if (normalizedStatus == 'rejected' ||
+        normalizedStatus == 'cancelled' ||
+        normalizedStatus == 'expired') {
+      return RidePassengerPaymentStatus.unpaid;
+    }
+    return RidePassengerPaymentStatus.pending;
+  }
+
+  Color _paymentBadgeBackground(RidePassengerPaymentStatus status) {
+    switch (status) {
+      case RidePassengerPaymentStatus.paid:
+        return const Color(0xFFE8F5E9);
+      case RidePassengerPaymentStatus.unpaid:
+        return const Color(0xFFFDECEC);
+      case RidePassengerPaymentStatus.pending:
+        return const Color(0xFFFFF4E5);
+    }
+  }
+
+  Color _paymentBadgeForeground(RidePassengerPaymentStatus status) {
+    switch (status) {
+      case RidePassengerPaymentStatus.paid:
+        return const Color(0xFF2E7D32);
+      case RidePassengerPaymentStatus.unpaid:
+        return const Color(0xFFB42318);
+      case RidePassengerPaymentStatus.pending:
+        return const Color(0xFFB54708);
+    }
+  }
+}
+
 class _PassengerReviewTile extends StatelessWidget {
   const _PassengerReviewTile({
     required this.name,
     required this.subtitle,
     required this.rating,
+    required this.paymentStatus,
+    required this.paymentLocked,
+    required this.paymentMethodLabel,
     required this.onRatingChanged,
+    this.onPaymentStatusChanged,
   });
 
   final String name;
   final String subtitle;
   final int rating;
+  final RidePassengerPaymentStatus paymentStatus;
+  final bool paymentLocked;
+  final String paymentMethodLabel;
   final ValueChanged<int> onRatingChanged;
+  final ValueChanged<RidePassengerPaymentStatus>? onPaymentStatusChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -645,6 +923,57 @@ class _PassengerReviewTile extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.s),
+          Text(
+            paymentMethodLabel,
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          if (paymentLocked)
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s,
+                vertical: AppSpacing.xs,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.input,
+                borderRadius: BorderRadius.circular(AppRadius.xl),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Text(
+                paymentStatus == RidePassengerPaymentStatus.paid
+                    ? 'Paid and locked'
+                    : paymentStatus.label,
+                style: const TextStyle(
+                  color: AppColors.foreground,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              children: [
+                _PaymentDecisionButton(
+                  label: 'Paid',
+                  isSelected: paymentStatus == RidePassengerPaymentStatus.paid,
+                  onTap: () => onPaymentStatusChanged?.call(
+                    RidePassengerPaymentStatus.paid,
+                  ),
+                ),
+                _PaymentDecisionButton(
+                  label: 'Unpaid',
+                  isSelected:
+                      paymentStatus == RidePassengerPaymentStatus.unpaid,
+                  onTap: () => onPaymentStatusChanged?.call(
+                    RidePassengerPaymentStatus.unpaid,
+                  ),
+                ),
+              ],
+            ),
+          const SizedBox(height: AppSpacing.s),
           Wrap(
             spacing: 4,
             children: List.generate(5, (index) {
@@ -664,6 +993,42 @@ class _PassengerReviewTile extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PaymentDecisionButton extends StatelessWidget {
+  const _PaymentDecisionButton({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) => onTap(),
+      selectedColor: AppColors.primary.withValues(alpha: 0.16),
+      labelStyle: TextStyle(
+        color: isSelected ? AppColors.primary : AppColors.textSecondary,
+        fontWeight: FontWeight.w700,
+      ),
+      side: BorderSide(
+        color: isSelected ? AppColors.primary : AppColors.border,
+      ),
+      backgroundColor: AppColors.card,
+    );
+  }
+}
+
+class _RideCompletionReviewResult {
+  const _RideCompletionReviewResult(this.paymentStatuses);
+
+  final Map<String, RidePassengerPaymentStatus> paymentStatuses;
 }
 
 class _InfoRow extends StatelessWidget {

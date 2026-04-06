@@ -61,6 +61,7 @@ class PaymentStatusBanner extends StatelessWidget {
   bool _isVisible(PaymentFlowStatus status) {
     return status == PaymentFlowStatus.approved ||
         status == PaymentFlowStatus.pending ||
+        status == PaymentFlowStatus.expired ||
         status == PaymentFlowStatus.rejected ||
         status == PaymentFlowStatus.error;
   }
@@ -101,6 +102,15 @@ class _BannerConfig {
           icon: Icons.schedule_rounded,
           backgroundColor: Color(0xFFFFF4E5),
           borderColor: Color(0xFFFFD9A6),
+          iconColor: AppColors.warning,
+        );
+      case PaymentFlowStatus.expired:
+        return const _BannerConfig(
+          title: 'Payment expired',
+          defaultMessage: 'The Mercado Pago checkout expired after 3 minutes.',
+          icon: Icons.timer_off_rounded,
+          backgroundColor: Color(0xFFFFF3E0),
+          borderColor: Color(0xFFFFCC80),
           iconColor: AppColors.warning,
         );
       case PaymentFlowStatus.rejected:
