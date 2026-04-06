@@ -11,6 +11,8 @@ class AppRoutes {
   static const groupChat = '/group-chat';
   static const group = '/group/:rideId';
   static const payment = '/payment';
+  static const wallet = '/wallet';
+  static const withdrawalRequest = '/wallet/request-withdrawal';
   static const profile = '/profile';
   static const trust = '/trust';
   static const reviews = '/reviews';

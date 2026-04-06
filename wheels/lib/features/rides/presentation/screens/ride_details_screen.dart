@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
+import '../../../../shared/utils/app_formatter.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_radius.dart';
@@ -77,8 +78,9 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
             return const Center(child: Text('Ride not found'));
           }
 
+          final passengerApplication = applicationAsync.valueOrNull;
           final isOwnRide = currentUser?.uid == ride.driverId;
-          final hasApplied = applicationAsync.valueOrNull != null;
+          final hasApplied = passengerApplication != null;
           final canApply =
               !isOwnRide &&
               ride.isOpen &&
@@ -183,6 +185,10 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
                   ],
                 ),
               ),
+              if (ride.acceptsCardPayments) ...[
+                const SizedBox(height: AppSpacing.m),
+                _CardPayoutEstimateCard(ride: ride),
+              ],
               const SizedBox(height: AppSpacing.m),
               if (isOwnRide)
                 _messageCard(
@@ -234,6 +240,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
                   _actionLabel(
                     isOwnRide: isOwnRide,
                     hasApplied: hasApplied,
+                    passengerApplication: passengerApplication,
                     paymentOption: ride.paymentOption,
                     rideStatus: ride.status,
                     hasAvailableSeats: ride.hasAvailableSeats,
@@ -269,6 +276,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
   String _actionLabel({
     required bool isOwnRide,
     required bool hasApplied,
+    required RideApplicationEntity? passengerApplication,
     required RidePaymentOption paymentOption,
     required String rideStatus,
     required bool hasAvailableSeats,
@@ -281,9 +289,14 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
       return 'This is your ride';
     }
     if (hasApplied) {
-      return paymentOption == RidePaymentOption.card
-          ? 'Choose payment method'
-          : 'View payment instructions';
+      final paymentMethod =
+          passengerApplication?.paymentMethod ??
+          RidePassengerPaymentMethod.pendingSelection;
+      if (paymentOption == RidePaymentOption.card &&
+          paymentMethod == RidePassengerPaymentMethod.pendingSelection) {
+        return 'Choose payment method';
+      }
+      return 'View payment status';
     }
     if (!hasAvailableSeats) {
       return 'Ride full';
@@ -320,6 +333,66 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
   }
 }
 
+class _CardPayoutEstimateCard extends StatelessWidget {
+  const _CardPayoutEstimateCard({required this.ride});
+
+  final RidesEntity ride;
+
+  @override
+  Widget build(BuildContext context) {
+    final grossPerSeat = ride.pricePerSeat.toDouble();
+    final feePerSeat = AppFormatter.mercadoPagoCardFee(grossPerSeat);
+    final netPerSeat = AppFormatter.mercadoPagoCardNet(grossPerSeat);
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        boxShadow: AppShadows.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Card payment estimate',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: AppColors.foreground,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'If a passenger pays in-app by card, the driver keeps about ${AppFormatter.cop(netPerSeat)} per seat.',
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.m),
+          _EstimateRow(label: 'Seat price', value: AppFormatter.cop(grossPerSeat)),
+          const SizedBox(height: AppSpacing.s),
+          _EstimateRow(
+            label: 'Estimated Mercado Pago fee',
+            value: AppFormatter.cop(feePerSeat),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          _EstimateRow(
+            label: 'Driver receives',
+            value: AppFormatter.cop(netPerSeat),
+            emphasize: true,
+          ),
+          const SizedBox(height: AppSpacing.s),
+          Text(
+            'Direct transfers still keep the full seat price.',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _DetailRow extends StatelessWidget {
   const _DetailRow(this.icon, this.label, this.value);
 
@@ -347,6 +420,43 @@ class _DetailRow extends StatelessWidget {
               color: AppColors.foreground,
               fontWeight: FontWeight.w600,
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EstimateRow extends StatelessWidget {
+  const _EstimateRow({
+    required this.label,
+    required this.value,
+    this.emphasize = false,
+  });
+
+  final String label;
+  final String value;
+  final bool emphasize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.s),
+        Text(
+          value,
+          style: TextStyle(
+            color: emphasize ? AppColors.primary : AppColors.foreground,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ],

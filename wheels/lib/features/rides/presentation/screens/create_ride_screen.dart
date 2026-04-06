@@ -7,6 +7,7 @@ import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../shared/services/current_location_service.dart';
 import '../../../../shared/ui/app_scaffold.dart';
+import '../../../../shared/utils/app_formatter.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../shared/widgets/app_gradient_header.dart';
 import '../../../../theme/app_colors.dart';
@@ -217,16 +218,16 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     return parsed ?? 0;
   }
 
-  double get _estimatedEarnings => _availableSeats * _pricePerSeat.toDouble();
-  double get _platformFixedFee => 800;
-  double get _platformPercentageFee => _estimatedEarnings * 0.033;
-  double get _estimatedNetAfterPlatformFee =>
-      _paymentOption == RidePaymentOption.card
-      ? (_estimatedEarnings - _platformFixedFee - _platformPercentageFee).clamp(
-          0,
-          double.infinity,
-        )
-      : _estimatedEarnings;
+  double get _grossPerSeat => _pricePerSeat.toDouble();
+  double get _estimatedGrossIfFull => _availableSeats * _grossPerSeat;
+  double get _estimatedCardFeePerSeat =>
+      AppFormatter.mercadoPagoCardFee(_grossPerSeat);
+  double get _estimatedNetPerCardSeat =>
+      AppFormatter.mercadoPagoCardNet(_grossPerSeat);
+  double get _estimatedCardFeesIfAllSeatsPayByCard =>
+      _availableSeats * _estimatedCardFeePerSeat;
+  double get _estimatedNetIfAllSeatsPayByCard =>
+      _availableSeats * _estimatedNetPerCardSeat;
 
   Future<void> _publishRide() async {
     final isValid = _formKey.currentState?.validate() ?? false;
@@ -607,9 +608,9 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                     _PaymentOptionTile(
                       title: 'Card plus transfer',
                       subtitle:
-                          'Wheels keeps \$800 COP + 3.3% of the purchase.',
+                          'If a rider pays by card, you keep about ${AppFormatter.cop(_estimatedNetPerCardSeat)} per seat.',
                       helper:
-                          'Passengers can either pay in-app with Mercado Pago or transfer directly to you.',
+                          'Passengers can pay in-app with Mercado Pago or transfer directly to you. Card fees follow 3.29% + VAT on that fee + COP 952 per payment.',
                       icon: Icons.credit_card_rounded,
                       isSelected: _paymentOption == RidePaymentOption.card,
                       onTap: () {
@@ -648,8 +649,8 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                         children: [
                           Text(
                             _paymentOption == RidePaymentOption.card
-                                ? 'Estimated net if riders choose card'
-                                : 'Estimated amount you receive',
+                                ? 'Estimated take-home per card-paid seat'
+                                : 'Estimated amount you receive per seat',
                             style: const TextStyle(
                               color: AppColors.textSecondary,
                               fontWeight: FontWeight.w600,
@@ -657,7 +658,11 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           Text(
-                            '\$${_estimatedNetAfterPlatformFee.toStringAsFixed(0)} COP',
+                            AppFormatter.cop(
+                              _paymentOption == RidePaymentOption.card
+                                  ? _estimatedNetPerCardSeat
+                                  : _grossPerSeat,
+                            ),
                             style: const TextStyle(
                               color: AppColors.primary,
                               fontSize: 24,
@@ -667,7 +672,24 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                           if (_paymentOption == RidePaymentOption.card) ...[
                             const SizedBox(height: AppSpacing.xs),
                             Text(
-                              'Riders can still transfer directly. If they pay by card, gross is \$${_estimatedEarnings.toStringAsFixed(0)} and fees are \$${(_platformFixedFee + _platformPercentageFee).toStringAsFixed(0)}.',
+                              'Seat price: ${AppFormatter.cop(_grossPerSeat)}. Estimated Mercado Pago fee per payment: ${AppFormatter.cop(_estimatedCardFeePerSeat)}.',
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            Text(
+                              'If all $_availableSeats seats are paid by card, you keep about ${AppFormatter.cop(_estimatedNetIfAllSeatsPayByCard)} net from ${AppFormatter.cop(_estimatedGrossIfFull)} gross.',
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ] else ...[
+                            const SizedBox(height: AppSpacing.xs),
+                            Text(
+                              'With direct transfer, you keep the full ${AppFormatter.cop(_estimatedGrossIfFull)} if all $_availableSeats seats are sold.',
                               style: const TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 12,
@@ -923,6 +945,16 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   }
 
   Widget _estimatedEarningsCard() {
+    final headlineAmount = _paymentOption == RidePaymentOption.card
+        ? _estimatedNetIfAllSeatsPayByCard
+        : _estimatedGrossIfFull;
+    final title = _paymentOption == RidePaymentOption.card
+        ? 'Estimated take-home if all riders pay by card'
+        : 'Estimated earnings';
+    final subtitle = _paymentOption == RidePaymentOption.card
+        ? 'Gross sales ${AppFormatter.cop(_estimatedGrossIfFull)}. Estimated card fees ${AppFormatter.cop(_estimatedCardFeesIfAllSeatsPayByCard)}.'
+        : '$_availableSeats seats x ${AppFormatter.cop(_grossPerSeat)} each';
+
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.m,
@@ -939,8 +971,8 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Estimated Earnings',
+              Text(
+                title,
                 style: TextStyle(
                   color: AppColors.primaryForeground,
                   fontSize: 15,
@@ -949,22 +981,32 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
-                '\$${_estimatedEarnings.toStringAsFixed(0)}',
+                AppFormatter.cop(headlineAmount),
                 style: const TextStyle(
                   color: AppColors.primaryForeground,
-                  fontSize: 42,
+                  fontSize: 34,
                   fontWeight: FontWeight.w700,
                   height: 1,
                 ),
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
-                '$_availableSeats seats x \$$_pricePerSeat each',
+                subtitle,
                 style: const TextStyle(
                   color: AppColors.primaryForeground,
                   fontSize: 13,
                 ),
               ),
+              if (_paymentOption == RidePaymentOption.card) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Direct transfers still keep the full ${AppFormatter.cop(_estimatedGrossIfFull)}.',
+                  style: const TextStyle(
+                    color: AppColors.primaryForeground,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ],
           ),
           Container(

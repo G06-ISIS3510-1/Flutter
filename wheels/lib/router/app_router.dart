@@ -21,6 +21,8 @@ import '../features/rides/presentation/screens/group_screen.dart';
 import '../features/rides/presentation/screens/ride_details_screen.dart';
 import '../features/rides/presentation/screens/rides_search_screen.dart';
 import '../features/trust/presentation/screens/trust_screen.dart';
+import '../features/wallet/presentation/screens/wallet_screen.dart';
+import '../features/wallet/presentation/screens/withdrawal_request_screen.dart';
 import 'app_routes.dart';
 
 class AppRouter {
@@ -66,6 +68,12 @@ class AppRouter {
       if ((location == AppRoutes.activeRide ||
               location == AppRoutes.groupChat ||
               location.startsWith('/group/')) &&
+          !isDriver) {
+        return AppRoutes.dashboard;
+      }
+
+      if ((location == AppRoutes.wallet ||
+              location == AppRoutes.withdrawalRequest) &&
           !isDriver) {
         return AppRoutes.dashboard;
       }
@@ -117,9 +125,8 @@ class AppRouter {
       ),
       GoRoute(
         path: AppRoutes.activeRide,
-        builder: (context, state) => ActiveRideScreen(
-          rideId: state.uri.queryParameters['rideId'],
-        ),
+        builder: (context, state) =>
+            ActiveRideScreen(rideId: state.uri.queryParameters['rideId']),
       ),
       GoRoute(
         path: AppRoutes.groupChat,
@@ -134,9 +141,16 @@ class AppRouter {
       ),
       GoRoute(
         path: AppRoutes.payment,
-        builder: (context, state) => PaymentScreen(
-          rideId: state.uri.queryParameters['rideId'],
-        ),
+        builder: (context, state) =>
+            PaymentScreen(rideId: state.uri.queryParameters['rideId']),
+      ),
+      GoRoute(
+        path: AppRoutes.wallet,
+        builder: (context, state) => const WalletScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.withdrawalRequest,
+        builder: (context, state) => const WithdrawalRequestScreen(),
       ),
       GoRoute(
         path: AppRoutes.profile,

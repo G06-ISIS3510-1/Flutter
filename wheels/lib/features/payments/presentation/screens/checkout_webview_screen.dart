@@ -147,4 +147,12 @@ class _CheckoutWebViewScreenState extends ConsumerState<CheckoutWebViewScreen> {
       ),
     );
   }
+
+  @override
+  void dispose() {
+    if (!_handledRedirect) {
+      ref.read(paymentProvider.notifier).handleCheckoutClosed();
+    }
+    super.dispose();
+  }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/presentation/providers/auth_providers.dart';
 import '../../router/app_routes.dart';
 import '../../theme/app_theme_palette.dart';
 import '../../theme/theme_controller.dart';
@@ -21,6 +22,7 @@ class _AppNavigationDrawerState extends ConsumerState<AppNavigationDrawer> {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final themeController = ref.watch(themeControllerProvider);
+    final role = ref.watch(currentUserRoleProvider);
 
     return Drawer(
       child: SafeArea(
@@ -84,6 +86,12 @@ class _AppNavigationDrawerState extends ConsumerState<AppNavigationDrawer> {
                     label: 'Profile',
                     onTap: () => _go(context, AppRoutes.profile),
                   ),
+                  if (role == UserRole.driver)
+                    _DrawerItem(
+                      icon: Icons.account_balance_wallet_outlined,
+                      label: 'Wallet',
+                      onTap: () => _go(context, AppRoutes.wallet),
+                    ),
                   _DrawerItem(
                     icon: Icons.route_outlined,
                     label: 'My Rides',
@@ -168,9 +176,7 @@ class _AppNavigationDrawerState extends ConsumerState<AppNavigationDrawer> {
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text('$label is coming soon.')),
-      );
+      ..showSnackBar(SnackBar(content: Text('$label is coming soon.')));
   }
 
   static String _themeSubtitle(ThemePreference preference) {
@@ -224,10 +230,7 @@ class _DrawerItem extends StatelessWidget {
                     ),
                   ),
                 ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: palette.textSecondary,
-                ),
+                Icon(Icons.chevron_right_rounded, color: palette.textSecondary),
               ],
             ),
           ),
