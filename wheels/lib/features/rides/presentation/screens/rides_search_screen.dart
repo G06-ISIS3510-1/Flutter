@@ -41,14 +41,18 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   final _dateController = TextEditingController();
 
   DateTime _selectedDate = DateTime.now();
+  late DateTime _appliedDate;
   RideSortOption _sort = RideSortOption.smartMatch;
   bool _isResolvingOriginFromGps = false;
   String? _originLocationError;
   String? _currentLocationSuggestion;
+  String _appliedOriginQuery = '';
+  String _appliedDestinationQuery = '';
 
   @override
   void initState() {
     super.initState();
+    _appliedDate = _dateOnly(_selectedDate);
     _dateController.text = _formatDate(_selectedDate);
     Future.microtask(_prefillOriginWithCurrentLocation);
   }
@@ -144,8 +148,13 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
 
     setState(() {
       _selectedDate = DateTime(picked.year, picked.month, picked.day);
+      _appliedDate = _dateOnly(_selectedDate);
       _dateController.text = _formatDate(_selectedDate);
     });
+  }
+
+  DateTime _dateOnly(DateTime value) {
+    return DateTime(value.year, value.month, value.day);
   }
 
   String _formatDate(DateTime value) {
@@ -224,30 +233,18 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   }
 
   List<RidesEntity> _applyFilters(List<RidesEntity> rides) {
-    final selectedDay = DateTime(
-      _selectedDate.year,
-      _selectedDate.month,
-      _selectedDate.day,
-    );
-    final originQuery = _originController.text.trim().toLowerCase();
-    final destinationQuery = _destinationController.text.trim().toLowerCase();
-
     final filtered = rides.where((ride) {
-      final rideDay = DateTime(
-        ride.departureAt.year,
-        ride.departureAt.month,
-        ride.departureAt.day,
-      );
-      if (rideDay != selectedDay) {
+      final rideDay = _dateOnly(ride.departureAt);
+      if (rideDay != _appliedDate) {
         return false;
       }
 
       final originMatch =
-          originQuery.isEmpty ||
-          ride.origin.toLowerCase().contains(originQuery);
+          _appliedOriginQuery.isEmpty ||
+          ride.origin.toLowerCase().contains(_appliedOriginQuery);
       final destinationMatch =
-          destinationQuery.isEmpty ||
-          ride.destination.toLowerCase().contains(destinationQuery);
+          _appliedDestinationQuery.isEmpty ||
+          ride.destination.toLowerCase().contains(_appliedDestinationQuery);
       return originMatch && destinationMatch;
     }).toList();
 
@@ -418,7 +415,16 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () => setState(() {}),
+              onPressed: () {
+                setState(() {
+                  _appliedOriginQuery = _originController.text
+                      .trim()
+                      .toLowerCase();
+                  _appliedDestinationQuery = _destinationController.text
+                      .trim()
+                      .toLowerCase();
+                });
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: palette.accent,
                 foregroundColor: palette.accentForeground,
