@@ -6,6 +6,7 @@ import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../features/payments/presentation/providers/payment_provider.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
+import '../../../../shared/utils/app_formatter.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../shared/widgets/app_theme_drawer.dart';
 import '../../../../theme/app_shadows.dart';
@@ -14,6 +15,7 @@ import '../../../../theme/app_theme_palette.dart';
 import '../../../rides/domain/entities/rides_entity.dart';
 import '../../../rides/presentation/models/ride_listing.dart';
 import '../../../rides/presentation/providers/rides_providers.dart';
+import '../../../wallet/presentation/providers/wallet_providers.dart';
 import '../providers/dashboard_providers.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -612,6 +614,7 @@ class _UpdatesSection extends ConsumerWidget {
     final palette = context.palette;
     final role = ref.watch(currentUserRoleProvider);
     final user = ref.watch(authUserProvider);
+    final walletSummaryAsync = ref.watch(driverWalletSummaryProvider);
     final driverRide = ref.watch(currentDriverRideProvider).valueOrNull;
     final passengerRide = ref.watch(currentPassengerRideProvider).valueOrNull;
     final passengerApplication = passengerRide == null
@@ -631,12 +634,16 @@ class _UpdatesSection extends ConsumerWidget {
                 ),
               )
               .valueOrNull;
-    final paymentStatus = paymentRecord?.status.trim().toLowerCase();
+    final paymentStatus = paymentRecord?.effectiveStatus.trim().toLowerCase();
     final manualPaymentStatus =
         passengerApplication?.paymentStatus ??
         RidePassengerPaymentStatus.pending;
     final selectedPaymentMethod =
-        passengerApplication?.paymentMethod ??
+        (passengerApplication?.paymentMethod ==
+                    RidePassengerPaymentMethod.pendingSelection &&
+                paymentRecord?.indicatesCardPaymentFlow == true)
+            ? RidePassengerPaymentMethod.card
+            : passengerApplication?.paymentMethod ??
         (passengerRide == null
             ? RidePassengerPaymentMethod.pendingSelection
             : passengerRide.isManualTransferOnly
@@ -663,6 +670,7 @@ class _UpdatesSection extends ConsumerWidget {
         : usesCardPayment
         ? paymentStatus == 'pending' || paymentStatus == 'in_process'
         : manualPaymentStatus == RidePassengerPaymentStatus.pending;
+    final isPaymentExpired = usesCardPayment && paymentStatus == 'expired';
     final firstName = user?.fullName.split(RegExp(r'\s+')).first ?? 'User';
 
     return Column(
@@ -718,6 +726,8 @@ class _UpdatesSection extends ConsumerWidget {
                 ? Icons.lock_outline_rounded
                 : isPaymentPending
                 ? Icons.hourglass_top_rounded
+                : isPaymentExpired
+                ? Icons.timer_off_outlined
                 : Icons.payments_outlined,
             iconBg: isRidePaid ? palette.accentSoft : palette.accent,
             iconColor: isRidePaid ? palette.accent : palette.primaryForeground,
@@ -731,6 +741,8 @@ class _UpdatesSection extends ConsumerWidget {
                 ? usesCardPayment
                       ? 'Payment under review'
                       : 'Waiting for transfer confirmation'
+                : isPaymentExpired
+                ? 'Payment expired'
                 : usesCardPayment
                 ? 'Payment needed'
                 : 'Transfer marked unpaid',
@@ -746,6 +758,8 @@ class _UpdatesSection extends ConsumerWidget {
                 ? usesCardPayment
                       ? 'We are still verifying the payment for your current ride.'
                       : 'Complete the transfer directly with ${passengerRide.driverName}. They must confirm it before the ride can finish.'
+                : isPaymentExpired
+                ? 'The Mercado Pago checkout expired after 3 minutes. Open the payment screen to start a new checkout.'
                 : usesCardPayment
                 ? 'Complete the payment for ${passengerRide.origin} to ${passengerRide.destination}.'
                 : 'Your driver still has this transfer marked as unpaid.',
@@ -759,6 +773,8 @@ class _UpdatesSection extends ConsumerWidget {
                 : usesCardPayment
                 ? isPaymentPending
                       ? 'Open Payment'
+                      : isPaymentExpired
+                      ? 'Pay Again'
                       : 'Quick Pay'
                 : 'View Payment',
             onAction: () => context.go(
@@ -774,10 +790,48 @@ class _UpdatesSection extends ConsumerWidget {
                 ? 'Unpaid'
                 : isPaymentPending
                 ? 'Pending'
+                : isPaymentExpired
+                ? 'Expired'
                 : usesCardPayment
                 ? passengerRide.priceLabel
                 : 'Unpaid',
           ),
+        if (role == UserRole.driver) ...[
+          const SizedBox(height: 10),
+          walletSummaryAsync.when(
+            loading: () => _UpdateCard(
+              icon: Icons.account_balance_wallet_outlined,
+              iconBg: palette.border,
+              iconColor: palette.secondary,
+              title: 'Wallet',
+              subtitle: 'Loading your accumulated earnings...',
+              trailing: 'Loading',
+            ),
+            error: (_, _) => _UpdateCard(
+              icon: Icons.account_balance_wallet_outlined,
+              iconBg: palette.border,
+              iconColor: palette.secondary,
+              title: 'Wallet',
+              subtitle: 'We could not load your wallet summary right now.',
+              actionLabel: 'Open Wallet',
+              onAction: () => context.go(AppRoutes.wallet),
+            ),
+            data: (summary) => _UpdateCard(
+              icon: Icons.account_balance_wallet_outlined,
+              iconBg: palette.border,
+              iconColor: palette.secondary,
+              title: 'Wallet balance',
+              subtitle: summary == null
+                  ? 'Open your driver wallet to see accumulated earnings.'
+                  : 'Available: ${AppFormatter.cop(summary.availableBalance)}. Pending withdrawals: ${AppFormatter.cop(summary.pendingWithdrawalBalance)}.',
+              trailing: summary == null
+                  ? null
+                  : AppFormatter.cop(summary.totalEarned),
+              actionLabel: 'Open Wallet',
+              onAction: () => context.go(AppRoutes.wallet),
+            ),
+          ),
+        ],
         const SizedBox(height: 10),
         _UpdateCard(
           icon: Icons.person_outline,

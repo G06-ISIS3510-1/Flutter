@@ -312,6 +312,10 @@ class ActiveRideScreen extends ConsumerWidget {
       }
 
       for (final application in applications) {
+        if (application.usesCardPayment) {
+          continue;
+        }
+
         final reviewedStatus =
             review.paymentStatuses[application.id] ??
             RidePassengerPaymentStatus.pending;
@@ -343,7 +347,7 @@ class ActiveRideScreen extends ConsumerWidget {
       ref.read(ridePaymentControllerProvider.notifier).clear();
       await updateStatus(
         'completed',
-        'Ride finished and passenger payment statuses were saved.',
+        'Ride finished and manual payment statuses were saved.',
       );
     }
 
@@ -735,11 +739,13 @@ class ActiveRideScreen extends ConsumerWidget {
   }
 
   RidePassengerPaymentStatus _paymentStatusFromRecord(PaymentRecord? record) {
-    final normalizedStatus = record?.status.trim().toLowerCase();
+    final normalizedStatus = record?.effectiveStatus.trim().toLowerCase();
     if (normalizedStatus == 'approved') {
       return RidePassengerPaymentStatus.paid;
     }
-    if (normalizedStatus == 'rejected' || normalizedStatus == 'cancelled') {
+    if (normalizedStatus == 'rejected' ||
+        normalizedStatus == 'cancelled' ||
+        normalizedStatus == 'expired') {
       return RidePassengerPaymentStatus.unpaid;
     }
     return RidePassengerPaymentStatus.pending;
@@ -833,11 +839,13 @@ class _PassengerPaymentTile extends ConsumerWidget {
   }
 
   RidePassengerPaymentStatus _paymentStatusFromRecord(PaymentRecord? record) {
-    final normalizedStatus = record?.status.trim().toLowerCase();
+    final normalizedStatus = record?.effectiveStatus.trim().toLowerCase();
     if (normalizedStatus == 'approved') {
       return RidePassengerPaymentStatus.paid;
     }
-    if (normalizedStatus == 'rejected' || normalizedStatus == 'cancelled') {
+    if (normalizedStatus == 'rejected' ||
+        normalizedStatus == 'cancelled' ||
+        normalizedStatus == 'expired') {
       return RidePassengerPaymentStatus.unpaid;
     }
     return RidePassengerPaymentStatus.pending;

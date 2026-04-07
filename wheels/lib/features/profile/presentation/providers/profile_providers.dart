@@ -95,11 +95,15 @@ final profileViewDataProvider = Provider<ProfileViewData>((ref) {
           icon: Icons.star_border_rounded,
           route: AppRoutes.trust,
         ),
-        const ProfileMenuItemData(
-          title: 'Payment Methods',
-          subtitle: 'Manage your payment options',
-          icon: Icons.credit_card_outlined,
-          route: AppRoutes.payment,
+        ProfileMenuItemData(
+          title: role == UserRole.driver ? 'Driver Wallet' : 'Payment Methods',
+          subtitle: role == UserRole.driver
+              ? 'View earnings and request withdrawals'
+              : 'Manage your payment options',
+          icon: role == UserRole.driver
+              ? Icons.account_balance_wallet_outlined
+              : Icons.credit_card_outlined,
+          route: role == UserRole.driver ? AppRoutes.wallet : AppRoutes.payment,
         ),
         const ProfileMenuItemData(
           title: 'Rewards & Points',
