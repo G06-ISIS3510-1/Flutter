@@ -6,9 +6,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/utils/app_formatter.dart';
 import '../../../../shared/widgets/app_button.dart';
-import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_spacing.dart';
+import '../../../../theme/app_theme_palette.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../domain/entities/withdrawal_request_input.dart';
 import '../../domain/entities/wallet_summary.dart';
@@ -236,21 +236,23 @@ class _WithdrawalRequestScreenState
   }
 
   InputDecoration _inputDecoration(String label) {
+    final palette = context.palette;
+
     return InputDecoration(
       labelText: label,
       filled: true,
-      fillColor: AppColors.input,
+      fillColor: palette.input,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.md),
-        borderSide: const BorderSide(color: AppColors.border),
+        borderSide: BorderSide(color: palette.border),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.md),
-        borderSide: const BorderSide(color: AppColors.border),
+        borderSide: BorderSide(color: palette.border),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.md),
-        borderSide: const BorderSide(color: AppColors.primary),
+        borderSide: BorderSide(color: palette.primary),
       ),
     );
   }
@@ -263,13 +265,15 @@ class _WithdrawalInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.m),
       decoration: BoxDecoration(
-        color: const Color(0xFFE8F1FD),
+        color: palette.secondarySoft,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: const Color(0xFFC6DCF7)),
+        border: Border.all(color: palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -277,7 +281,7 @@ class _WithdrawalInfoCard extends StatelessWidget {
           Text(
             'Withdrawal request',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: AppColors.primary,
+              color: palette.primary,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -286,7 +290,7 @@ class _WithdrawalInfoCard extends StatelessWidget {
             'Available balance: ${AppFormatter.cop(walletSummary?.availableBalance ?? 0)}\nMinimum withdrawal: COP 10.000.\nOnly one pending withdrawal request is allowed per driver, and requests are processed manually later.',
             style: Theme.of(
               context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+            ).textTheme.bodyMedium?.copyWith(color: palette.textSecondary),
           ),
         ],
       ),
@@ -315,6 +319,8 @@ class _FormTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return TextFormField(
       controller: controller,
       validator: validator,
@@ -325,18 +331,18 @@ class _FormTextField extends StatelessWidget {
         labelText: label,
         hintText: hintText,
         filled: true,
-        fillColor: AppColors.input,
+        fillColor: palette.input,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: palette.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: palette.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppColors.primary),
+          borderSide: BorderSide(color: palette.primary),
         ),
       ),
     );
@@ -348,28 +354,30 @@ class _WithdrawalAccessCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Center(
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(AppSpacing.l),
         decoration: BoxDecoration(
-          color: AppColors.card,
+          color: palette.card,
           borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: palette.border),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Icons.account_balance_wallet_outlined,
               size: 42,
-              color: AppColors.primary,
+              color: palette.primary,
             ),
             const SizedBox(height: AppSpacing.m),
             Text(
               'Driver access required',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppColors.primary,
+                color: palette.primary,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -379,7 +387,7 @@ class _WithdrawalAccessCard extends StatelessWidget {
               textAlign: TextAlign.center,
               style: Theme.of(
                 context,
-              ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+              ).textTheme.bodyMedium?.copyWith(color: palette.textSecondary),
             ),
           ],
         ),

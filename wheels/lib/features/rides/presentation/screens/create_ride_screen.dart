@@ -10,10 +10,10 @@ import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/utils/app_formatter.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../shared/widgets/app_gradient_header.dart';
-import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
+import '../../../../theme/app_theme_palette.dart';
 import '../../domain/entities/rides_entity.dart';
 import '../providers/rides_providers.dart';
 
@@ -300,6 +300,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   Widget build(BuildContext context) {
     final role = ref.watch(currentUserRoleProvider);
     final createRideState = ref.watch(createRideControllerProvider);
+    final palette = context.palette;
 
     ref.listen<AsyncValue<String?>>(createRideControllerProvider, (
       previous,
@@ -320,7 +321,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     return AppScaffold(
       title: 'Create Ride',
       showAppBar: false,
-      backgroundColor: AppColors.muted,
+      backgroundColor: context.palette.background,
       scrollableHeader: Column(
         children: [
           AppGradientHeader(
@@ -340,7 +341,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
         ],
       ),
       bottomNavigationBar: Container(
-        color: AppColors.card,
+        color: context.palette.card,
         padding: const EdgeInsets.only(top: AppSpacing.s),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -352,8 +353,8 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                 child: ElevatedButton.icon(
                   onPressed: createRideState.isLoading ? null : _publishRide,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.accent,
-                    foregroundColor: AppColors.accentForeground,
+                    backgroundColor: palette.accent,
+                    foregroundColor: palette.accentForeground,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
@@ -410,9 +411,9 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                           : IconButton(
                               tooltip: 'Use current location',
                               onPressed: _useCurrentLocationAsOrigin,
-                              icon: const Icon(
+                              icon: Icon(
                                 Icons.near_me_outlined,
-                                color: AppColors.secondary,
+                                color: palette.secondary,
                               ),
                             ),
                     ),
@@ -421,17 +422,17 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.info_outline,
                             size: 16,
-                            color: AppColors.error,
+                            color: palette.error,
                           ),
                           const SizedBox(width: AppSpacing.xs),
                           Expanded(
                             child: Text(
                               _originLocationError!,
-                              style: const TextStyle(
-                                color: AppColors.error,
+                              style: TextStyle(
+                                color: palette.error,
                                 fontSize: 12,
                               ),
                             ),
@@ -486,12 +487,12 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                         label: 'Estimated Duration',
                         hint: '30',
                         icon: Icons.timer_outlined,
-                        suffixIcon: const Padding(
+                        suffixIcon: Padding(
                           padding: EdgeInsets.all(14),
                           child: Text(
                             'min',
                             style: TextStyle(
-                              color: AppColors.textSecondary,
+                              color: palette.textSecondary,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -537,16 +538,16 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                           children: [
                             Text(
                               '$_availableSeats',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 36,
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.primary,
+                                color: palette.primary,
                               ),
                             ),
-                            const Text(
+                            Text(
                               'seats available',
                               style: TextStyle(
-                                color: AppColors.mutedForeground,
+                                color: palette.textSecondary,
                               ),
                             ),
                           ],
@@ -597,10 +598,10 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Choose what payment methods this ride will allow.',
                       style: TextStyle(
-                        color: AppColors.textSecondary,
+                        color: palette.textSecondary,
                         fontSize: 14,
                       ),
                     ),
@@ -640,9 +641,9 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(AppSpacing.m),
                       decoration: BoxDecoration(
-                        color: AppColors.input,
+                        color: palette.input,
                         borderRadius: BorderRadius.circular(AppRadius.sm),
-                        border: Border.all(color: AppColors.border),
+                        border: Border.all(color: palette.border),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -651,8 +652,8 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                             _paymentOption == RidePaymentOption.card
                                 ? 'Estimated take-home per card-paid seat'
                                 : 'Estimated amount you receive per seat',
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
+                            style: TextStyle(
+                              color: palette.textSecondary,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -663,8 +664,8 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                                   ? _estimatedNetPerCardSeat
                                   : _grossPerSeat,
                             ),
-                            style: const TextStyle(
-                              color: AppColors.primary,
+                            style: TextStyle(
+                              color: palette.primary,
                               fontSize: 24,
                               fontWeight: FontWeight.w800,
                             ),
@@ -673,16 +674,16 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                             const SizedBox(height: AppSpacing.xs),
                             Text(
                               'Seat price: ${AppFormatter.cop(_grossPerSeat)}. Estimated Mercado Pago fee per payment: ${AppFormatter.cop(_estimatedCardFeePerSeat)}.',
-                              style: const TextStyle(
-                                color: AppColors.textSecondary,
+                              style: TextStyle(
+                                color: palette.textSecondary,
                                 fontSize: 12,
                               ),
                             ),
                             const SizedBox(height: AppSpacing.xs),
                             Text(
                               'If all $_availableSeats seats are paid by card, you keep about ${AppFormatter.cop(_estimatedNetIfAllSeatsPayByCard)} net from ${AppFormatter.cop(_estimatedGrossIfFull)} gross.',
-                              style: const TextStyle(
-                                color: AppColors.textSecondary,
+                              style: TextStyle(
+                                color: palette.textSecondary,
                                 fontSize: 12,
                               ),
                             ),
@@ -690,8 +691,8 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                             const SizedBox(height: AppSpacing.xs),
                             Text(
                               'With direct transfer, you keep the full ${AppFormatter.cop(_estimatedGrossIfFull)} if all $_availableSeats seats are sold.',
-                              style: const TextStyle(
-                                color: AppColors.textSecondary,
+                              style: TextStyle(
+                                color: palette.textSecondary,
                                 fontSize: 12,
                               ),
                             ),
@@ -725,13 +726,15 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   }
 
   Widget _sectionCard({required String title, required Widget child}) {
+    final palette = context.palette;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: const TextStyle(
-            color: AppColors.mutedForeground,
+          style: TextStyle(
+            color: palette.textSecondary,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -740,7 +743,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
           width: double.infinity,
           padding: const EdgeInsets.all(AppSpacing.m),
           decoration: BoxDecoration(
-            color: AppColors.card,
+            color: palette.card,
             borderRadius: BorderRadius.circular(AppRadius.md),
             boxShadow: AppShadows.sm,
           ),
@@ -770,6 +773,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
         return null;
       },
       builder: (field) {
+        final palette = context.palette;
         final currentValue = field.value ?? '';
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -791,7 +795,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                   child: Material(
                     elevation: 4,
                     borderRadius: BorderRadius.circular(AppRadius.sm),
-                    color: AppColors.card,
+                    color: palette.card,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(
                         maxHeight: 180,
@@ -862,6 +866,8 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     required VoidCallback onTap,
     required String validatorText,
   }) {
+    final palette = context.palette;
+
     return TextFormField(
       controller: controller,
       readOnly: true,
@@ -869,7 +875,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
         label: label,
         hint: hint,
         icon: icon,
-        suffixIcon: Icon(trailing, color: AppColors.textSecondary),
+        suffixIcon: Icon(trailing, color: palette.textSecondary),
       ),
       onTap: onTap,
       validator: (value) {
@@ -889,17 +895,23 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     String? prefixText,
     String? errorText,
   }) {
+    final palette = context.palette;
+
     return InputDecoration(
       label: label == null
           ? null
           : _FieldLabel(icon: icon ?? Icons.info_outline, text: label),
       hintText: hint,
-      hintStyle: const TextStyle(color: AppColors.mutedForeground),
+      hintStyle: TextStyle(color: palette.textSecondary),
       prefixText: prefixText,
+      prefixStyle: TextStyle(
+        color: palette.textPrimary,
+        fontWeight: FontWeight.w600,
+      ),
       suffixIcon: suffixIcon,
       errorText: errorText,
       filled: true,
-      fillColor: AppColors.input,
+      fillColor: palette.input,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -911,15 +923,15 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.sm),
-        borderSide: const BorderSide(color: AppColors.primary, width: 1.2),
+        borderSide: BorderSide(color: palette.primary, width: 1.2),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.sm),
-        borderSide: const BorderSide(color: AppColors.error),
+        borderSide: BorderSide(color: palette.error),
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.sm),
-        borderSide: const BorderSide(color: AppColors.error),
+        borderSide: BorderSide(color: palette.error),
       ),
     );
   }
@@ -928,6 +940,8 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     required IconData icon,
     required VoidCallback? onTap,
   }) {
+    final palette = context.palette;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppRadius.xl),
@@ -935,16 +949,17 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: onTap == null ? AppColors.muted : AppColors.secondaryLight,
+          color: onTap == null ? palette.surfaceMuted : palette.secondarySoft,
           borderRadius: BorderRadius.circular(AppRadius.xl),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: palette.border),
         ),
-        child: Icon(icon, color: AppColors.mutedForeground),
+        child: Icon(icon, color: palette.textSecondary),
       ),
     );
   }
 
   Widget _estimatedEarningsCard() {
+    final palette = context.palette;
     final headlineAmount = _paymentOption == RidePaymentOption.card
         ? _estimatedNetIfAllSeatsPayByCard
         : _estimatedGrossIfFull;
@@ -961,65 +976,68 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
         vertical: AppSpacing.m,
       ),
       decoration: BoxDecoration(
-        color: AppColors.accent,
+        color: palette.accent,
         borderRadius: BorderRadius.circular(AppRadius.lg),
         boxShadow: AppShadows.md,
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  color: AppColors.primaryForeground,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                AppFormatter.cop(headlineAmount),
-                style: const TextStyle(
-                  color: AppColors.primaryForeground,
-                  fontSize: 34,
-                  fontWeight: FontWeight.w700,
-                  height: 1,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                subtitle,
-                style: const TextStyle(
-                  color: AppColors.primaryForeground,
-                  fontSize: 13,
-                ),
-              ),
-              if (_paymentOption == RidePaymentOption.card) ...[
-                const SizedBox(height: AppSpacing.xs),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  'Direct transfers still keep the full ${AppFormatter.cop(_estimatedGrossIfFull)}.',
-                  style: const TextStyle(
-                    color: AppColors.primaryForeground,
-                    fontSize: 12,
+                  title,
+                  style: TextStyle(
+                    color: palette.primaryForeground,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  AppFormatter.cop(headlineAmount),
+                  style: TextStyle(
+                    color: palette.primaryForeground,
+                    fontSize: 34,
+                    fontWeight: FontWeight.w700,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: palette.primaryForeground,
+                    fontSize: 13,
+                  ),
+                ),
+                if (_paymentOption == RidePaymentOption.card) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'Direct transfers still keep the full ${AppFormatter.cop(_estimatedGrossIfFull)}.',
+                    style: TextStyle(
+                      color: palette.primaryForeground,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
+          const SizedBox(width: AppSpacing.m),
           Container(
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: AppColors.primaryForeground.withValues(alpha: 0.22),
+              color: palette.primaryForeground.withValues(alpha: 0.22),
               borderRadius: BorderRadius.circular(AppRadius.xl),
             ),
             alignment: Alignment.center,
-            child: const Icon(
+            child: Icon(
               Icons.attach_money,
-              color: AppColors.primaryForeground,
+              color: palette.primaryForeground,
               size: 30,
             ),
           ),
@@ -1037,17 +1055,19 @@ class _FieldLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Row(
       children: [
-        Icon(icon, size: 18, color: AppColors.secondary),
+        Icon(icon, size: 18, color: palette.secondary),
         const SizedBox(width: AppSpacing.s),
         Flexible(
           child: Text(
             text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.foreground,
+            style: TextStyle(
+              color: palette.textPrimary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1076,6 +1096,8 @@ class _PaymentOptionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -1083,10 +1105,10 @@ class _PaymentOptionTile extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(AppSpacing.m),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEAF2FD) : AppColors.card,
+          color: isSelected ? palette.secondarySoft : palette.card,
           borderRadius: BorderRadius.circular(AppRadius.sm),
           border: Border.all(
-            color: isSelected ? AppColors.secondary : AppColors.border,
+            color: isSelected ? palette.secondary : palette.border,
           ),
         ),
         child: Row(
@@ -1097,15 +1119,15 @@ class _PaymentOptionTile extends StatelessWidget {
               height: 44,
               decoration: BoxDecoration(
                 color: isSelected
-                    ? AppColors.secondary
-                    : AppColors.secondaryLight,
+                    ? palette.secondary
+                    : palette.secondarySoft,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(
                 icon,
                 color: isSelected
-                    ? AppColors.primaryForeground
-                    : AppColors.secondary,
+                    ? palette.primaryForeground
+                    : palette.secondary,
               ),
             ),
             const SizedBox(width: AppSpacing.m),
@@ -1115,24 +1137,24 @@ class _PaymentOptionTile extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: AppColors.foreground,
+                    style: TextStyle(
+                      color: palette.textPrimary,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     subtitle,
-                    style: const TextStyle(
-                      color: AppColors.primary,
+                    style: TextStyle(
+                      color: palette.primary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     helper,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
+                    style: TextStyle(
+                      color: palette.textSecondary,
                       fontSize: 12,
                     ),
                   ),
@@ -1142,7 +1164,7 @@ class _PaymentOptionTile extends StatelessWidget {
             const SizedBox(width: AppSpacing.s),
             Icon(
               isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color: isSelected ? AppColors.secondary : AppColors.border,
+              color: isSelected ? palette.secondary : palette.border,
             ),
           ],
         ),

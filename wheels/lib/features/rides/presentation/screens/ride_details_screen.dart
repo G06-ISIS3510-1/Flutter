@@ -7,10 +7,10 @@ import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/utils/app_formatter.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
-import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
+import '../../../../theme/app_theme_palette.dart';
 import '../../domain/entities/rides_entity.dart';
 import '../models/ride_listing.dart';
 import '../providers/rides_providers.dart';
@@ -34,6 +34,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
     );
     final applyState = ref.watch(rideApplicationControllerProvider);
     final currentUser = ref.watch(authUserProvider);
+    final palette = context.palette;
 
     ref.listen<AsyncValue<void>>(rideApplicationControllerProvider, (
       previous,
@@ -94,7 +95,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
               Container(
                 padding: const EdgeInsets.all(AppSpacing.m),
                 decoration: BoxDecoration(
-                  color: AppColors.card,
+                  color: palette.card,
                   borderRadius: BorderRadius.circular(AppRadius.sm),
                   boxShadow: AppShadows.sm,
                 ),
@@ -104,12 +105,10 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
                     Row(
                       children: [
                         CircleAvatar(
-                          backgroundColor: AppColors.primary,
+                          backgroundColor: palette.primary,
                           child: Text(
                             ride.driverInitials,
-                            style: const TextStyle(
-                              color: AppColors.primaryForeground,
-                            ),
+                            style: TextStyle(color: palette.primaryForeground),
                           ),
                         ),
                         const SizedBox(width: AppSpacing.s),
@@ -124,8 +123,8 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
                         ),
                         Text(
                           ride.priceLabel,
-                          style: const TextStyle(
-                            color: AppColors.primary,
+                          style: TextStyle(
+                            color: palette.primary,
                             fontSize: 24,
                             fontWeight: FontWeight.w800,
                           ),
@@ -227,10 +226,10 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
                     ? () => context.go(AppRoutes.paymentByRideId(ride.id))
                     : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.accent,
-                  foregroundColor: AppColors.accentForeground,
-                  disabledBackgroundColor: AppColors.muted,
-                  disabledForegroundColor: AppColors.mutedForeground,
+                  backgroundColor: palette.accent,
+                  foregroundColor: palette.accentForeground,
+                  disabledBackgroundColor: palette.surfaceMuted,
+                  disabledForegroundColor: palette.textSecondary,
                   minimumSize: const Size(double.infinity, 50),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -308,10 +307,12 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
   }
 
   Widget _messageCard(String title, String message) {
+    final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.m),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(AppRadius.sm),
         boxShadow: AppShadows.sm,
       ),
@@ -320,13 +321,13 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w700,
-              color: AppColors.foreground,
+              color: palette.textPrimary,
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text(message, style: const TextStyle(color: AppColors.textSecondary)),
+          Text(message, style: TextStyle(color: palette.textSecondary)),
         ],
       ),
     );
@@ -340,6 +341,7 @@ class _CardPayoutEstimateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final grossPerSeat = ride.pricePerSeat.toDouble();
     final feePerSeat = AppFormatter.mercadoPagoCardFee(grossPerSeat);
     final netPerSeat = AppFormatter.mercadoPagoCardNet(grossPerSeat);
@@ -347,24 +349,24 @@ class _CardPayoutEstimateCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.m),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(AppRadius.sm),
         boxShadow: AppShadows.sm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Card payment estimate',
             style: TextStyle(
               fontWeight: FontWeight.w700,
-              color: AppColors.foreground,
+              color: palette.textPrimary,
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             'If a passenger pays in-app by card, the driver keeps about ${AppFormatter.cop(netPerSeat)} per seat.',
-            style: const TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: palette.textSecondary),
           ),
           const SizedBox(height: AppSpacing.m),
           _EstimateRow(label: 'Seat price', value: AppFormatter.cop(grossPerSeat)),
@@ -382,8 +384,8 @@ class _CardPayoutEstimateCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.s),
           Text(
             'Direct transfers still keep the full seat price.',
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: palette.textSecondary,
               fontSize: 12,
             ),
           ),
@@ -402,22 +404,24 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Row(
       children: [
-        Icon(icon, color: AppColors.secondary),
+        Icon(icon, color: palette.secondary),
         const SizedBox(width: AppSpacing.s),
         Text(
           '$label: ',
-          style: const TextStyle(
-            color: AppColors.textSecondary,
+          style: TextStyle(
+            color: palette.textSecondary,
             fontWeight: FontWeight.w600,
           ),
         ),
         Expanded(
           child: Text(
             value,
-            style: const TextStyle(
-              color: AppColors.foreground,
+            style: TextStyle(
+              color: palette.textPrimary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -440,13 +444,15 @@ class _EstimateRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Row(
       children: [
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: palette.textSecondary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -455,7 +461,7 @@ class _EstimateRow extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            color: emphasize ? AppColors.primary : AppColors.foreground,
+            color: emphasize ? palette.primary : palette.textPrimary,
             fontWeight: FontWeight.w700,
           ),
         ),

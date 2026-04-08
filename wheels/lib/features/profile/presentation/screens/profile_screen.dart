@@ -12,6 +12,8 @@ import '../../../../theme/app_spacing.dart';
 import '../../../../theme/app_theme_palette.dart';
 import '../providers/profile_providers.dart';
 
+const double _profileHeaderCardOverlap = 54;
+
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -41,7 +43,7 @@ class ProfileScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Transform.translate(
-              offset: const Offset(0, -54),
+              offset: const Offset(0, -_profileHeaderCardOverlap),
               child: _ProfileOverviewCard(profile: profile),
             ),
             const _SectionTitle('Contact Information'),
@@ -70,9 +72,14 @@ class _ProfileHeader extends StatelessWidget {
     final palette = context.palette;
 
     return Container(
-      height: 210,
+      height: 210 + _profileHeaderCardOverlap,
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 34, 24, 34),
+      padding: const EdgeInsets.fromLTRB(
+        24,
+        34,
+        24,
+        34 + _profileHeaderCardOverlap,
+      ),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,

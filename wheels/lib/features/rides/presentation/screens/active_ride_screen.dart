@@ -9,10 +9,10 @@ import '../../../../router/app_routes.dart';
 import '../../../../shared/services/navigation_launcher_service.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
-import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
+import '../../../../theme/app_theme_palette.dart';
 import '../../domain/entities/rides_entity.dart';
 import '../models/ride_listing.dart';
 import '../providers/rides_providers.dart';
@@ -26,6 +26,7 @@ class ActiveRideScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.palette;
     final rideAsync = rideId == null
         ? ref.watch(currentDriverRideProvider)
         : ref.watch(rideProvider(rideId!));
@@ -58,7 +59,7 @@ class ActiveRideScreen extends ConsumerWidget {
     return AppScaffold(
       title: 'Active Ride',
       showAppBar: false,
-      backgroundColor: AppColors.muted,
+      backgroundColor: palette.background,
       bottomNavigationBar: const AppBottomNav(
         currentTab: AppBottomNavTab.middle,
         role: UserRole.driver,
@@ -81,9 +82,9 @@ class ActiveRideScreen extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.all(AppSpacing.m),
             children: [
-              _headerCard(ride),
+              _headerCard(context, ride),
               const SizedBox(height: AppSpacing.m),
-              _routeCard(ride),
+              _routeCard(context, ride),
               const SizedBox(height: AppSpacing.m),
               applicationsAsync.when(
                 data: (applications) => _statusActions(
@@ -95,15 +96,18 @@ class ActiveRideScreen extends ConsumerWidget {
                 ),
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (error, _) => _errorCard(
+                  context,
                   'We could not load passenger applications.',
                   error.toString(),
                 ),
               ),
               const SizedBox(height: AppSpacing.m),
               applicationsAsync.when(
-                data: (applications) => _passengerSection(ride, applications),
+                data: (applications) =>
+                    _passengerSection(context, ride, applications),
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (error, _) => _errorCard(
+                  context,
                   'We could not load passenger applications.',
                   error.toString(),
                 ),
@@ -113,6 +117,7 @@ class ActiveRideScreen extends ConsumerWidget {
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => _errorCard(
+          context,
           'We could not load your current ride.',
           error.toString(),
         ),
@@ -120,12 +125,14 @@ class ActiveRideScreen extends ConsumerWidget {
     );
   }
 
-  Widget _headerCard(RidesEntity ride) {
+  Widget _headerCard(BuildContext context, RidesEntity ride) {
+    final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.m),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1A3A5C), Color(0xFF2D5A8E)],
+        gradient: LinearGradient(
+          colors: [palette.primary, palette.primaryLight],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -136,11 +143,11 @@ class ActiveRideScreen extends ConsumerWidget {
         children: [
           CircleAvatar(
             radius: 28,
-            backgroundColor: Colors.white.withValues(alpha: 0.18),
+            backgroundColor: palette.primaryForeground.withValues(alpha: 0.18),
             child: Text(
               ride.driverInitials,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: palette.primaryForeground,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -152,8 +159,8 @@ class ActiveRideScreen extends ConsumerWidget {
               children: [
                 Text(
                   ride.driverName,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: palette.primaryForeground,
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
                   ),
@@ -161,7 +168,9 @@ class ActiveRideScreen extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   '${ride.availableSeats}/${ride.totalSeats} seats available',
-                  style: const TextStyle(color: Colors.white70),
+                  style: TextStyle(
+                    color: palette.primaryForeground.withValues(alpha: 0.78),
+                  ),
                 ),
               ],
             ),
@@ -172,13 +181,13 @@ class ActiveRideScreen extends ConsumerWidget {
               vertical: AppSpacing.xs,
             ),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.14),
+              color: palette.primaryForeground.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(AppRadius.xl),
             ),
             child: Text(
               _rideStatusLabel(ride.status),
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: palette.primaryForeground,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -188,22 +197,24 @@ class ActiveRideScreen extends ConsumerWidget {
     );
   }
 
-  Widget _routeCard(RidesEntity ride) {
+  Widget _routeCard(BuildContext context, RidesEntity ride) {
+    final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.m),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(AppRadius.md),
         boxShadow: AppShadows.sm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Ride details',
             style: TextStyle(
               fontWeight: FontWeight.w700,
-              color: AppColors.foreground,
+              color: palette.textPrimary,
             ),
           ),
           const SizedBox(height: AppSpacing.m),
@@ -359,8 +370,8 @@ class ActiveRideScreen extends ConsumerWidget {
           icon: const Icon(Icons.forum_outlined),
           label: const Text('Open Group Chat'),
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF5B89C8),
-            foregroundColor: Colors.white,
+            backgroundColor: context.palette.secondary,
+            foregroundColor: context.palette.primaryForeground,
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadius.md),
@@ -375,8 +386,8 @@ class ActiveRideScreen extends ConsumerWidget {
                 : () =>
                       updateStatus('in_progress', 'Ride started successfully.'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              foregroundColor: AppColors.accentForeground,
+              backgroundColor: context.palette.accent,
+              foregroundColor: context.palette.accentForeground,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppRadius.md),
@@ -391,8 +402,8 @@ class ActiveRideScreen extends ConsumerWidget {
             icon: const Icon(Icons.navigation_outlined),
             label: const Text('Open Navigation'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF5B89C8),
-              foregroundColor: Colors.white,
+              backgroundColor: context.palette.secondary,
+              foregroundColor: context.palette.primaryForeground,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppRadius.md),
@@ -468,11 +479,13 @@ class ActiveRideScreen extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
+        final palette = context.palette;
+
         return StatefulBuilder(
           builder: (context, setModalState) {
             return Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(
+                color: palette.card,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
               padding: const EdgeInsets.fromLTRB(
@@ -487,17 +500,17 @@ class ActiveRideScreen extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Center(
+                    Center(
                       child: SizedBox(
                         width: 44,
-                        child: Divider(thickness: 4, color: AppColors.border),
+                        child: Divider(thickness: 4, color: palette.border),
                       ),
                     ),
                     const SizedBox(height: AppSpacing.s),
-                    const Text(
+                    Text(
                       'Rate your passengers',
                       style: TextStyle(
-                        color: AppColors.foreground,
+                        color: palette.textPrimary,
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
                       ),
@@ -507,8 +520,8 @@ class ActiveRideScreen extends ConsumerWidget {
                       ride.acceptsCardPayments
                           ? 'When you finish the ride, every unresolved passenger payment will be locked. Approved card payments stay paid; anything still pending or without a selected method becomes unpaid automatically.'
                           : 'Before finishing the ride, rate each passenger. Any transfer still left pending when you finish will be marked unpaid automatically.',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
+                      style: TextStyle(
+                        color: palette.textSecondary,
                         fontSize: 14,
                       ),
                     ),
@@ -517,9 +530,9 @@ class ActiveRideScreen extends ConsumerWidget {
                       width: double.infinity,
                       padding: const EdgeInsets.all(AppSpacing.s),
                       decoration: BoxDecoration(
-                        color: AppColors.input,
+                        color: palette.input,
                         borderRadius: BorderRadius.circular(AppRadius.sm),
-                        border: Border.all(color: AppColors.border),
+                        border: Border.all(color: palette.border),
                       ),
                       child: Text(
                         ride.acceptsCardPayments
@@ -529,8 +542,8 @@ class ActiveRideScreen extends ConsumerWidget {
                             : hasOpenPayments()
                             ? 'Any transfer you leave pending will become unpaid when the ride finishes.'
                             : 'All transfer payments already have a final status.',
-                        style: const TextStyle(
-                          color: AppColors.primary,
+                        style: TextStyle(
+                          color: palette.primary,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -585,8 +598,8 @@ class ActiveRideScreen extends ConsumerWidget {
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
+                          backgroundColor: palette.primary,
+                          foregroundColor: palette.primaryForeground,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(AppRadius.md),
@@ -622,13 +635,16 @@ class ActiveRideScreen extends ConsumerWidget {
   }
 
   Widget _passengerSection(
+    BuildContext context,
     RidesEntity ride,
     List<RideApplicationEntity> applications,
   ) {
+    final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.m),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(AppRadius.md),
         boxShadow: AppShadows.sm,
       ),
@@ -637,16 +653,16 @@ class ActiveRideScreen extends ConsumerWidget {
         children: [
           Text(
             'Passengers (${applications.length}/${ride.totalSeats})',
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w700,
-              color: AppColors.foreground,
+              color: palette.textPrimary,
             ),
           ),
           const SizedBox(height: AppSpacing.s),
           if (applications.isEmpty)
-            const Text(
+            Text(
               'No passengers have applied yet.',
-              style: TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: palette.textSecondary),
             )
           else
             for (final application in applications) ...[
@@ -656,39 +672,41 @@ class ActiveRideScreen extends ConsumerWidget {
                 initials: _initials(application.passengerName),
               ),
               if (application != applications.last)
-                const Divider(color: AppColors.border),
+                Divider(color: palette.border),
             ],
         ],
       ),
     );
   }
 
-  Widget _errorCard(String title, String message) {
+  Widget _errorCard(BuildContext context, String title, String message) {
+    final palette = context.palette;
+
     return Center(
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.m),
         decoration: BoxDecoration(
-          color: AppColors.card,
+          color: palette.card,
           borderRadius: BorderRadius.circular(AppRadius.md),
           boxShadow: AppShadows.sm,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, color: AppColors.error, size: 40),
+            Icon(Icons.error_outline, color: palette.error, size: 40),
             const SizedBox(height: AppSpacing.s),
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w700,
-                color: AppColors.foreground,
+                color: palette.textPrimary,
               ),
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: palette.textSecondary),
             ),
           ],
         ),
@@ -776,6 +794,7 @@ class _PassengerPaymentTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.palette;
     final paymentStatus = application.usesCardPayment
         ? _paymentStatusFromRecord(
             ref
@@ -810,8 +829,11 @@ class _PassengerPaymentTile extends ConsumerWidget {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: CircleAvatar(
-        backgroundColor: AppColors.primary,
-        child: Text(initials, style: const TextStyle(color: Colors.white)),
+        backgroundColor: palette.primary,
+        child: Text(
+          initials,
+          style: TextStyle(color: palette.primaryForeground),
+        ),
       ),
       title: Text(application.passengerName),
       subtitle: Text(
@@ -824,13 +846,13 @@ class _PassengerPaymentTile extends ConsumerWidget {
           vertical: AppSpacing.xs,
         ),
         decoration: BoxDecoration(
-          color: _paymentBadgeBackground(paymentStatus),
+          color: _paymentBadgeBackground(context, paymentStatus),
           borderRadius: BorderRadius.circular(AppRadius.xl),
         ),
         child: Text(
           paymentStatus.label,
           style: TextStyle(
-            color: _paymentBadgeForeground(paymentStatus),
+            color: _paymentBadgeForeground(context, paymentStatus),
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -851,25 +873,35 @@ class _PassengerPaymentTile extends ConsumerWidget {
     return RidePassengerPaymentStatus.pending;
   }
 
-  Color _paymentBadgeBackground(RidePassengerPaymentStatus status) {
+  Color _paymentBadgeBackground(
+    BuildContext context,
+    RidePassengerPaymentStatus status,
+  ) {
+    final palette = context.palette;
+
     switch (status) {
       case RidePassengerPaymentStatus.paid:
-        return const Color(0xFFE8F5E9);
+        return palette.accentSoft;
       case RidePassengerPaymentStatus.unpaid:
-        return const Color(0xFFFDECEC);
+        return palette.error.withValues(alpha: 0.16);
       case RidePassengerPaymentStatus.pending:
-        return const Color(0xFFFFF4E5);
+        return palette.warning.withValues(alpha: 0.16);
     }
   }
 
-  Color _paymentBadgeForeground(RidePassengerPaymentStatus status) {
+  Color _paymentBadgeForeground(
+    BuildContext context,
+    RidePassengerPaymentStatus status,
+  ) {
+    final palette = context.palette;
+
     switch (status) {
       case RidePassengerPaymentStatus.paid:
-        return const Color(0xFF2E7D32);
+        return palette.accent;
       case RidePassengerPaymentStatus.unpaid:
-        return const Color(0xFFB42318);
+        return palette.error;
       case RidePassengerPaymentStatus.pending:
-        return const Color(0xFFB54708);
+        return palette.warning;
     }
   }
 }
@@ -897,36 +929,38 @@ class _PassengerReviewTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.m),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             name,
-            style: const TextStyle(
-              color: AppColors.foreground,
+            style: TextStyle(
+              color: palette.textPrimary,
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             subtitle,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: palette.textSecondary,
               fontSize: 12,
             ),
           ),
           const SizedBox(height: AppSpacing.s),
           Text(
             paymentMethodLabel,
-            style: const TextStyle(
-              color: AppColors.primary,
+            style: TextStyle(
+              color: palette.primary,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -938,16 +972,16 @@ class _PassengerReviewTile extends StatelessWidget {
                 vertical: AppSpacing.xs,
               ),
               decoration: BoxDecoration(
-                color: AppColors.input,
+                color: palette.input,
                 borderRadius: BorderRadius.circular(AppRadius.xl),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: palette.border),
               ),
               child: Text(
                 paymentStatus == RidePassengerPaymentStatus.paid
                     ? 'Paid and locked'
                     : paymentStatus.label,
-                style: const TextStyle(
-                  color: AppColors.foreground,
+                style: TextStyle(
+                  color: palette.textPrimary,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -984,7 +1018,7 @@ class _PassengerReviewTile extends StatelessWidget {
                   starValue <= rating
                       ? Icons.star_rounded
                       : Icons.star_outline_rounded,
-                  color: const Color(0xFFF59E0B),
+                  color: palette.warning,
                 ),
               );
             }),
@@ -1008,19 +1042,21 @@ class _PaymentDecisionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return ChoiceChip(
       label: Text(label),
       selected: isSelected,
       onSelected: (_) => onTap(),
-      selectedColor: AppColors.primary.withValues(alpha: 0.16),
+      selectedColor: palette.primary.withValues(alpha: 0.16),
       labelStyle: TextStyle(
-        color: isSelected ? AppColors.primary : AppColors.textSecondary,
+        color: isSelected ? palette.primary : palette.textSecondary,
         fontWeight: FontWeight.w700,
       ),
       side: BorderSide(
-        color: isSelected ? AppColors.primary : AppColors.border,
+        color: isSelected ? palette.primary : palette.border,
       ),
-      backgroundColor: AppColors.card,
+      backgroundColor: palette.card,
     );
   }
 }
@@ -1040,23 +1076,25 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: AppColors.secondary),
+        Icon(icon, color: palette.secondary),
         const SizedBox(width: AppSpacing.s),
         Text(
           '$label: ',
-          style: const TextStyle(
-            color: AppColors.textSecondary,
+          style: TextStyle(
+            color: palette.textSecondary,
             fontWeight: FontWeight.w600,
           ),
         ),
         Expanded(
           child: Text(
             value,
-            style: const TextStyle(
-              color: AppColors.foreground,
+            style: TextStyle(
+              color: palette.textPrimary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1073,25 +1111,31 @@ class _EmptyActiveRide extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Center(
       child: Container(
         margin: const EdgeInsets.all(AppSpacing.m),
         padding: const EdgeInsets.all(AppSpacing.l),
         decoration: BoxDecoration(
-          color: AppColors.card,
+          color: palette.card,
           borderRadius: BorderRadius.circular(AppRadius.md),
           boxShadow: AppShadows.sm,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.directions_car_outlined, size: 56),
+            Icon(
+              Icons.directions_car_outlined,
+              size: 56,
+              color: palette.primary,
+            ),
             const SizedBox(height: AppSpacing.s),
-            const Text(
+            Text(
               'You do not have an active ride right now.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: AppColors.foreground,
+                color: palette.textPrimary,
                 fontWeight: FontWeight.w700,
               ),
             ),
