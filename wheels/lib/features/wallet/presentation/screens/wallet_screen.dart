@@ -7,10 +7,10 @@ import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/utils/app_formatter.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../shared/widgets/app_button.dart';
-import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
+import '../../../../theme/app_theme_palette.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../domain/entities/wallet_summary.dart';
 import '../providers/wallet_providers.dart';
@@ -23,6 +23,7 @@ class WalletScreen extends ConsumerWidget {
     final role = ref.watch(currentUserRoleProvider);
     final user = ref.watch(authUserProvider);
     final walletSummaryAsync = ref.watch(driverWalletSummaryProvider);
+    final palette = context.palette;
 
     return AppScaffold(
       title: 'Driver Wallet',
@@ -67,7 +68,7 @@ class WalletScreen extends ConsumerWidget {
                               label: 'Available',
                               value: AppFormatter.cop(summary.availableBalance),
                               icon: Icons.account_balance_wallet_outlined,
-                              color: AppColors.primary,
+                              color: palette.primary,
                             ),
                           ),
                           const SizedBox(width: AppSpacing.s),
@@ -78,7 +79,7 @@ class WalletScreen extends ConsumerWidget {
                                 summary.pendingWithdrawalBalance,
                               ),
                               icon: Icons.hourglass_top_rounded,
-                              color: AppColors.warning,
+                              color: palette.warning,
                             ),
                           ),
                         ],
@@ -88,7 +89,7 @@ class WalletScreen extends ConsumerWidget {
                         label: 'Total earned',
                         value: AppFormatter.cop(summary.totalEarned),
                         icon: Icons.trending_up_rounded,
-                        color: AppColors.success,
+                        color: palette.accent,
                         fullWidth: true,
                       ),
                       const SizedBox(height: AppSpacing.l),
@@ -118,12 +119,14 @@ class _WalletHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.l),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF123B5D), Color(0xFF256B70)],
+        gradient: LinearGradient(
+          colors: [palette.primary, palette.primaryLight],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -133,10 +136,10 @@ class _WalletHeroCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Driver wallet',
             style: TextStyle(
-              color: Colors.white,
+              color: palette.primaryForeground,
               fontSize: 18,
               fontWeight: FontWeight.w800,
             ),
@@ -145,7 +148,7 @@ class _WalletHeroCard extends StatelessWidget {
           Text(
             AppFormatter.cop(summary.availableBalance),
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              color: Colors.white,
+              color: palette.primaryForeground,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -155,7 +158,7 @@ class _WalletHeroCard extends StatelessWidget {
                 ? 'Your available balance already meets the minimum withdrawal amount.'
                 : 'Minimum withdrawal amount: COP 10.000.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withValues(alpha: 0.88),
+              color: palette.primaryForeground.withValues(alpha: 0.88),
             ),
           ),
         ],
@@ -181,13 +184,15 @@ class _WalletStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       width: fullWidth ? double.infinity : null,
       padding: const EdgeInsets.all(AppSpacing.m),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: palette.border),
         boxShadow: AppShadows.sm,
       ),
       child: Column(
@@ -206,7 +211,7 @@ class _WalletStatCard extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.textSecondary,
+              color: palette.textSecondary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -214,7 +219,7 @@ class _WalletStatCard extends StatelessWidget {
           Text(
             value,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: AppColors.primary,
+              color: palette.textPrimary,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -229,13 +234,15 @@ class _WalletInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.m),
       decoration: BoxDecoration(
-        color: const Color(0xFFE8F1FD),
+        color: palette.secondarySoft,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: const Color(0xFFC6DCF7)),
+        border: Border.all(color: palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -243,7 +250,7 @@ class _WalletInfoCard extends StatelessWidget {
           Text(
             'Withdrawal rules',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: AppColors.primary,
+              color: palette.primary,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -252,7 +259,7 @@ class _WalletInfoCard extends StatelessWidget {
             'Minimum withdrawal: COP 10.000. Only one pending request is allowed at a time, and requests are processed manually later.',
             style: Theme.of(
               context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+            ).textTheme.bodyMedium?.copyWith(color: palette.textSecondary),
           ),
         ],
       ),
@@ -265,28 +272,30 @@ class _WalletAccessCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Center(
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(AppSpacing.l),
         decoration: BoxDecoration(
-          color: AppColors.card,
+          color: palette.card,
           borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: palette.border),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Icons.account_balance_wallet_outlined,
               size: 42,
-              color: AppColors.primary,
+              color: palette.primary,
             ),
             const SizedBox(height: AppSpacing.m),
             Text(
               'Wallet available for drivers',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppColors.primary,
+                color: palette.primary,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -296,7 +305,7 @@ class _WalletAccessCard extends StatelessWidget {
               textAlign: TextAlign.center,
               style: Theme.of(
                 context,
-              ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+              ).textTheme.bodyMedium?.copyWith(color: palette.textSecondary),
             ),
           ],
         ),
@@ -322,25 +331,27 @@ class _WalletErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Center(
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(AppSpacing.l),
         decoration: BoxDecoration(
-          color: AppColors.card,
+          color: palette.card,
           borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: palette.border),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, color: AppColors.error),
+            Icon(Icons.error_outline_rounded, color: palette.error),
             const SizedBox(height: AppSpacing.m),
             Text(
               'We could not load the wallet summary.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppColors.primary,
+                color: palette.primary,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -350,7 +361,7 @@ class _WalletErrorState extends StatelessWidget {
               textAlign: TextAlign.center,
               style: Theme.of(
                 context,
-              ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+              ).textTheme.bodyMedium?.copyWith(color: palette.textSecondary),
             ),
             const SizedBox(height: AppSpacing.m),
             AppButton(label: 'Retry', onPressed: onRetry),
@@ -366,13 +377,15 @@ class _WalletEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.m),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: palette.card,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -380,7 +393,7 @@ class _WalletEmptyState extends StatelessWidget {
           Text(
             'No accumulated earnings yet',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: AppColors.primary,
+              color: palette.primary,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -389,7 +402,7 @@ class _WalletEmptyState extends StatelessWidget {
             'Your driver wallet will show real earnings here after approved in-app Mercado Pago payments credit your balance.',
             style: Theme.of(
               context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+            ).textTheme.bodyMedium?.copyWith(color: palette.textSecondary),
           ),
         ],
       ),
