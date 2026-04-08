@@ -10,6 +10,7 @@
 **/coverage/
 
 # Firebase Functions
+wheels/functions/
 **/functions/node_modules/
 **/functions/.firebase/
 **/functions/firebase-debug.log
