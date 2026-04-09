@@ -19,7 +19,7 @@ class TrustScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.palette;
-    final trust = ref.watch(trustViewDataProvider);
+    final trustAsync = ref.watch(trustViewDataProvider);
     final role = ref.watch(currentUserRoleProvider);
 
     return AppScaffold(
@@ -47,30 +47,99 @@ class TrustScreen extends ConsumerWidget {
           AppSpacing.m,
           AppSpacing.l,
         ),
+        child: trustAsync.when(
+          data: (trust) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Transform.translate(
+                offset: const Offset(0, -26),
+                child: _TrustOverviewCard(trust: trust),
+              ),
+              _SectionTitle(label: 'Performance Breakdown'),
+              const SizedBox(height: AppSpacing.m),
+              _PaymentReliabilityCard(data: trust.paymentReliability),
+              const SizedBox(height: AppSpacing.m),
+              _ConsistencyCard(data: trust.consistency),
+              const SizedBox(height: AppSpacing.m),
+              _CancellationCard(data: trust.cancellation),
+              const SizedBox(height: AppSpacing.xl),
+              _SectionTitle(label: 'Accountability System'),
+              const SizedBox(height: AppSpacing.m),
+              _PolicyCard(steps: trust.policySteps, notice: trust.policyNotice),
+              const SizedBox(height: AppSpacing.xl),
+              _SectionTitle(label: 'Trust Rewards'),
+              const SizedBox(height: AppSpacing.m),
+              _RewardsCard(
+                rewardPoints: trust.rewardPoints,
+                items: trust.rewardItems,
+              ),
+            ],
+          ),
+          loading: () => const _TrustLoadingBody(),
+          error: (error, _) => _TrustErrorCard(message: '$error'),
+        ),
+      ),
+    );
+  }
+}
+
+class _TrustLoadingBody extends StatelessWidget {
+  const _TrustLoadingBody();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.only(top: 40),
+      child: Center(child: CircularProgressIndicator()),
+    );
+  }
+}
+
+class _TrustErrorCard extends StatelessWidget {
+  const _TrustErrorCard({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    return Transform.translate(
+      offset: const Offset(0, -26),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: palette.card,
+          borderRadius: BorderRadius.circular(34),
+          boxShadow: AppShadows.xl,
+        ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Transform.translate(
-              offset: const Offset(0, -26),
-              child: _TrustOverviewCard(trust: trust),
+            Icon(
+              Icons.error_outline_rounded,
+              color: palette.warning,
+              size: 42,
             ),
-            _SectionTitle(label: 'Performance Breakdown'),
-            const SizedBox(height: AppSpacing.m),
-            _PaymentReliabilityCard(data: trust.paymentReliability),
-            const SizedBox(height: AppSpacing.m),
-            _PunctualityCard(data: trust.punctuality),
-            const SizedBox(height: AppSpacing.m),
-            _CancellationCard(data: trust.cancellation),
-            const SizedBox(height: AppSpacing.xl),
-            _SectionTitle(label: 'Accountability System'),
-            const SizedBox(height: AppSpacing.m),
-            _PolicyCard(steps: trust.policySteps, notice: trust.policyNotice),
-            const SizedBox(height: AppSpacing.xl),
-            _SectionTitle(label: 'Punctuality Rewards'),
-            const SizedBox(height: AppSpacing.m),
-            _RewardsCard(
-              rewardPoints: trust.rewardPoints,
-              items: trust.rewardItems,
+            const SizedBox(height: 16),
+            Text(
+              'We could not calculate your trust score right now.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: palette.primary,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),
@@ -487,7 +556,9 @@ class _PaymentReliabilityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final progress = data.completedPayments / data.totalPayments;
+    final progress = data.totalPayments == 0
+        ? 0.0
+        : data.completedPayments / data.totalPayments;
 
     return _InfoCardShell(
       child: Column(
@@ -498,14 +569,14 @@ class _PaymentReliabilityCard extends StatelessWidget {
             iconColor: Color(0xFF00D9A3),
             iconBackground: Color(0xFFEAFBF4),
             title: 'Payment Reliability',
-            subtitle: 'Track record of timely payments',
+            subtitle: 'Resolved payments improve your trust faster',
           ),
           const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
                 child: Text(
-                  'On-time payments',
+                  'Resolved payments',
                   style: TextStyle(
                     color: palette.textSecondary,
                     fontSize: 15,
@@ -548,10 +619,10 @@ class _PaymentReliabilityCard extends StatelessWidget {
   }
 }
 
-class _PunctualityCard extends StatelessWidget {
-  const _PunctualityCard({required this.data});
+class _ConsistencyCard extends StatelessWidget {
+  const _ConsistencyCard({required this.data});
 
-  final TrustPunctualityData data;
+  final TrustConsistencyData data;
 
   @override
   Widget build(BuildContext context) {
@@ -565,18 +636,18 @@ class _PunctualityCard extends StatelessWidget {
             icon: Icons.schedule_rounded,
             iconColor: Color(0xFF5B89C8),
             iconBackground: Color(0xFFEAF2FD),
-            title: 'Punctuality Score',
-            subtitle: 'Arrival time and waiting detection',
+            title: 'Consistency Signals',
+            subtitle: 'Ride completion and account maturity',
           ),
           const SizedBox(height: 20),
           _MetricLine(
-            label: 'Average arrival time',
-            value: data.averageArrival,
+            label: data.primaryLabel,
+            value: data.primaryValue,
           ),
           const SizedBox(height: 14),
           _MetricLine(
-            label: 'Avg driver wait time',
-            value: data.averageDriverWait,
+            label: data.secondaryLabel,
+            value: data.secondaryValue,
           ),
           const SizedBox(height: 18),
           Container(

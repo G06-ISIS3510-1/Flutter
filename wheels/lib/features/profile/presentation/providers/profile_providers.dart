@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../theme/app_colors.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../../trust/presentation/providers/trust_providers.dart';
 
 class ProfileViewData {
   const ProfileViewData({
@@ -75,6 +76,7 @@ class ProfileMenuItemData {
 final profileViewDataProvider = Provider<ProfileViewData>((ref) {
   final user = ref.watch(authUserProvider);
   final role = ref.watch(currentUserRoleProvider);
+  final trust = ref.watch(currentTrustProvider).valueOrNull;
 
   final rawName = user?.fullName.trim() ?? '';
   final shouldUseMockIdentity =
@@ -105,9 +107,11 @@ final profileViewDataProvider = Provider<ProfileViewData>((ref) {
               : Icons.credit_card_outlined,
           route: role == UserRole.driver ? AppRoutes.wallet : AppRoutes.payment,
         ),
-        const ProfileMenuItemData(
+        ProfileMenuItemData(
           title: 'Rewards & Points',
-          subtitle: 'Redeem your 142 points',
+          subtitle: trust == null
+              ? 'Track how your trust activity earns points'
+              : 'Redeem your ${trust.rewardPoints} points',
           icon: Icons.workspace_premium_outlined,
         ),
         if (role == UserRole.admin)
@@ -146,17 +150,20 @@ final profileViewDataProvider = Provider<ProfileViewData>((ref) {
     fullName: fullName,
     initials: _buildInitials(fullName),
     badgeLabel: _badgeLabel(role),
-    memberSince: 'Member since Jan 2025',
-    metrics: const [
+    memberSince: trust == null
+        ? 'Member since recently'
+        : 'Member since ${_formatMonthYear(trust.accountCreatedAt)}',
+    metrics: [
       ProfileMetricData(
-        value: '16',
+        value: '${trust?.totalRides ?? 0}',
         label: 'Rides',
         valueColor: AppColors.primary,
       ),
       ProfileMetricData(
-        value: '98%',
+        value: trust == null ? '--' : '${trust.score}%',
         label: 'Score',
         valueColor: AppColors.accent,
+        route: AppRoutes.trust,
       ),
       ProfileMetricData(
         value: '5',
@@ -165,7 +172,7 @@ final profileViewDataProvider = Provider<ProfileViewData>((ref) {
         route: AppRoutes.reviews,
       ),
       ProfileMetricData(
-        value: '142',
+        value: '${trust?.rewardPoints ?? 0}',
         label: 'Points',
         valueColor: AppColors.secondary,
       ),
@@ -188,10 +195,12 @@ final profileViewDataProvider = Provider<ProfileViewData>((ref) {
 
 final profileSummaryProvider = Provider<String>((ref) {
   final data = ref.watch(profileViewDataProvider);
-  return '${data.fullName} has ${data.metrics.first.value} rides and a ${data.metrics[2].value}-star rating.';
+  return '${data.fullName} has ${data.metrics.first.value} rides and a ${data.metrics[1].value} trust score.';
 });
 
-final profileCompletionProvider = StateProvider<int>((ref) => 98);
+final profileCompletionProvider = Provider<int>((ref) {
+  return ref.watch(currentTrustProvider).valueOrNull?.score ?? 98;
+});
 
 String _buildInitials(String fullName) {
   final trimmed = fullName.trim();
@@ -227,4 +236,23 @@ String _badgeLabel(UserRole role) {
     case UserRole.passenger:
       return 'Verified Student';
   }
+}
+
+String _formatMonthYear(DateTime date) {
+  const months = <String>[
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  return '${months[date.month - 1]} ${date.year}';
 }

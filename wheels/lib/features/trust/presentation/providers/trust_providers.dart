@@ -1,7 +1,13 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../theme/app_colors.dart';
+import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../data/datasources/trust_remote_datasource.dart';
+import '../../data/repositories/trust_repository_impl.dart';
+import '../../domain/entities/trust_entity.dart';
+import '../../domain/repositories/trust_repository.dart';
 
 class TrustViewData {
   const TrustViewData({
@@ -10,7 +16,7 @@ class TrustViewData {
     required this.headlineSubtitle,
     required this.metrics,
     required this.paymentReliability,
-    required this.punctuality,
+    required this.consistency,
     required this.cancellation,
     required this.policySteps,
     required this.policyNotice,
@@ -23,7 +29,7 @@ class TrustViewData {
   final String headlineSubtitle;
   final List<TrustMetricData> metrics;
   final TrustPaymentReliabilityData paymentReliability;
-  final TrustPunctualityData punctuality;
+  final TrustConsistencyData consistency;
   final TrustCancellationData cancellation;
   final List<TrustPolicyStepData> policySteps;
   final String policyNotice;
@@ -59,15 +65,19 @@ class TrustPaymentReliabilityData {
   final String successRateLabel;
 }
 
-class TrustPunctualityData {
-  const TrustPunctualityData({
-    required this.averageArrival,
-    required this.averageDriverWait,
+class TrustConsistencyData {
+  const TrustConsistencyData({
+    required this.primaryLabel,
+    required this.primaryValue,
+    required this.secondaryLabel,
+    required this.secondaryValue,
     required this.message,
   });
 
-  final String averageArrival;
-  final String averageDriverWait;
+  final String primaryLabel;
+  final String primaryValue;
+  final String secondaryLabel;
+  final String secondaryValue;
   final String message;
 }
 
@@ -104,86 +114,219 @@ class TrustRewardItemData {
   final String pointsLabel;
 }
 
-const _trustViewData = TrustViewData(
-  score: 98,
-  headline: 'Excellent Reliability!',
-  headlineSubtitle: 'You\'re in the top 10% of users',
-  metrics: [
-    TrustMetricData(
-      icon: Icons.check_circle_outline_rounded,
-      iconColor: AppColors.accent,
-      iconBackground: Color(0xFFEAFBF4),
-      value: '15',
-      label: 'On-time pays',
+final trustRemoteDataSourceProvider = Provider<TrustRemoteDataSource>((ref) {
+  return TrustRemoteDataSource(firestore: FirebaseFirestore.instance);
+});
+
+final trustRepositoryProvider = Provider<TrustRepository>((ref) {
+  return TrustRepositoryImpl(
+    remoteDataSource: ref.watch(trustRemoteDataSourceProvider),
+  );
+});
+
+final currentTrustProvider = FutureProvider<TrustEntity>((ref) async {
+  final user = ref.watch(authUserProvider);
+  if (user == null) {
+    throw StateError('You need to sign in to see your trust score.');
+  }
+  return ref.watch(trustRepositoryProvider).getTrustData(user.uid);
+});
+
+final trustViewDataProvider = FutureProvider<TrustViewData>((ref) async {
+  final trust = await ref.watch(currentTrustProvider.future);
+  return _mapTrustEntityToViewData(trust);
+});
+
+final trustStatusProvider = Provider<String>((ref) {
+  final trust = ref.watch(currentTrustProvider).valueOrNull;
+  if (trust == null) {
+    return 'Trust score loading';
+  }
+  return '${trust.score} trust score with ${trust.rewardPoints} reward points.';
+});
+
+final trustPendingStepsProvider = Provider<int>(
+  (ref) => _buildPolicySteps().length,
+);
+
+TrustViewData _mapTrustEntityToViewData(TrustEntity trust) {
+  final headline = _headlineForScore(trust.score);
+  final subtitle = _headlineSubtitle(trust);
+  final maturityPoints = ((trust.accountAgeMonths * 2).clamp(0, 20)).toInt();
+  final completionBonus =
+      trust.totalRides >= 3 && trust.cancelledRides == 0 ? 20 : 0;
+
+  return TrustViewData(
+    score: trust.score,
+    headline: headline,
+    headlineSubtitle: subtitle,
+    metrics: [
+      TrustMetricData(
+        icon: Icons.check_circle_outline_rounded,
+        iconColor: AppColors.accent,
+        iconBackground: const Color(0xFFEAFBF4),
+        value: '${trust.completedRides}',
+        label: 'Completed',
+      ),
+      TrustMetricData(
+        icon: Icons.shield_outlined,
+        iconColor: AppColors.secondary,
+        iconBackground: const Color(0xFFEAF2FD),
+        value: '${trust.score}%',
+        label: 'Trust',
+      ),
+      TrustMetricData(
+        icon: Icons.close_rounded,
+        iconColor: AppColors.warning,
+        iconBackground: const Color(0xFFFFF3E8),
+        value: '${trust.cancelledRides}',
+        label: 'Cancelled',
+      ),
+    ],
+    paymentReliability: TrustPaymentReliabilityData(
+      completedPayments: trust.approvedPayments,
+      totalPayments: trust.totalPayments,
+      successRateLabel: trust.hasPaymentHistory
+          ? '${trust.paymentReliabilityPercent}% of your recorded payments were completed successfully.'
+          : 'No payment history yet. For now, your score relies on ride activity and account maturity.',
     ),
-    TrustMetricData(
-      icon: Icons.schedule_rounded,
-      iconColor: AppColors.secondary,
-      iconBackground: Color(0xFFEAF2FD),
-      value: '94%',
-      label: 'Punctual',
+    consistency: TrustConsistencyData(
+      primaryLabel: trust.hasRideHistory ? 'Completion rate' : 'Ride history',
+      primaryValue: trust.hasRideHistory
+          ? '${trust.completionRatePercent}%'
+          : 'No rides yet',
+      secondaryLabel: 'Member since',
+      secondaryValue: _formatMonthYear(trust.accountCreatedAt),
+      message: _consistencyMessage(trust),
     ),
-    TrustMetricData(
-      icon: Icons.close_rounded,
-      iconColor: AppColors.warning,
-      iconBackground: Color(0xFFFFF3E8),
-      value: '1',
-      label: 'Cancelled',
+    cancellation: TrustCancellationData(
+      totalCancellations: trust.cancelledRides,
+      cancellationRate: '${trust.cancellationRatePercent}%',
+      note: _cancellationNote(trust),
     ),
-  ],
-  paymentReliability: TrustPaymentReliabilityData(
-    completedPayments: 15,
-    totalPayments: 16,
-    successRateLabel: '94% payment success rate',
-  ),
-  punctuality: TrustPunctualityData(
-    averageArrival: '2 min early',
-    averageDriverWait: '1.5 min',
-    message: 'Great punctuality! Keep it up',
-  ),
-  cancellation: TrustCancellationData(
-    totalCancellations: 1,
-    cancellationRate: '6%',
-    note:
-        'Multiple cancellations may affect your reliability score and access to rides.',
-  ),
-  policySteps: [
+    policySteps: _buildPolicySteps(),
+    policyNotice:
+        'This score is calculated from completed rides, cancellations, payment resolution, and account maturity. Resolve pending activity quickly to keep a strong standing.',
+    rewardPoints: trust.rewardPoints,
+    rewardItems: [
+      TrustRewardItemData(
+        label: 'Completed rides',
+        pointsLabel: '+${trust.completedRides * 5} pts',
+      ),
+      TrustRewardItemData(
+        label: 'Approved payments',
+        pointsLabel: '+${trust.approvedPayments * 3} pts',
+      ),
+      TrustRewardItemData(
+        label: 'Account maturity',
+        pointsLabel: '+$maturityPoints pts',
+      ),
+      TrustRewardItemData(
+        label: 'Clean completion bonus',
+        pointsLabel: '+$completionBonus pts',
+      ),
+    ],
+  );
+}
+
+List<TrustPolicyStepData> _buildPolicySteps() {
+  return const [
     TrustPolicyStepData(
       stepNumber: 1,
       stepColor: AppColors.accent,
-      title: 'Free cancellation',
-      description: 'Cancel up to 30 minutes before departure without penalty',
+      title: 'Complete confirmed rides',
+      description:
+          'Each completed ride adds trust and reward points to your profile.',
     ),
     TrustPolicyStepData(
       stepNumber: 2,
       stepColor: AppColors.warning,
-      title: 'Late cancellation',
-      description: 'Cancelling within 30 min results in a -10 point penalty',
+      title: 'Resolve payments quickly',
+      description:
+          'Pending or unpaid ride payments reduce your score until they are resolved.',
     ),
     TrustPolicyStepData(
       stepNumber: 3,
       stepColor: Color(0xFFEF5A5A),
-      title: 'No-show penalty',
-      description: 'Not showing up: -25 points + temporary suspension',
+      title: 'Avoid unnecessary cancellations',
+      description:
+          'Repeated cancellations have the strongest negative effect on your standing.',
     ),
-  ],
-  policyNotice:
-      'Maintaining a reliability score above 85 is required to continue using Wheels. Repeated violations may result in permanent account suspension.',
-  rewardPoints: 142,
-  rewardItems: [
-    TrustRewardItemData(label: 'On-time arrival', pointsLabel: '+5 pts'),
-    TrustRewardItemData(label: 'Quick payment', pointsLabel: '+3 pts'),
-    TrustRewardItemData(label: 'Positive review', pointsLabel: '+10 pts'),
-  ],
-);
+  ];
+}
 
-final trustViewDataProvider = Provider<TrustViewData>((ref) => _trustViewData);
+String _headlineForScore(int score) {
+  if (score >= 90) {
+    return 'Excellent Reliability!';
+  }
+  if (score >= 80) {
+    return 'Strong Reliability';
+  }
+  if (score >= 70) {
+    return 'Good Standing';
+  }
+  if (score >= 60) {
+    return 'Building Trust';
+  }
+  return 'Needs Attention';
+}
 
-final trustStatusProvider = Provider<String>((ref) {
-  final data = ref.watch(trustViewDataProvider);
-  return '${data.score} trust score with ${data.rewardPoints} reward points.';
-});
+String _headlineSubtitle(TrustEntity trust) {
+  if (!trust.hasRideHistory) {
+    return 'Complete your first ride to start building a stronger score.';
+  }
+  if (trust.score >= 90 && trust.cancelledRides == 0 && trust.failedPayments == 0) {
+    return 'Clean record across ${trust.totalRides} rides and resolved payments.';
+  }
+  if (trust.score >= 80) {
+    return 'Your recent activity shows dependable behavior on the platform.';
+  }
+  if (trust.score >= 70) {
+    return 'A few more completed rides will strengthen your standing quickly.';
+  }
+  return 'Reduce cancellations and unresolved payments to recover your score.';
+}
 
-final trustPendingStepsProvider = Provider<int>(
-  (ref) => ref.watch(trustViewDataProvider).policySteps.length,
-);
+String _consistencyMessage(TrustEntity trust) {
+  if (!trust.hasRideHistory) {
+    return 'Your score will become smarter as soon as you complete rides.';
+  }
+  if (trust.completionRatePercent >= 90) {
+    return trust.isDriver
+        ? 'Excellent completion pattern. Drivers with steady execution look more reliable.'
+        : 'Excellent completion pattern. Keep confirming and finishing your rides.';
+  }
+  if (trust.completionRatePercent >= 75) {
+    return 'Your consistency is solid, but avoiding cancellations would raise the score faster.';
+  }
+  return 'Focus on completing the next rides you join to recover your trust faster.';
+}
+
+String _cancellationNote(TrustEntity trust) {
+  if (trust.cancelledRides == 0) {
+    return 'Great job. You have no cancelled rides in your current history.';
+  }
+  if (trust.cancelledRides == 1) {
+    return 'One cancellation is manageable, but repeated ones will lower your score noticeably.';
+  }
+  return 'Repeated cancellations reduce score faster than any other signal in the trust model.';
+}
+
+String _formatMonthYear(DateTime date) {
+  const months = <String>[
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  return '${months[date.month - 1]} ${date.year}';
+}
