@@ -12,7 +12,7 @@ abstract class PaymentRepository {
     required String passengerId,
   });
 
-  Future<PaymentRecord> getPaymentStatus({
+  Future<PaymentRecord?> getPaymentStatus({
     required String rideId,
     required String passengerId,
   });

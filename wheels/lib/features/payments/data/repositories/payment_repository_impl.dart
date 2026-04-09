@@ -1,14 +1,18 @@
 import '../../domain/entities/payment_record.dart';
 import '../../domain/entities/payment_session.dart';
 import '../../domain/repositories/payment_repository.dart';
+import '../datasources/payment_firestore_datasource.dart';
 import '../datasources/payment_remote_datasource.dart';
 
 class PaymentRepositoryImpl implements PaymentRepository {
   const PaymentRepositoryImpl({
     required PaymentRemoteDataSource remoteDataSource,
-  }) : _remoteDataSource = remoteDataSource;
+    required PaymentFirestoreDataSource firestoreDataSource,
+  }) : _remoteDataSource = remoteDataSource,
+       _firestoreDataSource = firestoreDataSource;
 
   final PaymentRemoteDataSource _remoteDataSource;
+  final PaymentFirestoreDataSource _firestoreDataSource;
 
   @override
   Future<PaymentSession> createCheckoutSession({
@@ -32,11 +36,11 @@ class PaymentRepositoryImpl implements PaymentRepository {
   }
 
   @override
-  Future<PaymentRecord> getPaymentStatus({
+  Future<PaymentRecord?> getPaymentStatus({
     required String rideId,
     required String passengerId,
   }) {
-    return _remoteDataSource.getPaymentStatus(
+    return _firestoreDataSource.getPaymentStatus(
       rideId: rideId,
       passengerId: passengerId,
     );
@@ -47,7 +51,7 @@ class PaymentRepositoryImpl implements PaymentRepository {
     required String rideId,
     required String passengerId,
   }) {
-    return _remoteDataSource.watchPaymentStatus(
+    return _firestoreDataSource.watchPaymentStatus(
       rideId: rideId,
       passengerId: passengerId,
     );

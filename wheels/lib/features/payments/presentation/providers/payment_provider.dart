@@ -4,6 +4,7 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/datasources/payment_firestore_datasource.dart';
 import '../../data/datasources/payment_remote_datasource.dart';
 import '../../data/repositories/payment_repository_impl.dart';
 import '../../domain/entities/payment_flow_status.dart';
@@ -189,47 +190,11 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
         rideId: rideId,
         passengerId: passengerId,
       );
-      _applyPaymentRecord(paymentRecord);
-    } on PaymentRemoteException catch (error) {
-      final notFound = error.statusCode == 404;
-      if (notFound && allowMissingRecord) {
-        if (_isCheckoutExpired()) {
-          _markExpired();
-          return;
-        }
-
-        final waitingStatus =
-            state.checkoutCreatedAt != null ||
-                state.status == PaymentFlowStatus.pending ||
-                state.status == PaymentFlowStatus.checkoutOpened
-            ? state.status == PaymentFlowStatus.checkoutOpened
-                  ? PaymentFlowStatus.checkoutOpened
-                  : PaymentFlowStatus.pending
-            : PaymentFlowStatus.idle;
-
-        state = state.copyWith(
-          status: waitingStatus,
-          message: waitingStatus == PaymentFlowStatus.idle
-              ? 'Choose a payment method or start checkout when you are ready.'
-              : 'Waiting for Mercado Pago to create the payment record.',
-          lastCheckedAt: DateTime.now(),
-        );
+      if (paymentRecord == null) {
+        _handleMissingPaymentRecord(allowMissingRecord: allowMissingRecord);
         return;
       }
-
-      state = state.copyWith(
-        status: _isCheckoutExpired()
-            ? PaymentFlowStatus.expired
-            : PaymentFlowStatus.error,
-        message: notFound && _isCheckoutExpired()
-            ? 'This Mercado Pago checkout expired after 3 minutes.'
-            : _readableError(
-                error,
-                fallback: 'We could not refresh the payment status.',
-              ),
-        clearCheckoutUrl: true,
-        lastCheckedAt: DateTime.now(),
-      );
+      _applyPaymentRecord(paymentRecord);
     } catch (error) {
       state = state.copyWith(
         status: _isCheckoutExpired()
@@ -262,6 +227,44 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
 
           _applyPaymentRecord(paymentRecord);
         });
+  }
+
+  void _handleMissingPaymentRecord({required bool allowMissingRecord}) {
+    if (allowMissingRecord) {
+      if (_isCheckoutExpired()) {
+        _markExpired();
+        return;
+      }
+
+      final waitingStatus =
+          state.checkoutCreatedAt != null ||
+              state.status == PaymentFlowStatus.pending ||
+              state.status == PaymentFlowStatus.checkoutOpened
+          ? state.status == PaymentFlowStatus.checkoutOpened
+                ? PaymentFlowStatus.checkoutOpened
+                : PaymentFlowStatus.pending
+          : PaymentFlowStatus.idle;
+
+      state = state.copyWith(
+        status: waitingStatus,
+        message: waitingStatus == PaymentFlowStatus.idle
+            ? 'Choose a payment method or start checkout when you are ready.'
+            : 'Waiting for Mercado Pago to create the payment record.',
+        lastCheckedAt: DateTime.now(),
+      );
+      return;
+    }
+
+    state = state.copyWith(
+      status: _isCheckoutExpired()
+          ? PaymentFlowStatus.expired
+          : PaymentFlowStatus.error,
+      message: _isCheckoutExpired()
+          ? 'This Mercado Pago checkout expired after 3 minutes.'
+          : 'Payment status is unavailable right now.',
+      clearCheckoutUrl: true,
+      lastCheckedAt: DateTime.now(),
+    );
   }
 
   void handleRedirectSuccess() {
@@ -569,9 +572,16 @@ final paymentRemoteDataSourceProvider = Provider<PaymentRemoteDataSource>((
   return PaymentRemoteDataSource();
 });
 
+final paymentFirestoreDataSourceProvider = Provider<PaymentFirestoreDataSource>(
+  (ref) {
+    return PaymentFirestoreDataSource();
+  },
+);
+
 final paymentRepositoryProvider = Provider<PaymentRepository>((ref) {
   return PaymentRepositoryImpl(
     remoteDataSource: ref.watch(paymentRemoteDataSourceProvider),
+    firestoreDataSource: ref.watch(paymentFirestoreDataSourceProvider),
   );
 });
 
