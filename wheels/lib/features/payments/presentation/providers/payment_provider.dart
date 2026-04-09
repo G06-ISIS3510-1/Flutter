@@ -84,7 +84,6 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
   final AppLinks _appLinks = AppLinks();
   StreamSubscription<Uri>? _deepLinkSubscription;
   StreamSubscription<PaymentRecord?>? _paymentSubscription;
-  Timer? _expirationTimer;
 
   void observeRide({required String rideId, required String passengerId}) {
     if (rideId.isEmpty || passengerId.isEmpty) {
@@ -141,7 +140,6 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       final expiresAt = checkoutCreatedAt.add(_paymentExpirationWindow);
 
       bindPaymentStream(rideId: rideId, passengerId: passengerId);
-      _scheduleExpirationTimer(expiresAt);
 
       state = state.copyWith(
         status: PaymentFlowStatus.checkoutOpened,
@@ -197,12 +195,11 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       _applyPaymentRecord(paymentRecord);
     } catch (error) {
       state = state.copyWith(
-        status: _isCheckoutExpired()
-            ? PaymentFlowStatus.expired
-            : PaymentFlowStatus.error,
+        status: PaymentFlowStatus.error,
         message: _readableError(
           error,
-          fallback: 'We could not refresh the payment status.',
+          fallback:
+              'We could not read the latest payment status from Firestore.',
         ),
         clearCheckoutUrl: true,
         lastCheckedAt: DateTime.now(),
@@ -219,9 +216,6 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
         .watchPaymentStatus(rideId: rideId, passengerId: passengerId)
         .listen((paymentRecord) {
           if (paymentRecord == null) {
-            if (_isCheckoutExpired()) {
-              _markExpired();
-            }
             return;
           }
 
@@ -231,11 +225,6 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
 
   void _handleMissingPaymentRecord({required bool allowMissingRecord}) {
     if (allowMissingRecord) {
-      if (_isCheckoutExpired()) {
-        _markExpired();
-        return;
-      }
-
       final waitingStatus =
           state.checkoutCreatedAt != null ||
               state.status == PaymentFlowStatus.pending ||
@@ -249,19 +238,15 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
         status: waitingStatus,
         message: waitingStatus == PaymentFlowStatus.idle
             ? 'Choose a payment method or start checkout when you are ready.'
-            : 'Waiting for Mercado Pago to create the payment record.',
+            : 'Waiting for the backend to write the payment record in Firestore.',
         lastCheckedAt: DateTime.now(),
       );
       return;
     }
 
     state = state.copyWith(
-      status: _isCheckoutExpired()
-          ? PaymentFlowStatus.expired
-          : PaymentFlowStatus.error,
-      message: _isCheckoutExpired()
-          ? 'This Mercado Pago checkout expired after 3 minutes.'
-          : 'Payment status is unavailable right now.',
+      status: PaymentFlowStatus.error,
+      message: 'Payment status is unavailable right now.',
       clearCheckoutUrl: true,
       lastCheckedAt: DateTime.now(),
     );
@@ -270,7 +255,8 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
   void handleRedirectSuccess() {
     state = state.copyWith(
       status: PaymentFlowStatus.pending,
-      message: 'Payment submitted. Verifying the latest result with backend...',
+      message:
+          'Payment submitted. Waiting for the backend to update Firestore...',
       clearCheckoutUrl: true,
     );
     unawaited(refreshStatus(allowMissingRecord: true));
@@ -387,17 +373,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
 
   void _applyPaymentRecord(PaymentRecord paymentRecord) {
     final effectiveExpiresAt = _effectiveExpiresAt(paymentRecord);
-    final flowStatus = _mapStatus(
-      paymentRecord.effectiveStatus,
-      expiresAt: effectiveExpiresAt,
-    );
-
-    if (flowStatus == PaymentFlowStatus.pending ||
-        flowStatus == PaymentFlowStatus.checkoutOpened) {
-      _scheduleExpirationTimer(effectiveExpiresAt);
-    } else {
-      _expirationTimer?.cancel();
-    }
+    final flowStatus = _mapStatus(paymentRecord.effectiveStatus);
 
     state = state.copyWith(
       rideId: paymentRecord.rideId,
@@ -416,51 +392,6 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     );
   }
 
-  void _scheduleExpirationTimer(DateTime? expiresAt) {
-    _expirationTimer?.cancel();
-    if (expiresAt == null) {
-      return;
-    }
-
-    final duration = expiresAt.difference(DateTime.now());
-    if (duration <= Duration.zero) {
-      unawaited(_handleExpirationReached());
-      return;
-    }
-
-    _expirationTimer = Timer(duration, () {
-      unawaited(_handleExpirationReached());
-    });
-  }
-
-  Future<void> _handleExpirationReached() async {
-    if (state.status == PaymentFlowStatus.approved ||
-        state.status == PaymentFlowStatus.rejected ||
-        state.status == PaymentFlowStatus.expired) {
-      return;
-    }
-
-    await refreshStatus(allowMissingRecord: true);
-    if (_isCheckoutExpired() &&
-        (state.status == PaymentFlowStatus.pending ||
-            state.status == PaymentFlowStatus.checkoutOpened ||
-            state.status == PaymentFlowStatus.loading ||
-            state.status == PaymentFlowStatus.idle)) {
-      _markExpired();
-    }
-  }
-
-  void _markExpired() {
-    _expirationTimer?.cancel();
-    state = state.copyWith(
-      status: PaymentFlowStatus.expired,
-      message:
-          'This Mercado Pago checkout expired after 3 minutes. Start a new payment to continue.',
-      clearCheckoutUrl: true,
-      lastCheckedAt: DateTime.now(),
-    );
-  }
-
   DateTime? _effectiveExpiresAt(PaymentRecord? paymentRecord) {
     return paymentRecord?.expiresAt ??
         state.expiresAt ??
@@ -468,15 +399,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
         state.checkoutCreatedAt?.add(_paymentExpirationWindow);
   }
 
-  bool _isCheckoutExpired() {
-    final expiresAt = _effectiveExpiresAt(state.paymentRecord);
-    if (expiresAt == null) {
-      return false;
-    }
-    return DateTime.now().isAfter(expiresAt);
-  }
-
-  PaymentFlowStatus _mapStatus(String? rawStatus, {DateTime? expiresAt}) {
+  PaymentFlowStatus _mapStatus(String? rawStatus) {
     final normalizedStatus = rawStatus?.trim().toLowerCase();
     switch (normalizedStatus) {
       case 'approved':
@@ -490,17 +413,11 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
         if (state.checkoutCreatedAt == null) {
           return PaymentFlowStatus.idle;
         }
-        if (expiresAt != null && DateTime.now().isAfter(expiresAt)) {
-          return PaymentFlowStatus.expired;
-        }
         return PaymentFlowStatus.pending;
       case 'pending':
       case 'in_process':
       case 'authorized':
       case 'in_mediation':
-        if (expiresAt != null && DateTime.now().isAfter(expiresAt)) {
-          return PaymentFlowStatus.expired;
-        }
         return PaymentFlowStatus.pending;
       case 'expired':
       case 'timeout':
@@ -528,7 +445,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     DateTime? expiresAt,
     String? statusDetail,
   }) {
-    switch (_mapStatus(rawStatus, expiresAt: expiresAt)) {
+    switch (_mapStatus(rawStatus)) {
       case PaymentFlowStatus.idle:
         return 'Choose a payment method or start checkout when you are ready.';
       case PaymentFlowStatus.approved:
@@ -561,7 +478,6 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
   void dispose() {
     _deepLinkSubscription?.cancel();
     _paymentSubscription?.cancel();
-    _expirationTimer?.cancel();
     super.dispose();
   }
 }

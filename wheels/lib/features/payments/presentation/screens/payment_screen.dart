@@ -199,13 +199,13 @@ class _PaymentContent extends ConsumerWidget {
     final paymentRecord = paymentState.paymentRecord;
     final selectedPaymentMethod =
         (passengerApplication?.paymentMethod ==
-                    RidePassengerPaymentMethod.pendingSelection &&
-                paymentRecord?.indicatesCardPaymentFlow == true)
-            ? RidePassengerPaymentMethod.card
-            : passengerApplication?.paymentMethod ??
-        (ride.isManualTransferOnly
-            ? RidePassengerPaymentMethod.bankTransfer
-            : RidePassengerPaymentMethod.pendingSelection);
+                RidePassengerPaymentMethod.pendingSelection &&
+            paymentRecord?.indicatesCardPaymentFlow == true)
+        ? RidePassengerPaymentMethod.card
+        : passengerApplication?.paymentMethod ??
+              (ride.isManualTransferOnly
+                  ? RidePassengerPaymentMethod.bankTransfer
+                  : RidePassengerPaymentMethod.pendingSelection);
     final paymentMethodLocked =
         passengerApplication?.isPaymentLocked == true ||
         (paymentState.status == PaymentFlowStatus.approved &&
@@ -825,8 +825,8 @@ class _PaymentWindowCardState extends State<_PaymentWindowCard> {
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   isExpired
-                      ? 'Refresh the payment status to confirm whether backend already marked it as expired.'
-                      : 'If Mercado Pago still shows the payment as pending when this timer ends, the ride payment will move to expired.',
+                      ? 'The app will update automatically when the backend marks this checkout as expired. You can still check manually if needed.'
+                      : 'If approval does not arrive before this timer ends, the backend should mark the checkout as expired and Firestore will update the screen automatically.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -1060,7 +1060,7 @@ class _HeroCard extends StatelessWidget {
       case PaymentFlowStatus.approved:
         return 'Your ride is already paid. You do not need to pay again.';
       case PaymentFlowStatus.pending:
-        return 'We will keep checking the deployed backend status endpoint until Mercado Pago returns a final result.';
+        return 'This screen listens to Firestore updates from the backend until Mercado Pago returns a final result.';
       case PaymentFlowStatus.expired:
         return 'The checkout reached the 3-minute limit without approval. Start a new payment to continue.';
       case PaymentFlowStatus.rejected:
@@ -1146,7 +1146,7 @@ class _UserStatusCard extends StatelessWidget {
       case PaymentFlowStatus.approved:
         return 'Everything is ready. You can go back to your dashboard.';
       case PaymentFlowStatus.pending:
-        return 'Please wait while we check the latest payment result in the deployed backend.';
+        return 'Please wait while the backend writes the latest payment result to Firestore.';
       case PaymentFlowStatus.expired:
         return 'The checkout expired after 3 minutes. Start a new payment if you still need this ride.';
       case PaymentFlowStatus.rejected:
