@@ -142,8 +142,6 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 .valueOrNull,
             currentUser: currentUser,
             onGoDashboard: () => context.go(AppRoutes.dashboard),
-            onRefreshStatus: () =>
-                ref.read(paymentProvider.notifier).refreshStatus(),
             onStartCheckout: () {
               final user = ref.read(authUserProvider);
               if (user == null) {
@@ -181,7 +179,6 @@ class _PaymentContent extends ConsumerWidget {
     required this.passengerApplication,
     required this.currentUser,
     required this.onGoDashboard,
-    required this.onRefreshStatus,
     required this.onStartCheckout,
   });
 
@@ -191,7 +188,6 @@ class _PaymentContent extends ConsumerWidget {
   final RideApplicationEntity? passengerApplication;
   final AuthEntity? currentUser;
   final VoidCallback onGoDashboard;
-  final VoidCallback onRefreshStatus;
   final VoidCallback onStartCheckout;
 
   @override
@@ -199,13 +195,13 @@ class _PaymentContent extends ConsumerWidget {
     final paymentRecord = paymentState.paymentRecord;
     final selectedPaymentMethod =
         (passengerApplication?.paymentMethod ==
-                    RidePassengerPaymentMethod.pendingSelection &&
-                paymentRecord?.indicatesCardPaymentFlow == true)
-            ? RidePassengerPaymentMethod.card
-            : passengerApplication?.paymentMethod ??
-        (ride.isManualTransferOnly
-            ? RidePassengerPaymentMethod.bankTransfer
-            : RidePassengerPaymentMethod.pendingSelection);
+                RidePassengerPaymentMethod.pendingSelection &&
+            paymentRecord?.indicatesCardPaymentFlow == true)
+        ? RidePassengerPaymentMethod.card
+        : passengerApplication?.paymentMethod ??
+              (ride.isManualTransferOnly
+                  ? RidePassengerPaymentMethod.bankTransfer
+                  : RidePassengerPaymentMethod.pendingSelection);
     final paymentMethodLocked =
         passengerApplication?.isPaymentLocked == true ||
         (paymentState.status == PaymentFlowStatus.approved &&
@@ -294,11 +290,6 @@ class _PaymentContent extends ConsumerWidget {
     final isRejected = paymentState.status == PaymentFlowStatus.rejected;
     final isExpired = paymentState.status == PaymentFlowStatus.expired;
     final isError = paymentState.status == PaymentFlowStatus.error;
-    final canRefreshStatus =
-        isPending ||
-        isLoading ||
-        paymentState.status == PaymentFlowStatus.checkoutOpened ||
-        isError;
     final payerEmail = currentUser?.email ?? 'No email available';
     final userId = currentUser?.uid;
     final amount = ride.pricePerSeat.toDouble();
@@ -417,10 +408,7 @@ class _PaymentContent extends ConsumerWidget {
                   paymentState.status == PaymentFlowStatus.checkoutOpened ||
                   paymentState.status == PaymentFlowStatus.loading)) ...[
             const SizedBox(height: AppSpacing.m),
-            _PaymentWindowCard(
-              expiresAt: paymentState.expiresAt!,
-              onRefreshStatus: onRefreshStatus,
-            ),
+            _PaymentWindowCard(expiresAt: paymentState.expiresAt!),
           ],
           const SizedBox(height: AppSpacing.l),
           _UserStatusCard(paymentState: paymentState),
@@ -444,13 +432,6 @@ class _PaymentContent extends ConsumerWidget {
               AppButton(
                 label: isExpired ? 'Start new checkout' : 'Try payment again',
                 onPressed: onStartCheckout,
-              ),
-              const SizedBox(height: AppSpacing.s),
-            ],
-            if (canRefreshStatus) ...[
-              AppButton(
-                label: 'Refresh payment status',
-                onPressed: onRefreshStatus,
               ),
               const SizedBox(height: AppSpacing.s),
             ],
@@ -737,13 +718,9 @@ class _MercadoPagoInfoCard extends StatelessWidget {
 }
 
 class _PaymentWindowCard extends StatefulWidget {
-  const _PaymentWindowCard({
-    required this.expiresAt,
-    required this.onRefreshStatus,
-  });
+  const _PaymentWindowCard({required this.expiresAt});
 
   final DateTime expiresAt;
-  final VoidCallback onRefreshStatus;
 
   @override
   State<_PaymentWindowCard> createState() => _PaymentWindowCardState();
@@ -825,16 +802,11 @@ class _PaymentWindowCardState extends State<_PaymentWindowCard> {
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   isExpired
-                      ? 'Refresh the payment status to confirm whether backend already marked it as expired.'
-                      : 'If Mercado Pago still shows the payment as pending when this timer ends, the ride payment will move to expired.',
+                      ? 'The app will update automatically when the backend marks this checkout as expired.'
+                      : 'If approval does not arrive before this timer ends, the backend should mark the checkout as expired and Firestore will update the screen automatically.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.textSecondary,
                   ),
-                ),
-                const SizedBox(height: AppSpacing.s),
-                TextButton(
-                  onPressed: widget.onRefreshStatus,
-                  child: const Text('Refresh now'),
                 ),
               ],
             ),
@@ -1060,13 +1032,13 @@ class _HeroCard extends StatelessWidget {
       case PaymentFlowStatus.approved:
         return 'Your ride is already paid. You do not need to pay again.';
       case PaymentFlowStatus.pending:
-        return 'We will keep checking the deployed backend status endpoint until Mercado Pago returns a final result.';
+        return 'This screen listens to Firestore updates from the backend until Mercado Pago returns a final result.';
       case PaymentFlowStatus.expired:
         return 'The checkout reached the 3-minute limit without approval. Start a new payment to continue.';
       case PaymentFlowStatus.rejected:
         return 'The payment could not be completed. You can go back or try again.';
       case PaymentFlowStatus.error:
-        return 'We could not confirm the payment yet. Refresh the status or try again.';
+        return 'We could not confirm the payment yet. Wait for Firestore updates or try again.';
       case PaymentFlowStatus.idle:
       case PaymentFlowStatus.loading:
       case PaymentFlowStatus.checkoutOpened:
@@ -1146,13 +1118,13 @@ class _UserStatusCard extends StatelessWidget {
       case PaymentFlowStatus.approved:
         return 'Everything is ready. You can go back to your dashboard.';
       case PaymentFlowStatus.pending:
-        return 'Please wait while we check the latest payment result in the deployed backend.';
+        return 'Please wait while the backend writes the latest payment result to Firestore.';
       case PaymentFlowStatus.expired:
         return 'The checkout expired after 3 minutes. Start a new payment if you still need this ride.';
       case PaymentFlowStatus.rejected:
         return 'You can return to your ride or try the payment again.';
       case PaymentFlowStatus.error:
-        return 'Refresh the status or try starting checkout again.';
+        return 'Wait for Firestore updates or try starting checkout again.';
       case PaymentFlowStatus.idle:
       case PaymentFlowStatus.loading:
       case PaymentFlowStatus.checkoutOpened:

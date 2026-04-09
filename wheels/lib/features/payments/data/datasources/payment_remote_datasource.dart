@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import '../models/payment_record_model.dart';
 import '../models/payment_session_model.dart';
 
 class PaymentRemoteDataSource {
@@ -13,11 +12,7 @@ class PaymentRemoteDataSource {
   static final Uri _createPreferenceUri = Uri.parse(
     'https://createpreference-tus5lo6p3a-uc.a.run.app',
   );
-  static final Uri _paymentStatusUri = Uri.parse(
-    'https://getpaymentstatus-tus5lo6p3a-uc.a.run.app',
-  );
   static const Duration _requestTimeout = Duration(seconds: 20);
-  static const Duration _pollingInterval = Duration(seconds: 5);
 
   final http.Client _client;
 
@@ -64,72 +59,6 @@ class PaymentRemoteDataSource {
       preferredKeys: const <String>['data', 'preference', 'result', 'payment'],
     );
     return PaymentSessionModel.fromJson(payload);
-  }
-
-  Future<PaymentRecordModel> getPaymentStatus({
-    required String rideId,
-    required String passengerId,
-  }) async {
-    final response = await _client
-        .get(
-          _paymentStatusUri.replace(
-            queryParameters: <String, String>{
-              'rideId': rideId,
-              if (passengerId.trim().isNotEmpty) 'passengerId': passengerId,
-              if (passengerId.trim().isNotEmpty) 'userId': passengerId,
-            },
-          ),
-        )
-        .timeout(_requestTimeout);
-    final jsonMap = _decodeMap(response.body);
-
-    if (!_isSuccessStatus(response.statusCode)) {
-      throw PaymentRemoteException(
-        _extractErrorMessage(
-          jsonMap,
-          fallback: 'Could not fetch payment status.',
-          rawBody: response.body,
-        ),
-        statusCode: response.statusCode,
-        body: response.body,
-      );
-    }
-
-    final payload = _unwrapPayload(jsonMap);
-    final normalizedPayload = <String, dynamic>{
-      'rideId': payload['rideId'] ?? payload['ride_id'] ?? rideId,
-      'passengerId':
-          payload['passengerId'] ??
-          payload['passenger_id'] ??
-          payload['userId'] ??
-          payload['user_id'] ??
-          payload['payerUserId'] ??
-          payload['payer_user_id'] ??
-          passengerId,
-      ...payload,
-    };
-    return PaymentRecordModel.fromJson(normalizedPayload);
-  }
-
-  Stream<PaymentRecordModel?> watchPaymentStatus({
-    required String rideId,
-    required String passengerId,
-  }) async* {
-    while (true) {
-      try {
-        yield await getPaymentStatus(rideId: rideId, passengerId: passengerId);
-      } on PaymentRemoteException catch (error) {
-        if (error.statusCode == 404) {
-          yield null;
-        }
-      } on TimeoutException {
-        // Keep the stream alive and retry on the next interval.
-      } catch (_) {
-        // Passive polling should not permanently fail the stream.
-      }
-
-      await Future<void>.delayed(_pollingInterval);
-    }
   }
 
   Map<String, dynamic> _decodeMap(String body) {
