@@ -209,7 +209,9 @@ class ReviewFilterChips extends StatelessWidget {
           backgroundColor: palette.card,
           selectedColor: palette.accentSoft,
           side: BorderSide(
-            color: isSelected ? palette.accent.withValues(alpha: 0.45) : palette.border,
+            color: isSelected
+                ? palette.accent.withValues(alpha: 0.45)
+                : palette.border,
           ),
           labelStyle: TextStyle(
             color: isSelected ? palette.accent : palette.textSecondary,
@@ -282,10 +284,12 @@ class ReviewCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Row(
+                    Wrap(
+                      spacing: AppSpacing.s,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         _StarRow(rating: review.rating),
-                        const SizedBox(width: AppSpacing.s),
                         _RoleTag(roleTag: review.roleTag),
                       ],
                     ),
