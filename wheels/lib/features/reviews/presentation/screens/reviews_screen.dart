@@ -52,7 +52,7 @@ class ReviewsScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Transform.translate(
-              offset: const Offset(0, -36),
+              offset: const Offset(0, -22),
               child: UserReviewSummaryCard(user: reviewsView.user),
             ),
             RatingBreakdownCard(
@@ -102,7 +102,7 @@ class _ReviewsHeader extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 10, 18, 34),
+      padding: const EdgeInsets.fromLTRB(18, 10, 18, 54),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -141,9 +141,12 @@ class _ReviewsHeader extends StatelessWidget {
           const SizedBox(height: AppSpacing.s),
           Text(
             'What other users say about $userName',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: palette.primaryForeground.withValues(alpha: 0.82),
               fontSize: 16,
+              height: 1.35,
               fontWeight: FontWeight.w500,
             ),
           ),
