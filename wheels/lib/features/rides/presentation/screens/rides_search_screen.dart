@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -260,6 +262,70 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     return filtered;
   }
 
+  int _countFilteredRides(
+    List<RidesEntity> rides, {
+    required String originQuery,
+    required String destinationQuery,
+    required DateTime selectedDate,
+  }) {
+    final normalizedOriginQuery = originQuery.trim().toLowerCase();
+    final normalizedDestinationQuery = destinationQuery.trim().toLowerCase();
+    final appliedDay = _dateOnly(selectedDate);
+
+    return rides.where((ride) {
+      final rideDay = _dateOnly(ride.departureAt);
+      if (rideDay != appliedDay) {
+        return false;
+      }
+
+      final originMatch =
+          normalizedOriginQuery.isEmpty ||
+          ride.origin.toLowerCase().contains(normalizedOriginQuery);
+      final destinationMatch =
+          normalizedDestinationQuery.isEmpty ||
+          ride.destination.toLowerCase().contains(normalizedDestinationQuery);
+
+      return originMatch && destinationMatch;
+    }).length;
+  }
+
+  Future<void> _logRideSearchSubmitted({
+    required String originQuery,
+    required String destinationQuery,
+    required DateTime selectedDate,
+    required RideSortOption sortOption,
+    required int resultsCount,
+  }) async {
+    final normalizedOrigin = originQuery.trim().toLowerCase();
+    final usedCurrentLocation =
+        _currentLocationSuggestion != null &&
+        normalizedOrigin.isNotEmpty &&
+        normalizedOrigin == _currentLocationSuggestion!.trim().toLowerCase();
+
+    try {
+      await ref
+          .read(firebaseAnalyticsProvider)
+          .logEvent(
+            name: 'ride_search_submitted',
+            parameters: <String, Object>{
+              'origin_query': originQuery.trim().isEmpty
+                  ? 'any'
+                  : originQuery.trim(),
+              'destination_query': destinationQuery.trim().isEmpty
+                  ? 'any'
+                  : destinationQuery.trim(),
+              'selected_date': _formatDate(selectedDate),
+              'sort_option': sortOption.name,
+              'results_count': resultsCount,
+              'used_current_location': usedCurrentLocation ? 1 : 0,
+              'user_role': ref.read(currentUserRoleProvider).name,
+            },
+          );
+    } catch (_) {
+      // Analytics should never block the ride search flow.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
@@ -297,7 +363,10 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
                 final results = _applyFilters(rides);
                 return Column(
                   children: [
-                    _sectionTitle('Available Drivers', '${results.length} rides'),
+                    _sectionTitle(
+                      'Available Drivers',
+                      '${results.length} rides',
+                    ),
                     const SizedBox(height: AppSpacing.s),
                     if (results.isEmpty) _emptyState(),
                     for (var index = 0; index < results.length; index++) ...[
@@ -370,10 +439,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
                 Expanded(
                   child: Text(
                     _originLocationError!,
-                    style: TextStyle(
-                      color: palette.error,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: palette.error, fontSize: 12),
                   ),
                 ),
               ],
@@ -416,14 +482,35 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () {
+                final nextOriginQuery = _originController.text.trim();
+                final nextDestinationQuery = _destinationController.text.trim();
+                final nextAppliedOriginQuery = nextOriginQuery.toLowerCase();
+                final nextAppliedDestinationQuery = nextDestinationQuery
+                    .toLowerCase();
+                final availableRides =
+                    ref.read(availableRidesProvider).valueOrNull ??
+                    const <RidesEntity>[];
+                final resultsCount = _countFilteredRides(
+                  availableRides,
+                  originQuery: nextOriginQuery,
+                  destinationQuery: nextDestinationQuery,
+                  selectedDate: _selectedDate,
+                );
+
                 setState(() {
-                  _appliedOriginQuery = _originController.text
-                      .trim()
-                      .toLowerCase();
-                  _appliedDestinationQuery = _destinationController.text
-                      .trim()
-                      .toLowerCase();
+                  _appliedOriginQuery = nextAppliedOriginQuery;
+                  _appliedDestinationQuery = nextAppliedDestinationQuery;
                 });
+
+                unawaited(
+                  _logRideSearchSubmitted(
+                    originQuery: nextOriginQuery,
+                    destinationQuery: nextDestinationQuery,
+                    selectedDate: _selectedDate,
+                    sortOption: _sort,
+                    resultsCount: resultsCount,
+                  ),
+                );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: palette.accent,
@@ -514,9 +601,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
       decoration: BoxDecoration(
         color: palette.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppRadius.sm),
-        border: Border.all(
-          color: palette.primary.withValues(alpha: 0.18),
-        ),
+        border: Border.all(color: palette.primary.withValues(alpha: 0.18)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -537,10 +622,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
                 const SizedBox(height: 4),
                 Text(
                   'Results are ranked using driver rating, punctuality, university verification, available seats, price, and how soon the ride departs.',
-                  style: TextStyle(
-                    color: palette.textSecondary,
-                    height: 1.35,
-                  ),
+                  style: TextStyle(color: palette.textSecondary, height: 1.35),
                 ),
               ],
             ),
@@ -927,10 +1009,7 @@ class _RideResultCardState extends State<_RideResultCard> {
           ),
           Text(
             detail,
-            style: TextStyle(
-              color: palette.textSecondary,
-              fontSize: 12,
-            ),
+            style: TextStyle(color: palette.textSecondary, fontSize: 12),
           ),
         ],
       ),
@@ -957,11 +1036,7 @@ class _RideResultCardState extends State<_RideResultCard> {
             ),
           ),
         ),
-        Icon(
-          Icons.arrow_forward,
-          color: palette.textSecondary,
-          size: 14,
-        ),
+        Icon(Icons.arrow_forward, color: palette.textSecondary, size: 14),
       ],
     );
   }
