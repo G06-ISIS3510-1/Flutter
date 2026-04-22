@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
+import '../../../../shared/providers/connectivity_provider.dart';
 import '../../../../shared/services/current_location_service.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
@@ -56,6 +57,8 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   String _appliedDestinationQuery = '';
   LocalRideSearchCacheModel? _cachedSearchCache;
   String? _lastSavedCacheSignature;
+  bool _isShowingOfflineFallback = false;
+  bool _isRetryingSearch = false;
 
   @override
   void initState() {
@@ -97,7 +100,21 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
 
   Future<void> _initializeSearchState() async {
     await _restoreLatestSearch();
+    await _syncOfflineFallbackWithConnectivity();
     await _prefillOriginWithCurrentLocation();
+  }
+
+  Future<void> _syncOfflineFallbackWithConnectivity() async {
+    final isOnline = await ref
+        .read(connectivityServiceProvider)
+        .hasConnection();
+    if (!mounted || isOnline || _cachedSearchCache == null) {
+      return;
+    }
+
+    setState(() {
+      _isShowingOfflineFallback = true;
+    });
   }
 
   Future<void> _restoreLatestSearch() async {
@@ -311,6 +328,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
       _appliedDestinationQuery = '';
       _cachedSearchCache = null;
       _lastSavedCacheSignature = null;
+      _isShowingOfflineFallback = false;
     });
 
     await _ridesSearchLocalDataSource.clearLatestSearch();
@@ -401,6 +419,18 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   }
 
   Future<void> _applySearch() async {
+    final isOnline = await ref
+        .read(connectivityServiceProvider)
+        .hasConnection();
+    if (!isOnline) {
+      await _showOfflineFallback();
+      return;
+    }
+
+    await _runLiveSearch();
+  }
+
+  Future<void> _runLiveSearch({bool refreshProvider = false}) async {
     final nextOriginQuery = _originController.text.trim();
     final nextDestinationQuery = _destinationController.text.trim();
     final selectedDate = _dateOnly(_selectedDate);
@@ -418,6 +448,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
       _appliedOriginQuery = nextOriginQuery.toLowerCase();
       _appliedDestinationQuery = nextDestinationQuery.toLowerCase();
       _appliedDate = selectedDate;
+      _isShowingOfflineFallback = false;
     });
 
     unawaited(
@@ -430,10 +461,74 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
       ),
     );
 
+    if (refreshProvider) {
+      ref.invalidate(availableRidesProvider);
+    }
+
     final ridesAsync = ref.read(availableRidesProvider);
     final rides = ridesAsync.valueOrNull;
     if (rides != null) {
       await _persistLatestSuccessfulSearch(_applyFilters(rides));
+    }
+  }
+
+  Future<void> _showOfflineFallback() async {
+    await _restoreLatestSearch();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isShowingOfflineFallback = true;
+    });
+
+    final hasCachedResults = _cachedSearchCache != null;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          hasCachedResults
+              ? 'You are offline. Showing your latest saved ride search.'
+              : 'You are offline and there is no saved ride search on this device yet.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _retrySearch() async {
+    if (_isRetryingSearch) {
+      return;
+    }
+
+    setState(() {
+      _isRetryingSearch = true;
+    });
+
+    try {
+      final isOnline = await ref
+          .read(connectivityServiceProvider)
+          .hasConnection();
+      if (!mounted) {
+        return;
+      }
+
+      if (!isOnline) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Connection is still unavailable. Try again once you are back online.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      await _runLiveSearch(refreshProvider: true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRetryingSearch = false;
+        });
+      }
     }
   }
 
@@ -482,11 +577,12 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   Widget _buildResultsSection(
     List<RidesEntity> results, {
     bool isCached = false,
+    required bool isOnline,
   }) {
     return Column(
       children: [
         if (isCached) ...[
-          _cachedResultsNotice(),
+          _cachedResultsNotice(isOnline: isOnline),
           const SizedBox(height: AppSpacing.m),
         ],
         _sectionTitle('Available Drivers', '${results.length} rides'),
@@ -505,8 +601,24 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     );
   }
 
-  Widget _cachedResultsNotice() {
+  String _formatCacheSavedAt(DateTime value) {
+    final localValue = value.toLocal();
+    final day = localValue.day.toString().padLeft(2, '0');
+    final month = localValue.month.toString().padLeft(2, '0');
+    final hour = localValue.hour.toString().padLeft(2, '0');
+    final minute = localValue.minute.toString().padLeft(2, '0');
+    return '$day/$month/${localValue.year} $hour:$minute';
+  }
+
+  Widget _cachedResultsNotice({required bool isOnline}) {
     final palette = context.palette;
+    final savedAt = _cachedSearchCache?.savedAt;
+    final title = isOnline
+        ? 'Connection restored. You are still viewing cached results.'
+        : 'You are offline. Showing the latest saved results.';
+    final description = savedAt == null
+        ? 'Refresh when a connection is available to get live rides again.'
+        : 'Last saved on ${_formatCacheSavedAt(savedAt)}. Refresh when a connection is available to get live rides again.';
 
     return Container(
       width: double.infinity,
@@ -522,14 +634,104 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
           Icon(Icons.offline_bolt_outlined, color: palette.secondary),
           const SizedBox(width: AppSpacing.s),
           Expanded(
-            child: Text(
-              'Showing the latest saved search results while live data is unavailable.',
-              style: TextStyle(
-                color: palette.textPrimary,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  description,
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.s),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: isOnline && !_isRetryingSearch
+                        ? _retrySearch
+                        : null,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: palette.secondary,
+                      side: BorderSide(
+                        color: palette.secondary.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    icon: _isRetryingSearch
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.refresh),
+                    label: Text(
+                      isOnline ? 'Refresh results' : 'Reconnect to refresh',
+                    ),
+                  ),
+                ),
+              ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _offlineEmptyState({required bool isOnline}) {
+    final palette = context.palette;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.l),
+      decoration: BoxDecoration(
+        color: palette.card,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        boxShadow: AppShadows.sm,
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.cloud_off_outlined, size: 64, color: palette.secondary),
+          const SizedBox(height: AppSpacing.s),
+          Text(
+            'No offline results available',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+              color: palette.textPrimary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            isOnline
+                ? 'Connection is back. Retry to load live rides.'
+                : 'This device does not have a saved ride search yet. Connect to the internet and retry.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: palette.textSecondary, height: 1.35),
+          ),
+          const SizedBox(height: AppSpacing.m),
+          OutlinedButton.icon(
+            onPressed: isOnline && !_isRetryingSearch ? _retrySearch : null,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: palette.primary,
+              side: BorderSide(color: palette.border),
+            ),
+            icon: _isRetryingSearch
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+            label: const Text('Retry'),
           ),
         ],
       ),
@@ -541,6 +743,51 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     final palette = context.palette;
     final role = ref.watch(currentUserRoleProvider);
     final ridesAsync = ref.watch(availableRidesProvider);
+    final connectivityAsync = ref.watch(connectivityStatusProvider);
+    final isOnline = connectivityAsync.valueOrNull ?? true;
+    final cachedResults = _cachedSearchCache?.toEntities();
+
+    ref.listen<AsyncValue<bool>>(connectivityStatusProvider, (_, next) {
+      next.whenData((hasConnection) {
+        if (!mounted || hasConnection || _cachedSearchCache == null) {
+          return;
+        }
+
+        if (_isShowingOfflineFallback) {
+          return;
+        }
+
+        setState(() {
+          _isShowingOfflineFallback = true;
+        });
+      });
+    });
+
+    final shouldShowCachedResults =
+        cachedResults != null && (_isShowingOfflineFallback || !isOnline);
+    final shouldShowOfflineEmptyState =
+        cachedResults == null && (_isShowingOfflineFallback || !isOnline);
+
+    final resultsSection = shouldShowCachedResults
+        ? _buildResultsSection(
+            cachedResults,
+            isCached: true,
+            isOnline: isOnline,
+          )
+        : shouldShowOfflineEmptyState
+        ? _offlineEmptyState(isOnline: isOnline)
+        : ridesAsync.when(
+            data: (rides) {
+              final results = _applyFilters(rides);
+              unawaited(_persistLatestSuccessfulSearch(results));
+              return _buildResultsSection(results, isOnline: isOnline);
+            },
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (error, _) => _loadError(error, isOnline: isOnline),
+          );
 
     return AppScaffold(
       title: 'Rides',
@@ -562,24 +809,15 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
           children: [
             _searchCard(),
             const SizedBox(height: AppSpacing.m),
-            _sortBar(),
+            _sortBar(
+              isInteractionDisabled: _isShowingOfflineFallback || !isOnline,
+            ),
             if (_sort == RideSortOption.smartMatch) ...[
               const SizedBox(height: AppSpacing.m),
               _smartMatchNotice(),
             ],
             const SizedBox(height: AppSpacing.l),
-            ridesAsync.when(
-              data: (rides) {
-                final results = _applyFilters(rides);
-                unawaited(_persistLatestSuccessfulSearch(results));
-                return _buildResultsSection(results);
-              },
-              loading: () => const Padding(
-                padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-              error: (error, _) => _loadError(error),
-            ),
+            resultsSection,
             const SizedBox(height: AppSpacing.s),
           ],
         ),
@@ -716,7 +954,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     );
   }
 
-  Widget _sortBar() {
+  Widget _sortBar({bool isInteractionDisabled = false}) {
     final palette = context.palette;
 
     return Row(
@@ -761,11 +999,13 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
                           : palette.primary,
                       fontWeight: FontWeight.w600,
                     ),
-                    onSelected: (_) {
-                      setState(() {
-                        _sort = option;
-                      });
-                    },
+                    onSelected: isInteractionDisabled
+                        ? null
+                        : (_) {
+                            setState(() {
+                              _sort = option;
+                            });
+                          },
                   ),
                 );
               }).toList(),
@@ -876,10 +1116,26 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     );
   }
 
-  Widget _loadError(Object error) {
+  Widget _loadError(Object error, {required bool isOnline}) {
     final cachedResults = _cachedSearchCache?.toEntities();
-    if (cachedResults != null) {
-      return _buildResultsSection(cachedResults, isCached: true);
+    if (cachedResults != null && !isOnline) {
+      if (!_isShowingOfflineFallback) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) {
+            return;
+          }
+
+          setState(() {
+            _isShowingOfflineFallback = true;
+          });
+        });
+      }
+
+      return _buildResultsSection(
+        cachedResults,
+        isCached: true,
+        isOnline: isOnline,
+      );
     }
 
     final palette = context.palette;
@@ -905,9 +1161,27 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            error.toString(),
+            isOnline
+                ? error.toString()
+                : 'Your connection is unavailable and there are no cached results to show yet.',
             textAlign: TextAlign.center,
             style: TextStyle(color: palette.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.m),
+          OutlinedButton.icon(
+            onPressed: isOnline && !_isRetryingSearch ? _retrySearch : null,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: palette.primary,
+              side: BorderSide(color: palette.border),
+            ),
+            icon: _isRetryingSearch
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+            label: const Text('Retry'),
           ),
         ],
       ),
