@@ -614,26 +614,34 @@ class _UpdatesSection extends ConsumerWidget {
     final palette = context.palette;
     final role = ref.watch(currentUserRoleProvider);
     final user = ref.watch(authUserProvider);
+    final bootstrapAsync = ref.watch(dashboardBootstrapProvider);
+    final bootstrapData = bootstrapAsync.valueOrNull;
     final walletSummaryAsync = ref.watch(driverWalletSummaryProvider);
-    final driverRide = ref.watch(currentDriverRideProvider).valueOrNull;
-    final passengerRide = ref.watch(currentPassengerRideProvider).valueOrNull;
+    final driverRide =
+        ref.watch(currentDriverRideProvider).valueOrNull ??
+        bootstrapData?.driverRide;
+    final passengerRide =
+        ref.watch(currentPassengerRideProvider).valueOrNull ??
+        bootstrapData?.passengerRide;
     final passengerApplication = passengerRide == null
         ? null
         : ref
-              .watch(passengerRideApplicationProvider(passengerRide.id))
-              .valueOrNull;
+                .watch(passengerRideApplicationProvider(passengerRide.id))
+                .valueOrNull ??
+              bootstrapData?.passengerApplication;
     final paymentRecord = passengerRide == null || user == null
         ? null
         : ref
-              .watch(
-                paymentRecordStreamProvider(
-                  PaymentRecordRequest(
-                    rideId: passengerRide.id,
-                    passengerId: user.uid,
+                .watch(
+                  paymentRecordStreamProvider(
+                    PaymentRecordRequest(
+                      rideId: passengerRide.id,
+                      passengerId: user.uid,
+                    ),
                   ),
-                ),
-              )
-              .valueOrNull;
+                )
+                .valueOrNull ??
+              bootstrapData?.paymentRecord;
     final paymentStatus = paymentRecord?.effectiveStatus.trim().toLowerCase();
     final manualPaymentStatus =
         passengerApplication?.paymentStatus ??
@@ -676,6 +684,10 @@ class _UpdatesSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (bootstrapData?.hasAnyError ?? false) ...[
+          _DashboardConcurrentLoadNotice(palette: palette),
+          const SizedBox(height: 10),
+        ],
         Text(
           'Updates',
           style: TextStyle(
@@ -842,6 +854,42 @@ class _UpdatesSection extends ConsumerWidget {
           trailing: role == UserRole.driver ? 'Driver' : 'Passenger',
         ),
       ],
+    );
+  }
+}
+
+class _DashboardConcurrentLoadNotice extends StatelessWidget {
+  const _DashboardConcurrentLoadNotice({required this.palette});
+
+  final AppThemePalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: palette.secondary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: palette.secondary.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.sync_outlined, color: palette.secondary),
+          const SizedBox(width: AppSpacing.s),
+          Expanded(
+            child: Text(
+              'Dashboard data was requested concurrently. If one source failed, the rest of the screen still shows the available information.',
+              style: TextStyle(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

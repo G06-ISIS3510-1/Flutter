@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xargs ls *)"
+      "Bash(xargs ls *)",
+      "Bash(grep -v \"test\\\\|_test\\\\|//.*Future\\\\|//.*Stream\")",
+      "Bash(sort -t: -k1,1)"
     ]
   }
 }
