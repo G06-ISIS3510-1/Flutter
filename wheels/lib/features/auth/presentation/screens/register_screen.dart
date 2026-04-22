@@ -8,6 +8,7 @@ import '../../../../theme/app_spacing.dart';
 import '../../../../theme/app_theme_palette.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import '../../domain/entities/auth_entity.dart';
+import '../../domain/validation/auth_input_constraints.dart';
 import '../providers/auth_providers.dart';
 import '../widgets/auth_widgets.dart';
 
@@ -57,8 +58,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   bool get _isRegisterValid {
-    return _firstNameController.text.trim().isNotEmpty &&
-        _lastNameController.text.trim().isNotEmpty &&
+    return validatePersonalName(
+              _firstNameController.text,
+              fieldLabel: 'First name',
+            ) ==
+            null &&
+        validatePersonalName(
+              _lastNameController.text,
+              fieldLabel: 'Last name',
+            ) ==
+            null &&
         _isValidUsername(_registerUsernameController.text) &&
         _registerPasswordController.text.length >= 6 &&
         _confirmPasswordController.text == _registerPasswordController.text &&
