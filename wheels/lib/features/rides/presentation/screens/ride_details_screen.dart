@@ -57,7 +57,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
 
   Future<void> _loadCachedRideDetails() async {
     final localDataSource = ref.read(rideDetailsLocalDataSourceProvider);
-    final cache = await localDataSource.loadLatestRideDetails();
+    final cache = await localDataSource.loadRideDetails(widget.rideId);
     if (!mounted) {
       return;
     }
@@ -70,7 +70,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
     }
 
     if (!cache.matchesRide(widget.rideId) || cache.isExpired()) {
-      await localDataSource.clearLatestRideDetails();
+      await localDataSource.clearRideDetails(widget.rideId);
       if (!mounted) {
         return;
       }
@@ -100,7 +100,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
 
     await ref
         .read(rideDetailsLocalDataSourceProvider)
-        .saveLatestRideDetails(cache);
+        .saveRideDetails(cache);
 
     if (!mounted) {
       return;
@@ -114,7 +114,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
   }
 
   Future<void> _clearCachedRideDetails() async {
-    await ref.read(rideDetailsLocalDataSourceProvider).clearLatestRideDetails();
+    await ref.read(rideDetailsLocalDataSourceProvider).clearRideDetails(widget.rideId);
     if (!mounted) {
       return;
     }
