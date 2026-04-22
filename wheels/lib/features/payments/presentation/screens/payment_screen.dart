@@ -88,6 +88,19 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final resolvedRideId = widget.rideId ?? fallbackRide?.id;
     final currentUser = ref.watch(authUserProvider);
     final resolvedPassengerId = currentUser?.uid;
+    final bootstrapAsync = resolvedRideId == null
+        ? const AsyncValue<RidePaymentBootstrapState>.data(
+            RidePaymentBootstrapState(),
+          )
+        : ref.watch(
+            ridePaymentBootstrapProvider(
+              RidePaymentBootstrapRequest(
+                rideId: resolvedRideId,
+                passengerId: resolvedPassengerId,
+              ),
+            ),
+          );
+    final bootstrapData = bootstrapAsync.valueOrNull;
 
     if (resolvedRideId != null &&
         resolvedPassengerId != null &&
@@ -119,14 +132,26 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     }
 
     final rideAsync = ref.watch(rideProvider(resolvedRideId));
+    final effectiveRide = rideAsync.valueOrNull ?? bootstrapData?.ride;
+    final effectivePassengerApplication = ref
+            .watch(passengerRideApplicationProvider(resolvedRideId))
+            .valueOrNull ??
+        bootstrapData?.passengerApplication;
 
     return AppScaffold(
       title: 'Ride payment',
-      child: rideAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _MissingRideCard(message: error.toString()),
-        data: (ride) {
-          if (ride == null) {
+      child: Builder(
+        builder: (context) {
+          if (effectiveRide == null) {
+            if (rideAsync.isLoading || bootstrapAsync.isLoading) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final error = rideAsync.error ?? bootstrapData?.rideError;
+            if (error != null) {
+              return _MissingRideCard(message: error.toString());
+            }
+
             return const _MissingRideCard(
               message:
                   'This ride is no longer available. Please go back to the dashboard and select another trip.',
@@ -134,13 +159,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           }
 
           return _PaymentContent(
-            ride: ride,
+            ride: effectiveRide,
             quantity: _quantity,
             paymentState: ref.watch(paymentProvider),
-            passengerApplication: ref
-                .watch(passengerRideApplicationProvider(ride.id))
-                .valueOrNull,
+            passengerApplication: effectivePassengerApplication,
             currentUser: currentUser,
+            showConcurrentLoadNotice: bootstrapData?.hasAnyError ?? false,
             onGoDashboard: () => context.go(AppRoutes.dashboard),
             onStartCheckout: () {
               final user = ref.read(authUserProvider);
@@ -151,9 +175,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               ref
                   .read(paymentProvider.notifier)
                   .startCheckout(
-                    rideId: ride.id,
-                    title: _checkoutTitle(ride),
-                    unitPrice: ride.pricePerSeat.toDouble(),
+                    rideId: effectiveRide.id,
+                    title: _checkoutTitle(effectiveRide),
+                    unitPrice: effectiveRide.pricePerSeat.toDouble(),
                     quantity: _quantity,
                     payerEmail: user.email,
                     userId: user.uid,
@@ -178,6 +202,7 @@ class _PaymentContent extends ConsumerWidget {
     required this.paymentState,
     required this.passengerApplication,
     required this.currentUser,
+    required this.showConcurrentLoadNotice,
     required this.onGoDashboard,
     required this.onStartCheckout,
   });
@@ -187,6 +212,7 @@ class _PaymentContent extends ConsumerWidget {
   final PaymentState paymentState;
   final RideApplicationEntity? passengerApplication;
   final AuthEntity? currentUser;
+  final bool showConcurrentLoadNotice;
   final VoidCallback onGoDashboard;
   final VoidCallback onStartCheckout;
 
@@ -379,6 +405,10 @@ class _PaymentContent extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (showConcurrentLoadNotice) ...[
+            const _ConcurrentLoadNotice(),
+            const SizedBox(height: AppSpacing.l),
+          ],
           if (ride.acceptsCardPayments) ...[
             _PaymentMethodSelectorCard(
               selectedMethod: selectedPaymentMethod,
@@ -489,6 +519,39 @@ class _MissingRideCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ConcurrentLoadNotice extends StatelessWidget {
+  const _ConcurrentLoadNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFBFDBFE)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.sync_outlined, color: AppColors.primary),
+          const SizedBox(width: AppSpacing.s),
+          Expanded(
+            child: Text(
+              'Ride, passenger application, and payment-related status were loaded concurrently. If one secondary source fails, the payment flow still keeps the screen in a safe state.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

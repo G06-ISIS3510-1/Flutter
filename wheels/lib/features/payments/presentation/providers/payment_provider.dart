@@ -4,6 +4,8 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../rides/domain/entities/rides_entity.dart';
+import '../../../rides/presentation/providers/rides_providers.dart';
 import '../../data/datasources/payment_firestore_datasource.dart';
 import '../../data/datasources/payment_remote_datasource.dart';
 import '../../data/repositories/payment_repository_impl.dart';
@@ -501,6 +503,70 @@ final paymentRepositoryProvider = Provider<PaymentRepository>((ref) {
   );
 });
 
+class RidePaymentBootstrapRequest {
+  const RidePaymentBootstrapRequest({
+    required this.rideId,
+    required this.passengerId,
+  });
+
+  final String rideId;
+  final String? passengerId;
+
+  @override
+  bool operator ==(Object other) {
+    return other is RidePaymentBootstrapRequest &&
+        other.rideId == rideId &&
+        other.passengerId == passengerId;
+  }
+
+  @override
+  int get hashCode => Object.hash(rideId, passengerId);
+}
+
+class RidePaymentBootstrapState {
+  const RidePaymentBootstrapState({
+    this.ride,
+    this.passengerApplication,
+    this.paymentRecord,
+    this.rideError,
+    this.passengerApplicationError,
+    this.paymentRecordError,
+  });
+
+  final RidesEntity? ride;
+  final RideApplicationEntity? passengerApplication;
+  final PaymentRecord? paymentRecord;
+  final Object? rideError;
+  final Object? passengerApplicationError;
+  final Object? paymentRecordError;
+
+  bool get hasAnyError =>
+      rideError != null ||
+      passengerApplicationError != null ||
+      paymentRecordError != null;
+}
+
+class _BootstrapLoadResult<T> {
+  const _BootstrapLoadResult._({this.data, this.error});
+
+  const _BootstrapLoadResult.data(T? data) : this._(data: data);
+
+  const _BootstrapLoadResult.error(Object error) : this._(error: error);
+
+  final T? data;
+  final Object? error;
+}
+
+Future<_BootstrapLoadResult<T>> _guardBootstrapFuture<T>(
+  Future<T> future,
+) async {
+  try {
+    return _BootstrapLoadResult<T>.data(await future);
+  } catch (error) {
+    return _BootstrapLoadResult<T>.error(error);
+  }
+}
+
 class PaymentRecordRequest {
   const PaymentRecordRequest({required this.rideId, required this.passengerId});
 
@@ -526,6 +592,54 @@ final paymentRecordStreamProvider =
             rideId: request.rideId,
             passengerId: request.passengerId,
           );
+    });
+
+final ridePaymentBootstrapProvider = FutureProvider.autoDispose
+    .family<RidePaymentBootstrapState, RidePaymentBootstrapRequest>((
+      ref,
+      request,
+    ) async {
+      if (request.passengerId == null || request.passengerId!.isEmpty) {
+        final rideResult = await _guardBootstrapFuture<RidesEntity?>(
+          ref.watch(rideProvider(request.rideId).future),
+        );
+
+        return RidePaymentBootstrapState(
+          ride: rideResult.data,
+          rideError: rideResult.error,
+        );
+      }
+
+      final paymentRequest = PaymentRecordRequest(
+        rideId: request.rideId,
+        passengerId: request.passengerId!,
+      );
+
+      final results = await Future.wait<Object?>([
+        _guardBootstrapFuture<RidesEntity?>(
+          ref.watch(rideProvider(request.rideId).future),
+        ),
+        _guardBootstrapFuture<RideApplicationEntity?>(
+          ref.watch(passengerRideApplicationProvider(request.rideId).future),
+        ),
+        _guardBootstrapFuture<PaymentRecord?>(
+          ref.watch(paymentRecordStreamProvider(paymentRequest).future),
+        ),
+      ]);
+
+      final rideResult = results[0] as _BootstrapLoadResult<RidesEntity?>;
+      final applicationResult =
+          results[1] as _BootstrapLoadResult<RideApplicationEntity?>;
+      final paymentResult = results[2] as _BootstrapLoadResult<PaymentRecord?>;
+
+      return RidePaymentBootstrapState(
+        ride: rideResult.data,
+        passengerApplication: applicationResult.data,
+        paymentRecord: paymentResult.data,
+        rideError: rideResult.error,
+        passengerApplicationError: applicationResult.error,
+        paymentRecordError: paymentResult.error,
+      );
     });
 
 final paymentProvider = StateNotifierProvider<PaymentNotifier, PaymentState>((
