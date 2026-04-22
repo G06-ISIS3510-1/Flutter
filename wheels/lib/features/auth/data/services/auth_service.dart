@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:firebase_analytics/firebase_analytics.dart';
 
 import '../../domain/entities/auth_entity.dart';
+import '../../domain/validation/auth_input_constraints.dart';
 import '../datasources/auth_remote_datasource.dart';
 
 class AuthService {
@@ -25,6 +26,22 @@ class AuthService {
     required String password,
     required String role,
   }) async {
+    final firstNameError = validatePersonalName(
+      firstName,
+      fieldLabel: 'First name',
+    );
+    if (firstNameError != null) {
+      throw AuthFailure(firstNameError);
+    }
+
+    final lastNameError = validatePersonalName(
+      lastName,
+      fieldLabel: 'Last name',
+    );
+    if (lastNameError != null) {
+      throw AuthFailure(lastNameError);
+    }
+
     final email = buildUniversityEmail(username);
     final fullName = '$firstName $lastName'.trim();
     firebase_auth.User? createdUser;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../theme/app_colors.dart';
@@ -6,6 +7,7 @@ import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
 import '../../../../theme/app_theme_palette.dart';
+import '../../domain/validation/auth_input_constraints.dart';
 import '../providers/auth_providers.dart';
 
 class AuthHeader extends StatelessWidget {
@@ -301,11 +303,17 @@ class RegisterForm extends StatelessWidget {
             enabled: !isLoading,
             onChanged: (_) => onChanged(),
             textInputAction: TextInputAction.next,
+            inputFormatters: <TextInputFormatter>[
+              LengthLimitingTextInputFormatter(kMaxPersonalNameLength),
+            ],
             decoration: const InputDecoration(
               labelText: 'First name',
               prefixIcon: Icon(Icons.person_outline_rounded),
+              counterText: '',
             ),
-            validator: _validateRequiredField,
+            maxLength: kMaxPersonalNameLength,
+            validator: (value) =>
+                validatePersonalName(value, fieldLabel: 'First name'),
           ),
           const SizedBox(height: AppSpacing.m),
           TextFormField(
@@ -313,11 +321,17 @@ class RegisterForm extends StatelessWidget {
             enabled: !isLoading,
             onChanged: (_) => onChanged(),
             textInputAction: TextInputAction.next,
+            inputFormatters: <TextInputFormatter>[
+              LengthLimitingTextInputFormatter(kMaxPersonalNameLength),
+            ],
             decoration: const InputDecoration(
               labelText: 'Last name',
               prefixIcon: Icon(Icons.badge_outlined),
+              counterText: '',
             ),
-            validator: _validateRequiredField,
+            maxLength: kMaxPersonalNameLength,
+            validator: (value) =>
+                validatePersonalName(value, fieldLabel: 'Last name'),
           ),
           const SizedBox(height: AppSpacing.m),
           UniversityEmailField(
@@ -401,13 +415,6 @@ class RegisterForm extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  static String? _validateRequiredField(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'This field is required';
-    }
-    return null;
   }
 
   static String? _validateUsername(String? value) {
