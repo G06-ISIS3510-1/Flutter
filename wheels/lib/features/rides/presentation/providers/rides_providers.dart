@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../data/datasources/rides_search_local_datasource.dart';
 import '../../data/datasources/rides_remote_datasource.dart';
 import '../../data/repositories/rides_repository_impl.dart';
 import '../../domain/entities/rides_entity.dart';
@@ -10,6 +11,12 @@ import '../../domain/repositories/rides_repository.dart';
 final ridesRemoteDataSourceProvider = Provider<RidesRemoteDataSource>((ref) {
   return RidesRemoteDataSource(firestore: FirebaseFirestore.instance);
 });
+
+final ridesSearchLocalDataSourceProvider = Provider<RidesSearchLocalDataSource>(
+  (ref) {
+    return RidesSearchLocalDataSource();
+  },
+);
 
 final ridesRepositoryProvider = Provider<RidesRepository>((ref) {
   return RidesRepositoryImpl(
