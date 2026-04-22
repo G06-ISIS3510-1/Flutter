@@ -336,15 +336,99 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     }
   }
 
+  int _countFilteredRides(
+    List<RidesEntity> rides, {
+    required String originQuery,
+    required String destinationQuery,
+    required DateTime selectedDate,
+  }) {
+    final normalizedOriginQuery = originQuery.trim().toLowerCase();
+    final normalizedDestinationQuery = destinationQuery.trim().toLowerCase();
+    final appliedDay = _dateOnly(selectedDate);
+
+    return rides.where((ride) {
+      final rideDay = _dateOnly(ride.departureAt);
+      if (rideDay.isBefore(appliedDay)) {
+        return false;
+      }
+
+      final originMatch =
+          normalizedOriginQuery.isEmpty ||
+          ride.origin.toLowerCase().contains(normalizedOriginQuery);
+      final destinationMatch =
+          normalizedDestinationQuery.isEmpty ||
+          ride.destination.toLowerCase().contains(normalizedDestinationQuery);
+
+      return originMatch && destinationMatch;
+    }).length;
+  }
+
+  Future<void> _logRideSearchSubmitted({
+    required String originQuery,
+    required String destinationQuery,
+    required DateTime selectedDate,
+    required RideSortOption sortOption,
+    required int resultsCount,
+  }) async {
+    final normalizedOrigin = originQuery.trim().toLowerCase();
+    final usedCurrentLocation =
+        _currentLocationSuggestion != null &&
+        normalizedOrigin.isNotEmpty &&
+        normalizedOrigin == _currentLocationSuggestion!.trim().toLowerCase();
+
+    try {
+      await ref
+          .read(firebaseAnalyticsProvider)
+          .logEvent(
+            name: 'ride_search_submitted',
+            parameters: <String, Object>{
+              'origin_query': originQuery.trim().isEmpty
+                  ? 'any'
+                  : originQuery.trim(),
+              'destination_query': destinationQuery.trim().isEmpty
+                  ? 'any'
+                  : destinationQuery.trim(),
+              'selected_date': _formatDate(selectedDate),
+              'sort_option': sortOption.name,
+              'results_count': resultsCount,
+              'used_current_location': usedCurrentLocation ? 1 : 0,
+              'user_role': ref.read(currentUserRoleProvider).name,
+            },
+          );
+    } catch (_) {
+      // Analytics should never block the ride search flow.
+    }
+  }
+
   Future<void> _applySearch() async {
+    final nextOriginQuery = _originController.text.trim();
+    final nextDestinationQuery = _destinationController.text.trim();
+    final selectedDate = _dateOnly(_selectedDate);
+    final availableRides =
+        ref.read(availableRidesProvider).valueOrNull ?? const <RidesEntity>[];
+    final resultsCount = _countFilteredRides(
+      availableRides,
+      originQuery: nextOriginQuery,
+      destinationQuery: nextDestinationQuery,
+      selectedDate: selectedDate,
+    );
+
     setState(() {
       _hasTriggeredSearch = true;
-      _appliedOriginQuery = _originController.text.trim().toLowerCase();
-      _appliedDestinationQuery = _destinationController.text
-          .trim()
-          .toLowerCase();
-      _appliedDate = _dateOnly(_selectedDate);
+      _appliedOriginQuery = nextOriginQuery.toLowerCase();
+      _appliedDestinationQuery = nextDestinationQuery.toLowerCase();
+      _appliedDate = selectedDate;
     });
+
+    unawaited(
+      _logRideSearchSubmitted(
+        originQuery: nextOriginQuery,
+        destinationQuery: nextDestinationQuery,
+        selectedDate: selectedDate,
+        sortOption: _sort,
+        resultsCount: resultsCount,
+      ),
+    );
 
     final ridesAsync = ref.read(availableRidesProvider);
     final rides = ridesAsync.valueOrNull;
