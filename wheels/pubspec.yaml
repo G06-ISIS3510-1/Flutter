@@ -26,6 +26,7 @@ dependencies:
   firebase_messaging: ^16.0.2
   fl_chart: ^0.70.2
   shared_preferences: ^2.5.3
+  connectivity_plus: ^7.1.1
 
 dev_dependencies:
   flutter_test:
