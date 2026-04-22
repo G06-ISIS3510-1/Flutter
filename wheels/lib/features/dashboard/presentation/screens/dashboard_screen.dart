@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../features/auth/presentation/providers/auth_providers.dart';
-import '../../../../features/payments/presentation/providers/payment_provider.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/utils/app_formatter.dart';
@@ -14,8 +13,6 @@ import '../../../../theme/app_spacing.dart';
 import '../../../../theme/app_theme_palette.dart';
 import '../../../rides/domain/entities/rides_entity.dart';
 import '../../../rides/presentation/models/ride_listing.dart';
-import '../../../rides/presentation/providers/rides_providers.dart';
-import '../../../wallet/presentation/providers/wallet_providers.dart';
 import '../providers/dashboard_providers.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -24,9 +21,10 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.palette;
-    final summary = ref.watch(dashboardSummaryProvider);
     final role = ref.watch(currentUserRoleProvider);
     final user = ref.watch(authUserProvider);
+    final dashboardAsync = ref.watch(dashboardConcurrentDataProvider);
+    final dashboardData = dashboardAsync.valueOrNull;
     final fullName = (user?.fullName.trim().isNotEmpty ?? false)
         ? user!.fullName.trim()
         : 'Wheels User';
@@ -49,25 +47,45 @@ class DashboardScreen extends ConsumerWidget {
       child: Column(
         children: [
           const SizedBox(height: AppSpacing.s),
+          if (dashboardData?.hasAnyError ?? false) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
+              child: _DashboardLoadNotice(
+                message:
+                    'Some dashboard sections could not be refreshed. Available data is still shown safely.',
+                onRetry: () => ref.invalidate(dashboardConcurrentDataProvider),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.m),
+          ],
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: AppSpacing.m),
             child: _MapCard(),
           ),
           const SizedBox(height: AppSpacing.m),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: AppSpacing.m),
-            child: _CurrentRideCard(),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
+            child: _CurrentRideCard(
+              dashboardData: dashboardData,
+              isLoading: dashboardAsync.isLoading && dashboardData == null,
+            ),
           ),
           const SizedBox(height: AppSpacing.m),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: AppSpacing.m),
-            child: _UpdatesSection(),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
+            child: _UpdatesSection(
+              dashboardData: dashboardData,
+              isLoading: dashboardAsync.isLoading && dashboardData == null,
+            ),
           ),
           const SizedBox(height: AppSpacing.s),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
             child: Text(
-              summary,
+              dashboardData?.summary ??
+                  (dashboardAsync.isLoading
+                      ? 'Loading dashboard overview...'
+                      : 'Dashboard overview is unavailable right now.'),
               style: TextStyle(color: palette.textSecondary),
             ),
           ),
@@ -301,339 +319,327 @@ class _MapCard extends StatelessWidget {
   }
 }
 
-class _CurrentRideCard extends ConsumerWidget {
-  const _CurrentRideCard();
+class _CurrentRideCard extends StatelessWidget {
+  const _CurrentRideCard({
+    required this.dashboardData,
+    required this.isLoading,
+  });
+
+  final DashboardLoadState? dashboardData;
+  final bool isLoading;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final palette = context.palette;
-    final role = ref.watch(currentUserRoleProvider);
+    final role = dashboardData?.role ?? UserRole.passenger;
+
+    if (isLoading && dashboardData == null) {
+      return _LoadingCard(
+        title: role == UserRole.driver ? 'Current Ride' : 'Your Ride',
+      );
+    }
 
     if (role != UserRole.driver) {
-      final passengerRideAsync = ref.watch(currentPassengerRideProvider);
-      return passengerRideAsync.when(
-        loading: () => const _LoadingCard(title: 'Your Ride'),
-        error: (error, _) =>
-            _InfoCard(title: 'Your Ride', subtitle: error.toString()),
-        data: (ride) {
-          if (ride == null) {
-            return _InfoCard(
-              title: 'Passenger Home',
-              subtitle: 'Search available rides and apply with your account.',
-              actionLabel: 'Search Rides',
-              onAction: () => context.go(AppRoutes.rides),
-            );
-          }
+      final ride = dashboardData?.currentPassengerRide;
+      if (ride == null) {
+        return _InfoCard(
+          title: 'Passenger Home',
+          subtitle: dashboardData?.passengerRideError == null
+              ? 'Search available rides and apply with your account.'
+              : 'We could not load your passenger ride right now.',
+          actionLabel: 'Search Rides',
+          onAction: () => context.go(AppRoutes.rides),
+        );
+      }
 
-          return GestureDetector(
-            onTap: () => context.go(AppRoutes.rideDetailsById(ride.id)),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: palette.card,
-                borderRadius: BorderRadius.circular(22),
-                boxShadow: AppShadows.lg,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      return GestureDetector(
+        onTap: () => context.go(AppRoutes.rideDetailsById(ride.id)),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: palette.card,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: AppShadows.lg,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Your current ride',
+                  Expanded(
+                    child: Text(
+                      'Your current ride',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        color: palette.textPrimary,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: palette.accentSoft,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      ride.isInProgress ? 'In Progress' : 'Applied',
+                      style: TextStyle(
+                        color: palette.accent,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 27,
+                    backgroundColor: palette.primaryLight,
+                    child: Text(
+                      ride.driverInitials,
+                      style: TextStyle(
+                        color: palette.primaryForeground,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          ride.driverName,
                           style: TextStyle(
-                            fontSize: 16,
                             fontWeight: FontWeight.w900,
                             color: palette.textPrimary,
                           ),
                         ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
+                        const SizedBox(height: 4),
+                        Text(
+                          'Driver assigned to your ride',
+                          style: TextStyle(color: palette.textSecondary),
                         ),
-                        decoration: BoxDecoration(
-                          color: palette.accentSoft,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          ride.isInProgress ? 'In Progress' : 'Applied',
-                          style: TextStyle(
-                            color: palette.accent,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 27,
-                        backgroundColor: palette.primaryLight,
-                        child: Text(
-                          ride.driverInitials,
-                          style: TextStyle(
-                            color: palette.primaryForeground,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              ride.driverName,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w900,
-                                color: palette.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Driver assigned to your ride',
-                              style: TextStyle(color: palette.textSecondary),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _SmallActionButton(
-                        icon: Icons.payments_outlined,
-                        onTap: () =>
-                            context.go(AppRoutes.paymentByRideId(ride.id)),
-                      ),
-                      const SizedBox(width: 8),
-                      _SmallActionButton(
-                        icon: Icons.arrow_forward_outlined,
-                        onTap: () =>
-                            context.go(AppRoutes.rideDetailsById(ride.id)),
-                      ),
-                    ],
+                  const SizedBox(width: 8),
+                  _SmallActionButton(
+                    icon: Icons.payments_outlined,
+                    onTap: () => context.go(AppRoutes.paymentByRideId(ride.id)),
                   ),
-                  const SizedBox(height: 12),
-                  Divider(color: palette.border),
-                  const SizedBox(height: 10),
-                  _InfoRow(
-                    icon: Icons.trip_origin,
-                    iconColor: palette.secondary,
-                    label: 'Origin',
-                    value: ride.origin,
-                  ),
-                  const SizedBox(height: 10),
-                  _InfoRow(
-                    icon: Icons.location_on_outlined,
-                    iconColor: palette.textSecondary,
-                    label: 'Destination',
-                    value: ride.destination,
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _MiniMetric(
-                          title: 'Departure',
-                          value: ride.departureLabel,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _MiniMetric(
-                          title: 'Fare',
-                          value: ride.priceLabel,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(width: 8),
+                  _SmallActionButton(
+                    icon: Icons.arrow_forward_outlined,
+                    onTap: () => context.go(AppRoutes.rideDetailsById(ride.id)),
                   ),
                 ],
               ),
-            ),
-          );
-        },
+              const SizedBox(height: 12),
+              Divider(color: palette.border),
+              const SizedBox(height: 10),
+              _InfoRow(
+                icon: Icons.trip_origin,
+                iconColor: palette.secondary,
+                label: 'Origin',
+                value: ride.origin,
+              ),
+              const SizedBox(height: 10),
+              _InfoRow(
+                icon: Icons.location_on_outlined,
+                iconColor: palette.textSecondary,
+                label: 'Destination',
+                value: ride.destination,
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: _MiniMetric(
+                      title: 'Departure',
+                      value: ride.departureLabel,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _MiniMetric(
+                      title: 'Fare',
+                      value: ride.priceLabel,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       );
     }
 
-    final rideAsync = ref.watch(currentDriverRideProvider);
-    return rideAsync.when(
-      loading: () => const _LoadingCard(title: 'Current Ride'),
-      error: (error, _) =>
-          _InfoCard(title: 'Current Ride', subtitle: error.toString()),
-      data: (ride) {
-        if (ride == null) {
-          return _InfoCard(
-            title: 'Current Ride',
-            subtitle: 'You do not have an active ride yet.',
-            actionLabel: 'Create Ride',
-            onAction: () => context.go(AppRoutes.createRide),
-          );
-        }
+    final ride = dashboardData?.currentDriverRide;
+    if (ride == null) {
+      return _InfoCard(
+        title: 'Current Ride',
+        subtitle: dashboardData?.driverRideError == null
+            ? 'You do not have an active ride yet.'
+            : 'We could not load your current ride right now.',
+        actionLabel: 'Create Ride',
+        onAction: () => context.go(AppRoutes.createRide),
+      );
+    }
 
-        return GestureDetector(
-          onTap: () => context.go(AppRoutes.activeRideById(ride.id)),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: palette.card,
-              borderRadius: BorderRadius.circular(22),
-              boxShadow: AppShadows.lg,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return GestureDetector(
+      onTap: () => context.go(AppRoutes.activeRideById(ride.id)),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: palette.card,
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: AppShadows.lg,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Current Ride',
+                Expanded(
+                  child: Text(
+                    'Current Ride',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: palette.textPrimary,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: palette.accentSoft,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    ride.isInProgress ? 'In Progress' : 'Open',
+                    style: TextStyle(
+                      color: palette.accent,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 27,
+                  backgroundColor: palette.primaryLight,
+                  child: Text(
+                    ride.driverInitials,
+                    style: TextStyle(
+                      color: palette.primaryForeground,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        ride.driverName,
                         style: TextStyle(
-                          fontSize: 16,
                           fontWeight: FontWeight.w900,
                           color: palette.textPrimary,
                         ),
                       ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
+                      const SizedBox(height: 4),
+                      Text(
+                        '${ride.availableSeats}/${ride.totalSeats} seats left',
+                        style: TextStyle(color: palette.textSecondary),
                       ),
-                      decoration: BoxDecoration(
-                        color: palette.accentSoft,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        ride.isInProgress ? 'In Progress' : 'Open',
-                        style: TextStyle(
-                          color: palette.accent,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 27,
-                      backgroundColor: palette.primaryLight,
-                      child: Text(
-                        ride.driverInitials,
-                        style: TextStyle(
-                          color: palette.primaryForeground,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            ride.driverName,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                              color: palette.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${ride.availableSeats}/${ride.totalSeats} seats left',
-                            style: TextStyle(color: palette.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _SmallActionButton(
-                      icon: Icons.chat_bubble_outline,
-                      onTap: () =>
-                          context.go(AppRoutes.groupChatByTripId(ride.id)),
-                    ),
-                    const SizedBox(width: 8),
-                    _SmallActionButton(
-                      icon: Icons.arrow_forward_outlined,
-                      onTap: () =>
-                          context.go(AppRoutes.activeRideById(ride.id)),
-                    ),
-                  ],
+                const SizedBox(width: 8),
+                _SmallActionButton(
+                  icon: Icons.chat_bubble_outline,
+                  onTap: () => context.go(AppRoutes.groupChatByTripId(ride.id)),
                 ),
-                const SizedBox(height: 12),
-                Divider(color: palette.border),
-                const SizedBox(height: 10),
-                _InfoRow(
-                  icon: Icons.trip_origin,
-                  iconColor: palette.secondary,
-                  label: 'Origin',
-                  value: ride.origin,
-                ),
-                const SizedBox(height: 10),
-                _InfoRow(
-                  icon: Icons.location_on_outlined,
-                  iconColor: palette.textSecondary,
-                  label: 'Destination',
-                  value: ride.destination,
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _MiniMetric(
-                        title: 'Departure',
-                        value: ride.departureLabel,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _MiniMetric(title: 'Fare', value: ride.priceLabel),
-                    ),
-                  ],
+                const SizedBox(width: 8),
+                _SmallActionButton(
+                  icon: Icons.arrow_forward_outlined,
+                  onTap: () => context.go(AppRoutes.activeRideById(ride.id)),
                 ),
               ],
             ),
-          ),
-        );
-      },
+            const SizedBox(height: 12),
+            Divider(color: palette.border),
+            const SizedBox(height: 10),
+            _InfoRow(
+              icon: Icons.trip_origin,
+              iconColor: palette.secondary,
+              label: 'Origin',
+              value: ride.origin,
+            ),
+            const SizedBox(height: 10),
+            _InfoRow(
+              icon: Icons.location_on_outlined,
+              iconColor: palette.textSecondary,
+              label: 'Destination',
+              value: ride.destination,
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _MiniMetric(
+                    title: 'Departure',
+                    value: ride.departureLabel,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _MiniMetric(title: 'Fare', value: ride.priceLabel),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-class _UpdatesSection extends ConsumerWidget {
-  const _UpdatesSection();
+class _UpdatesSection extends StatelessWidget {
+  const _UpdatesSection({
+    required this.dashboardData,
+    required this.isLoading,
+  });
+
+  final DashboardLoadState? dashboardData;
+  final bool isLoading;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final palette = context.palette;
-    final role = ref.watch(currentUserRoleProvider);
-    final user = ref.watch(authUserProvider);
-    final walletSummaryAsync = ref.watch(driverWalletSummaryProvider);
-    final driverRide = ref.watch(currentDriverRideProvider).valueOrNull;
-    final passengerRide = ref.watch(currentPassengerRideProvider).valueOrNull;
-    final passengerApplication = passengerRide == null
-        ? null
-        : ref
-              .watch(passengerRideApplicationProvider(passengerRide.id))
-              .valueOrNull;
-    final paymentRecord = passengerRide == null || user == null
-        ? null
-        : ref
-              .watch(
-                paymentRecordStreamProvider(
-                  PaymentRecordRequest(
-                    rideId: passengerRide.id,
-                    passengerId: user.uid,
-                  ),
-                ),
-              )
-              .valueOrNull;
+    final role = dashboardData?.role ?? UserRole.passenger;
+    final user = dashboardData?.user;
+    final driverRide = dashboardData?.currentDriverRide;
+    final passengerRide = dashboardData?.currentPassengerRide;
+    final passengerApplication = dashboardData?.passengerApplication;
+    final paymentRecord = dashboardData?.paymentRecord;
     final paymentStatus = paymentRecord?.effectiveStatus.trim().toLowerCase();
     final manualPaymentStatus =
         passengerApplication?.paymentStatus ??
@@ -685,6 +691,16 @@ class _UpdatesSection extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 10),
+        if (isLoading && dashboardData == null)
+          _UpdateCard(
+            icon: Icons.hourglass_top_rounded,
+            iconBg: palette.border,
+            iconColor: palette.secondary,
+            title: 'Loading updates',
+            subtitle:
+                'Independent dashboard sources are refreshing in parallel.',
+          )
+        else
         if (role == UserRole.driver)
           _UpdateCard(
             icon: driverRide == null
@@ -798,38 +814,21 @@ class _UpdatesSection extends ConsumerWidget {
           ),
         if (role == UserRole.driver) ...[
           const SizedBox(height: 10),
-          walletSummaryAsync.when(
-            loading: () => _UpdateCard(
-              icon: Icons.account_balance_wallet_outlined,
-              iconBg: palette.border,
-              iconColor: palette.secondary,
-              title: 'Wallet',
-              subtitle: 'Loading your accumulated earnings...',
-              trailing: 'Loading',
-            ),
-            error: (_, _) => _UpdateCard(
-              icon: Icons.account_balance_wallet_outlined,
-              iconBg: palette.border,
-              iconColor: palette.secondary,
-              title: 'Wallet',
-              subtitle: 'We could not load your wallet summary right now.',
-              actionLabel: 'Open Wallet',
-              onAction: () => context.go(AppRoutes.wallet),
-            ),
-            data: (summary) => _UpdateCard(
-              icon: Icons.account_balance_wallet_outlined,
-              iconBg: palette.border,
-              iconColor: palette.secondary,
-              title: 'Wallet balance',
-              subtitle: summary == null
-                  ? 'Open your driver wallet to see accumulated earnings.'
-                  : 'Available: ${AppFormatter.cop(summary.availableBalance)}. Pending withdrawals: ${AppFormatter.cop(summary.pendingWithdrawalBalance)}.',
-              trailing: summary == null
-                  ? null
-                  : AppFormatter.cop(summary.totalEarned),
-              actionLabel: 'Open Wallet',
-              onAction: () => context.go(AppRoutes.wallet),
-            ),
+          _UpdateCard(
+            icon: Icons.account_balance_wallet_outlined,
+            iconBg: palette.border,
+            iconColor: palette.secondary,
+            title: 'Wallet balance',
+            subtitle: dashboardData?.walletSummaryError != null
+                ? 'We could not load your wallet summary right now.'
+                : dashboardData?.walletSummary == null
+                    ? 'Open your driver wallet to see accumulated earnings.'
+                    : 'Available: ${AppFormatter.cop(dashboardData!.walletSummary!.availableBalance)}. Pending withdrawals: ${AppFormatter.cop(dashboardData!.walletSummary!.pendingWithdrawalBalance)}.',
+            trailing: dashboardData?.walletSummary == null
+                ? null
+                : AppFormatter.cop(dashboardData!.walletSummary!.totalEarned),
+            actionLabel: 'Open Wallet',
+            onAction: () => context.go(AppRoutes.wallet),
           ),
         ],
         const SizedBox(height: 10),
@@ -842,6 +841,53 @@ class _UpdatesSection extends ConsumerWidget {
           trailing: role == UserRole.driver ? 'Driver' : 'Passenger',
         ),
       ],
+    );
+  }
+}
+
+class _DashboardLoadNotice extends StatelessWidget {
+  const _DashboardLoadNotice({
+    required this.message,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: palette.secondary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.secondary.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.sync_outlined, color: palette.secondary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: palette.textPrimary,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          OutlinedButton(
+            onPressed: onRetry,
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
     );
   }
 }
