@@ -1061,9 +1061,7 @@ class _DashboardStatusBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final savedAtLabel = cachedAt == null
-        ? null
-        : _formatBannerSavedAt(cachedAt!);
+    final savedAtLabel = cachedAt == null ? null : _formatBannerSavedAt(cachedAt!);
     final title = !isOnline
         ? 'You are offline'
         : hasCachedData
