@@ -8,9 +8,21 @@ import '../../../rides/domain/entities/rides_entity.dart';
 import '../../../rides/presentation/providers/rides_providers.dart';
 import '../../../wallet/domain/entities/wallet_summary.dart';
 import '../../../wallet/presentation/providers/wallet_providers.dart';
+import '../../../../shared/cache/memory_lru_cache.dart';
+import '../../data/datasources/dashboard_local_datasource.dart';
+import '../../data/models/dashboard_model.dart';
 
 final dashboardSummaryProvider = Provider<String>((ref) => 'Dashboard overview');
 final dashboardCardCountProvider = StateProvider<int>((ref) => 3);
+final dashboardMemoryCacheProvider =
+    Provider<MemoryLruCache<String, DashboardModel>>((ref) {
+      return MemoryLruCache<String, DashboardModel>(maxEntries: 4);
+    });
+final dashboardLocalDataSourceProvider = Provider<DashboardLocalDataSource>((ref) {
+  return DashboardLocalDataSource(
+    memoryCache: ref.watch(dashboardMemoryCacheProvider),
+  );
+});
 
 class DashboardLoadState {
   const DashboardLoadState({
