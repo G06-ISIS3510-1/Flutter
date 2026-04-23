@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/cache/memory_lru_cache.dart';
 import '../../../auth/domain/entities/auth_entity.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../payments/domain/entities/payment_record.dart';
@@ -8,9 +9,21 @@ import '../../../rides/domain/entities/rides_entity.dart';
 import '../../../rides/presentation/providers/rides_providers.dart';
 import '../../../wallet/domain/entities/wallet_summary.dart';
 import '../../../wallet/presentation/providers/wallet_providers.dart';
+import '../../data/datasources/dashboard_local_datasource.dart';
+import '../../data/models/dashboard_model.dart';
 
 final dashboardSummaryProvider = Provider<String>((ref) => 'Dashboard overview');
 final dashboardCardCountProvider = StateProvider<int>((ref) => 3);
+final dashboardMemoryCacheProvider =
+    Provider<MemoryLruCache<String, DashboardModel>>((ref) {
+      return MemoryLruCache<String, DashboardModel>(maxEntries: 4);
+    });
+final dashboardLocalDataSourceProvider =
+    Provider<DashboardLocalDataSource>((ref) {
+      return DashboardLocalDataSource(
+        memoryCache: ref.watch(dashboardMemoryCacheProvider),
+      );
+    });
 
 class DashboardLoadState {
   const DashboardLoadState({
@@ -48,9 +61,8 @@ class DashboardLoadState {
       paymentRecordError != null ||
       walletSummaryError != null;
 
-  RidesEntity? get primaryRide => role == UserRole.driver
-      ? currentDriverRide
-      : currentPassengerRide;
+  RidesEntity? get primaryRide =>
+      role == UserRole.driver ? currentDriverRide : currentPassengerRide;
 
   String get summary {
     final ride = primaryRide;
@@ -90,7 +102,6 @@ final dashboardConcurrentDataProvider =
       final user = ref.watch(authUserProvider);
 
       if (role == UserRole.driver) {
-        // Driver: currentDriverRide and walletSummary are independent — load concurrently
         final results = await Future.wait<Object?>([
           _guardFuture<RidesEntity?>(
             ref.watch(currentDriverRideProvider.future),
@@ -113,7 +124,6 @@ final dashboardConcurrentDataProvider =
         );
       }
 
-      // Passenger: ride must resolve first — application and payment record depend on rideId
       final passengerRideResult = await _guardFuture<RidesEntity?>(
         ref.watch(currentPassengerRideProvider.future),
       );
@@ -133,7 +143,6 @@ final dashboardConcurrentDataProvider =
         passengerId: user.uid,
       );
 
-      // Application and payment record are independent of each other — load concurrently
       final dependentResults = await Future.wait<Object?>([
         _guardFuture<RideApplicationEntity?>(
           ref.watch(passengerRideApplicationProvider(passengerRide.id).future),

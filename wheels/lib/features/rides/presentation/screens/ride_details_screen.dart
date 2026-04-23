@@ -7,6 +7,7 @@ import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../features/payments/domain/entities/payment_record.dart';
 import '../../../../features/payments/presentation/providers/payment_provider.dart';
 import '../../../../router/app_routes.dart';
+import '../../../../shared/providers/connectivity_provider.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/utils/app_formatter.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
@@ -58,7 +59,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
 
   Future<void> _loadCachedRideDetails() async {
     final localDataSource = ref.read(rideDetailsLocalDataSourceProvider);
-    final cache = await localDataSource.loadLatestRideDetails();
+    final cache = await localDataSource.loadRideDetails(widget.rideId);
     if (!mounted) {
       return;
     }
@@ -71,7 +72,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
     }
 
     if (!cache.matchesRide(widget.rideId) || cache.isExpired()) {
-      await localDataSource.clearLatestRideDetails();
+      await localDataSource.clearRideDetails(widget.rideId);
       if (!mounted) {
         return;
       }
@@ -101,7 +102,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
 
     await ref
         .read(rideDetailsLocalDataSourceProvider)
-        .saveLatestRideDetails(cache);
+        .saveRideDetails(cache);
 
     if (!mounted) {
       return;
@@ -115,7 +116,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
   }
 
   Future<void> _clearCachedRideDetails() async {
-    await ref.read(rideDetailsLocalDataSourceProvider).clearLatestRideDetails();
+    await ref.read(rideDetailsLocalDataSourceProvider).clearRideDetails(widget.rideId);
     if (!mounted) {
       return;
     }
@@ -153,6 +154,8 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
     final applicationAsync = ref.watch(
       passengerRideApplicationProvider(widget.rideId),
     );
+    final connectivityAsync = ref.watch(connectivityStatusProvider);
+    final isOnline = connectivityAsync.valueOrNull ?? true;
     final applyState = ref.watch(rideApplicationControllerProvider);
     final palette = context.palette;
     final cachedRide = _cachedRideDetails?.toEntity();
@@ -215,6 +218,31 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
       );
     });
 
+    ref.listen<AsyncValue<bool>>(connectivityStatusProvider, (previous, next) {
+      next.whenData((hasConnection) {
+        if (!mounted) {
+          return;
+        }
+
+        final previousConnection = previous?.valueOrNull;
+        if (previousConnection == hasConnection) {
+          return;
+        }
+
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                hasConnection
+                    ? 'Connection restored. Ride actions are available again.'
+                    : 'You are offline. Joining a ride and payment actions are temporarily unavailable.',
+              ),
+            ),
+          );
+      });
+    });
+
     return AppScaffold(
       title: 'Ride Details',
       bottomNavigationBar: AppBottomNav(
@@ -257,6 +285,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
                 ? 'Live ride data is unavailable right now. You are seeing the latest saved version.'
                 : 'We loaded the latest saved ride while refreshing live availability.',
             showConcurrentLoadNotice: bootstrapData?.hasAnyError ?? false,
+            isOnline: isOnline,
           );
         },
       ),
@@ -270,6 +299,7 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
     required RideApplicationEntity? passengerApplication,
     required PaymentRecord? paymentRecord,
     required AsyncValue<void> applyState,
+    required bool isOnline,
     bool showCachedNotice = false,
     String? cachedNoticeTitle,
     String? cachedNoticeMessage,
@@ -277,14 +307,25 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
   }) {
     final isOwnRide = currentUser?.uid == ride.driverId;
     final hasApplied = passengerApplication != null;
+    final requiresLiveBackendState = !showCachedNotice && isOnline;
     final canApply =
+        requiresLiveBackendState &&
         !isOwnRide &&
         ride.isOpen &&
         ride.hasAvailableSeats &&
         !hasApplied &&
         currentUser != null &&
         !showCachedNotice;
-    final canOpenPayment = hasApplied && !isOwnRide;
+    final canOpenPayment =
+        requiresLiveBackendState && hasApplied && !isOwnRide;
+    final actionBlockedReason = _criticalActionBlockedReason(
+      isOnline: isOnline,
+      showCachedNotice: showCachedNotice,
+      isOwnRide: isOwnRide,
+      currentUser: currentUser,
+      hasApplied: hasApplied,
+      ride: ride,
+    );
 
     return ListView(
       children: [
@@ -396,6 +437,10 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
             'Ride unavailable',
             'This ride is no longer open for new passengers.',
           ),
+        if (actionBlockedReason != null) ...[
+          const SizedBox(height: AppSpacing.s),
+          _actionUnavailableNotice(actionBlockedReason),
+        ],
         const SizedBox(height: AppSpacing.s),
         ElevatedButton(
           onPressed: canApply && !applyState.isLoading
@@ -423,17 +468,17 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
             ),
           ),
           child: Text(
-            showCachedNotice
-                ? 'Waiting for live ride details'
-                : _actionLabel(
-                    isOwnRide: isOwnRide,
-                    hasApplied: hasApplied,
-                    passengerApplication: passengerApplication,
-                    paymentOption: ride.paymentOption,
-                    rideStatus: ride.status,
-                    hasAvailableSeats: ride.hasAvailableSeats,
-                    isLoading: applyState.isLoading,
-                  ),
+            _actionLabel(
+              isOwnRide: isOwnRide,
+              hasApplied: hasApplied,
+              passengerApplication: passengerApplication,
+              paymentOption: ride.paymentOption,
+              rideStatus: ride.status,
+              hasAvailableSeats: ride.hasAvailableSeats,
+              isLoading: applyState.isLoading,
+              isOnline: isOnline,
+              showCachedNotice: showCachedNotice,
+            ),
           ),
         ),
       ],
@@ -566,9 +611,17 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
     required String rideStatus,
     required bool hasAvailableSeats,
     required bool isLoading,
+    required bool isOnline,
+    required bool showCachedNotice,
   }) {
     if (isLoading) {
       return 'Sending request...';
+    }
+    if (!isOnline) {
+      return 'Reconnect to continue';
+    }
+    if (showCachedNotice) {
+      return 'Waiting for live ride details';
     }
     if (isOwnRide) {
       return 'This is your ride';
@@ -610,6 +663,39 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
     }
   }
 
+  String? _criticalActionBlockedReason({
+    required bool isOnline,
+    required bool showCachedNotice,
+    required bool isOwnRide,
+    required AuthEntity? currentUser,
+    required bool hasApplied,
+    required RidesEntity ride,
+  }) {
+    if (isOwnRide || currentUser == null) {
+      return null;
+    }
+
+    final mightApply = !hasApplied && ride.isOpen && ride.hasAvailableSeats;
+    final mightContinueToPayment = hasApplied;
+    if (!mightApply && !mightContinueToPayment) {
+      return null;
+    }
+
+    if (!isOnline) {
+      return mightContinueToPayment
+          ? 'Reconnect to confirm the latest backend payment status before continuing.'
+          : 'Reconnect to validate live seat availability before sending your request.';
+    }
+
+    if (showCachedNotice) {
+      return mightContinueToPayment
+          ? 'These details are cached. Payment-related actions stay blocked until live ride data is refreshed.'
+          : 'These details are cached. Applying stays blocked until live availability is refreshed.';
+    }
+
+    return null;
+  }
+
   Widget _messageCard(String title, String message) {
     final palette = context.palette;
 
@@ -632,6 +718,48 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(message, style: TextStyle(color: palette.textSecondary)),
+        ],
+      ),
+    );
+  }
+
+  Widget _actionUnavailableNotice(String message) {
+    final palette = context.palette;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: palette.warning.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: palette.warning.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.wifi_off_outlined, color: palette.warning),
+          const SizedBox(width: AppSpacing.s),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Live validation required',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: palette.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  message,
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
