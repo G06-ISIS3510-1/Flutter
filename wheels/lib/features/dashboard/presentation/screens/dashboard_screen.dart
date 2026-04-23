@@ -406,18 +406,64 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return '$day/$month/${localValue.year} $hour:$minute';
   }
 
+  DashboardEntity? _snapshotFromConcurrentLoad(DashboardLoadState? loadState) {
+    if (loadState == null) {
+      return null;
+    }
+
+    final ride = loadState.primaryRide;
+    final summary = _buildSummary(role: loadState.role, ride: ride);
+    final primaryUpdate = loadState.role == UserRole.driver
+        ? (ride == null
+            ? const DashboardUpdateEntity(
+                title: 'No live ride yet',
+                subtitle:
+                    'Create a ride to start receiving passenger applications.',
+                actionKind: DashboardActionKind.createRide,
+                actionLabel: 'Create Ride',
+              )
+            : DashboardUpdateEntity(
+                title: 'Manage your current ride',
+                subtitle:
+                    'Open your live trip and review the passenger group.',
+                actionKind: DashboardActionKind.openRide,
+                actionLabel: 'Open Ride',
+                rideId: ride.id,
+              ))
+        : _buildPassengerPrimaryUpdate(
+            ride: ride,
+            passengerApplication: loadState.passengerApplication,
+            paymentRecord: loadState.paymentRecord,
+            firstName:
+                loadState.user?.fullName.split(RegExp(r'\s+')).first ?? 'User',
+          );
+
+    return DashboardEntity(
+      savedAt: DateTime.now().toUtc(),
+      summary: summary,
+      stats: _buildStats(role: loadState.role, ride: ride),
+      primaryUpdate: primaryUpdate,
+      currentRide: ride,
+      walletSummary: loadState.walletSummary,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
     final role = ref.watch(currentUserRoleProvider);
     final user = ref.watch(authUserProvider);
+    final dashboardAsync = ref.watch(dashboardConcurrentDataProvider);
+    final dashboardData = dashboardAsync.valueOrNull;
     final connectivityAsync = ref.watch(connectivityStatusProvider);
     final isOnline = connectivityAsync.valueOrNull ?? true;
     final fullName = (user?.fullName.trim().isNotEmpty ?? false)
         ? user!.fullName.trim()
         : 'Wheels User';
     final firstName = fullName.split(RegExp(r'\s+')).first;
-    final snapshot = _dashboardSnapshot;
+    final snapshot =
+        _dashboardSnapshot ?? _snapshotFromConcurrentLoad(dashboardData);
+    final showingSavedSnapshot = _isShowingFallback && _dashboardSnapshot != null;
 
     ref.listen<AsyncValue<bool>>(connectivityStatusProvider, (previous, next) {
       final wasOnline = previous?.valueOrNull ?? true;
@@ -447,14 +493,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       child: Column(
         children: [
           const SizedBox(height: AppSpacing.s),
+          if (dashboardData?.hasAnyError ?? false) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
+              child: _DashboardLoadNotice(
+                message:
+                    'Some dashboard sections could not be refreshed. Safe dashboard data is still shown.',
+                onRetry: () => ref.invalidate(dashboardConcurrentDataProvider),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.m),
+          ],
           if (_isShowingFallback || _lastRefreshError != null) ...[
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
               child: _DashboardStatusBanner(
                 isOnline: isOnline,
                 isRefreshing: _isRefreshing,
-                cachedAt: snapshot?.savedAt,
-                hasCachedData: snapshot != null,
+                cachedAt: _dashboardSnapshot?.savedAt,
+                hasCachedData: _dashboardSnapshot != null,
                 error: _lastRefreshError,
                 onRetry: isOnline && !_isRefreshing
                     ? () => _refreshDashboard(forceRefresh: true)
@@ -473,7 +530,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             child: _CurrentRideCard(
               role: role,
               ride: snapshot?.currentRide,
-              isShowingFallback: _isShowingFallback,
+              isShowingFallback: showingSavedSnapshot,
+              isLoading: (dashboardAsync.isLoading || _isRefreshing) &&
+                  snapshot?.currentRide == null,
             ),
           ),
           const SizedBox(height: AppSpacing.m),
@@ -483,7 +542,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               role: role,
               user: user,
               snapshot: snapshot,
-              isShowingFallback: _isShowingFallback,
+              isShowingFallback: showingSavedSnapshot,
+              isLoading: (dashboardAsync.isLoading || _isRefreshing) &&
+                  snapshot == null,
               onAction: _handleDashboardAction,
             ),
           ),
@@ -492,7 +553,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
             child: snapshot == null
                 ? Text(
-                    _isRefreshing
+                    (_isRefreshing || dashboardAsync.isLoading)
                         ? 'Refreshing your dashboard data...'
                         : 'Connect to the internet to load your dashboard.',
                     style: TextStyle(color: palette.textSecondary),
@@ -752,15 +813,23 @@ class _CurrentRideCard extends StatelessWidget {
     required this.role,
     required this.ride,
     required this.isShowingFallback,
+    required this.isLoading,
   });
 
   final UserRole role;
   final RidesEntity? ride;
   final bool isShowingFallback;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+
+    if (ride == null && isLoading) {
+      return _LoadingCard(
+        title: role == UserRole.driver ? 'Current Ride' : 'Your Ride',
+      );
+    }
 
     if (ride == null) {
       return _InfoCard(
@@ -938,6 +1007,7 @@ class _UpdatesSection extends StatelessWidget {
     required this.user,
     required this.snapshot,
     required this.isShowingFallback,
+    required this.isLoading,
     required this.onAction,
   });
 
@@ -945,6 +1015,7 @@ class _UpdatesSection extends StatelessWidget {
   final AuthEntity? user;
   final DashboardEntity? snapshot;
   final bool isShowingFallback;
+  final bool isLoading;
   final void Function(DashboardActionKind actionKind, {String? rideId}) onAction;
 
   @override
@@ -963,6 +1034,16 @@ class _UpdatesSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
+        if (isLoading && snapshot == null)
+          _UpdateCard(
+            icon: Icons.hourglass_top_rounded,
+            iconBg: palette.border,
+            iconColor: palette.secondary,
+            title: 'Loading updates',
+            subtitle:
+                'Independent dashboard sources are refreshing in parallel.',
+          )
+        else
         if (snapshot != null)
           _UpdateCard(
             icon: role == UserRole.driver && snapshot!.currentRide != null
@@ -1135,6 +1216,53 @@ class _DashboardStatusBanner extends StatelessWidget {
   }
 }
 
+class _DashboardLoadNotice extends StatelessWidget {
+  const _DashboardLoadNotice({
+    required this.message,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: palette.secondary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.secondary.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.sync_outlined, color: palette.secondary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: palette.textPrimary,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          OutlinedButton(
+            onPressed: onRetry,
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 String _formatBannerSavedAt(DateTime value) {
   final localValue = value.toLocal();
   final day = localValue.day.toString().padLeft(2, '0');
@@ -1185,6 +1313,40 @@ class _InfoCard extends StatelessWidget {
             const SizedBox(height: 14),
             ElevatedButton(onPressed: onAction, child: Text(actionLabel!)),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LoadingCard extends StatelessWidget {
+  const _LoadingCard({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.card,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: palette.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Center(child: CircularProgressIndicator()),
         ],
       ),
     );

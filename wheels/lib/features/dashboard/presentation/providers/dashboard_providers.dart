@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/cache/memory_lru_cache.dart';
 import '../../../auth/domain/entities/auth_entity.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../payments/domain/entities/payment_record.dart';
@@ -8,7 +9,6 @@ import '../../../rides/domain/entities/rides_entity.dart';
 import '../../../rides/presentation/providers/rides_providers.dart';
 import '../../../wallet/domain/entities/wallet_summary.dart';
 import '../../../wallet/presentation/providers/wallet_providers.dart';
-import '../../../../shared/cache/memory_lru_cache.dart';
 import '../../data/datasources/dashboard_local_datasource.dart';
 import '../../data/models/dashboard_model.dart';
 
@@ -18,11 +18,12 @@ final dashboardMemoryCacheProvider =
     Provider<MemoryLruCache<String, DashboardModel>>((ref) {
       return MemoryLruCache<String, DashboardModel>(maxEntries: 4);
     });
-final dashboardLocalDataSourceProvider = Provider<DashboardLocalDataSource>((ref) {
-  return DashboardLocalDataSource(
-    memoryCache: ref.watch(dashboardMemoryCacheProvider),
-  );
-});
+final dashboardLocalDataSourceProvider =
+    Provider<DashboardLocalDataSource>((ref) {
+      return DashboardLocalDataSource(
+        memoryCache: ref.watch(dashboardMemoryCacheProvider),
+      );
+    });
 
 class DashboardLoadState {
   const DashboardLoadState({
@@ -60,9 +61,8 @@ class DashboardLoadState {
       paymentRecordError != null ||
       walletSummaryError != null;
 
-  RidesEntity? get primaryRide => role == UserRole.driver
-      ? currentDriverRide
-      : currentPassengerRide;
+  RidesEntity? get primaryRide =>
+      role == UserRole.driver ? currentDriverRide : currentPassengerRide;
 
   String get summary {
     final ride = primaryRide;
