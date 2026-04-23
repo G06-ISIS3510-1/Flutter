@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../auth/domain/entities/auth_entity.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../payments/domain/entities/payment_record.dart';
 import '../../../payments/presentation/providers/payment_provider.dart';
@@ -11,119 +12,148 @@ import '../../../wallet/presentation/providers/wallet_providers.dart';
 final dashboardSummaryProvider = Provider<String>((ref) => 'Dashboard overview');
 final dashboardCardCountProvider = StateProvider<int>((ref) => 3);
 
-class DashboardBootstrapState {
-  const DashboardBootstrapState({
-    this.driverRide,
-    this.walletSummary,
-    this.passengerRide,
+class DashboardLoadState {
+  const DashboardLoadState({
+    required this.role,
+    required this.user,
+    this.currentDriverRide,
+    this.currentPassengerRide,
     this.passengerApplication,
     this.paymentRecord,
+    this.walletSummary,
     this.driverRideError,
-    this.walletSummaryError,
     this.passengerRideError,
     this.passengerApplicationError,
     this.paymentRecordError,
+    this.walletSummaryError,
   });
 
-  final RidesEntity? driverRide;
-  final WalletSummary? walletSummary;
-  final RidesEntity? passengerRide;
+  final UserRole role;
+  final AuthEntity? user;
+  final RidesEntity? currentDriverRide;
+  final RidesEntity? currentPassengerRide;
   final RideApplicationEntity? passengerApplication;
   final PaymentRecord? paymentRecord;
+  final WalletSummary? walletSummary;
   final Object? driverRideError;
-  final Object? walletSummaryError;
   final Object? passengerRideError;
   final Object? passengerApplicationError;
   final Object? paymentRecordError;
+  final Object? walletSummaryError;
 
   bool get hasAnyError =>
       driverRideError != null ||
-      walletSummaryError != null ||
       passengerRideError != null ||
       passengerApplicationError != null ||
-      paymentRecordError != null;
+      paymentRecordError != null ||
+      walletSummaryError != null;
+
+  RidesEntity? get primaryRide => role == UserRole.driver
+      ? currentDriverRide
+      : currentPassengerRide;
+
+  String get summary {
+    final ride = primaryRide;
+    if (ride == null) {
+      return role == UserRole.driver
+          ? 'Dashboard overview. You do not have an active ride yet.'
+          : 'Dashboard overview. Search rides and apply to one to see live trip updates here.';
+    }
+
+    return role == UserRole.driver
+        ? 'Dashboard overview. Your ride from ${ride.origin} to ${ride.destination} is available in the live summary.'
+        : 'Dashboard overview. Your ride to ${ride.destination} is loaded in the live summary.';
+  }
 }
 
-class _BootstrapResult<T> {
-  const _BootstrapResult._({this.data, this.error});
-  const _BootstrapResult.data(T? data) : this._(data: data);
-  const _BootstrapResult.error(Object error) : this._(error: error);
+class _LoadResult<T> {
+  const _LoadResult._({this.data, this.error});
+
+  const _LoadResult.data(T? data) : this._(data: data);
+  const _LoadResult.error(Object error) : this._(error: error);
 
   final T? data;
   final Object? error;
 }
 
-Future<_BootstrapResult<T>> _guard<T>(Future<T> future) async {
+Future<_LoadResult<T>> _guardFuture<T>(Future<T> future) async {
   try {
-    return _BootstrapResult<T>.data(await future);
+    return _LoadResult<T>.data(await future);
   } catch (error) {
-    return _BootstrapResult<T>.error(error);
+    return _LoadResult<T>.error(error);
   }
 }
 
-final dashboardBootstrapProvider =
-    FutureProvider.autoDispose<DashboardBootstrapState>((ref) async {
-      final user = ref.watch(authUserProvider);
+final dashboardConcurrentDataProvider =
+    FutureProvider<DashboardLoadState>((ref) async {
       final role = ref.watch(currentUserRoleProvider);
-
-      if (user == null) {
-        return const DashboardBootstrapState();
-      }
+      final user = ref.watch(authUserProvider);
 
       if (role == UserRole.driver) {
         // Driver: currentDriverRide and walletSummary are independent — load concurrently
         final results = await Future.wait<Object?>([
-          _guard<RidesEntity?>(ref.watch(currentDriverRideProvider.future)),
-          _guard<WalletSummary?>(ref.watch(driverWalletSummaryProvider.future)),
+          _guardFuture<RidesEntity?>(
+            ref.watch(currentDriverRideProvider.future),
+          ),
+          _guardFuture<WalletSummary?>(
+            ref.watch(driverWalletSummaryProvider.future),
+          ),
         ]);
 
-        final rideResult = results[0] as _BootstrapResult<RidesEntity?>;
-        final walletResult = results[1] as _BootstrapResult<WalletSummary?>;
+        final rideResult = results[0] as _LoadResult<RidesEntity?>;
+        final walletResult = results[1] as _LoadResult<WalletSummary?>;
 
-        return DashboardBootstrapState(
-          driverRide: rideResult.data,
+        return DashboardLoadState(
+          role: role,
+          user: user,
+          currentDriverRide: rideResult.data,
           walletSummary: walletResult.data,
           driverRideError: rideResult.error,
           walletSummaryError: walletResult.error,
         );
       }
 
-      // Passenger: ride must resolve before application and payment record can be requested
-      final rideResult = await _guard<RidesEntity?>(
+      // Passenger: ride must resolve first — application and payment record depend on rideId
+      final passengerRideResult = await _guardFuture<RidesEntity?>(
         ref.watch(currentPassengerRideProvider.future),
       );
 
-      if (rideResult.error != null || rideResult.data == null) {
-        return DashboardBootstrapState(
-          passengerRide: rideResult.data,
-          passengerRideError: rideResult.error,
+      final passengerRide = passengerRideResult.data;
+      if (passengerRide == null || user == null) {
+        return DashboardLoadState(
+          role: role,
+          user: user,
+          currentPassengerRide: passengerRide,
+          passengerRideError: passengerRideResult.error,
         );
       }
 
-      final rideId = rideResult.data!.id;
       final paymentRequest = PaymentRecordRequest(
-        rideId: rideId,
+        rideId: passengerRide.id,
         passengerId: user.uid,
       );
 
-      // Application and payment record don't depend on each other — load concurrently
-      final results = await Future.wait<Object?>([
-        _guard<RideApplicationEntity?>(
-          ref.watch(passengerRideApplicationProvider(rideId).future),
+      // Application and payment record are independent of each other — load concurrently
+      final dependentResults = await Future.wait<Object?>([
+        _guardFuture<RideApplicationEntity?>(
+          ref.watch(passengerRideApplicationProvider(passengerRide.id).future),
         ),
-        _guard<PaymentRecord?>(
+        _guardFuture<PaymentRecord?>(
           ref.watch(paymentRecordStreamProvider(paymentRequest).future),
         ),
       ]);
 
       final applicationResult =
-          results[0] as _BootstrapResult<RideApplicationEntity?>;
-      final paymentResult = results[1] as _BootstrapResult<PaymentRecord?>;
+          dependentResults[0] as _LoadResult<RideApplicationEntity?>;
+      final paymentResult = dependentResults[1] as _LoadResult<PaymentRecord?>;
 
-      return DashboardBootstrapState(
-        passengerRide: rideResult.data,
+      return DashboardLoadState(
+        role: role,
+        user: user,
+        currentPassengerRide: passengerRide,
         passengerApplication: applicationResult.data,
         paymentRecord: paymentResult.data,
+        passengerRideError: passengerRideResult.error,
         passengerApplicationError: applicationResult.error,
         paymentRecordError: paymentResult.error,
       );
