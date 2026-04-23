@@ -145,12 +145,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ref.invalidate(driverWalletSummaryProvider);
       }
 
-      final ride = await ref
-          .read(currentDriverRideProvider.future)
-          .timeout(_liveFetchTimeout);
-      final walletSummary = await ref
-          .read(driverWalletSummaryProvider.future)
-          .timeout(_liveFetchTimeout);
+      final (ride, walletSummary) = await (
+        ref.read(currentDriverRideProvider.future).timeout(_liveFetchTimeout),
+        ref.read(driverWalletSummaryProvider.future).timeout(_liveFetchTimeout),
+      ).wait;
 
       return DashboardEntity(
         savedAt: DateTime.now().toUtc(),
@@ -197,12 +195,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ref.invalidate(paymentRecordStreamProvider(paymentRequest));
       }
 
-      passengerApplication = await ref
-          .read(passengerRideApplicationProvider(ride.id).future)
-          .timeout(_liveFetchTimeout);
-      paymentRecord = await ref
-          .read(paymentRecordStreamProvider(paymentRequest).future)
-          .timeout(_liveFetchTimeout);
+      (passengerApplication, paymentRecord) = await (
+        ref
+            .read(passengerRideApplicationProvider(ride.id).future)
+            .timeout(_liveFetchTimeout),
+        ref
+            .read(paymentRecordStreamProvider(paymentRequest).future)
+            .timeout(_liveFetchTimeout),
+      ).wait;
     }
 
     return DashboardEntity(
