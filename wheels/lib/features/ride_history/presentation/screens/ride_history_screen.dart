@@ -25,63 +25,22 @@ String _formatDeparture(DateTime dt) {
   return '${months[dt.month - 1]} ${dt.day}, ${dt.year} · $h:$m $ampm';
 }
 
-class RideHistoryScreen extends ConsumerStatefulWidget {
+class RideHistoryScreen extends ConsumerWidget {
   const RideHistoryScreen({super.key});
 
   @override
-  ConsumerState<RideHistoryScreen> createState() => _RideHistoryScreenState();
-}
-
-class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
-  List<RideHistoryEntity>? _cachedEntries;
-  bool _isUsingCachedFallback = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadCachedEntries();
-  }
-
-  Future<void> _loadCachedEntries() async {
-    final user = ref.read(authUserProvider);
-    if (user == null) return;
-    final localDs = ref.read(rideHistoryLocalDataSourceProvider);
-    final cached = await localDs.loadHistory(user.uid);
-    if (!mounted) return;
-    setState(() => _cachedEntries = cached);
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.palette;
     final role = ref.watch(currentUserRoleProvider);
     final isOnline = ref.watch(connectivityStatusProvider).valueOrNull ?? true;
     final historyAsync = ref.watch(rideHistoryProvider);
-
-    List<RideHistoryEntity>? entries;
-    bool isLoading = false;
-
-    if (!isOnline) {
-      entries = _cachedEntries;
-      _isUsingCachedFallback = (_cachedEntries?.isNotEmpty ?? false);
-    } else {
-      historyAsync.when(
-        data: (data) {
-          entries = data;
-          _isUsingCachedFallback = false;
-        },
-        loading: () {
-          entries = _cachedEntries;
-          isLoading = true;
-        },
-        error: (e, _) {
-          entries = _cachedEntries;
-          _isUsingCachedFallback = (_cachedEntries?.isNotEmpty ?? false);
-        },
-      );
-    }
-
-    final isEmpty = entries == null || entries!.isEmpty;
+    final historyState = historyAsync.valueOrNull;
+    final entries = historyState?.entries ?? const <RideHistoryEntity>[];
+    final isUsingCachedFallback =
+        historyState?.isFromCache == true && entries.isNotEmpty;
+    final hasRemoteError = historyState?.hasRemoteError ?? false;
+    final isLoading = historyAsync.isLoading && entries.isEmpty;
+    final isEmpty = entries.isEmpty;
 
     return AppScaffold(
       title: 'Ride History',
@@ -91,16 +50,28 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
         currentTab: AppBottomNavTab.history,
         role: role,
       ),
-      child: Column(
+      child: ListView(
         children: [
           const SizedBox(height: AppSpacing.s),
-          if (_isUsingCachedFallback) ...[
+          if (isUsingCachedFallback) ...[
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
               child: _StaleNotice(
                 isOnline: isOnline,
+                hasRemoteError: hasRemoteError,
                 onRetry: isOnline
-                    ? () => ref.invalidate(rideHistoryProvider)
+                    ? () => ref.read(rideHistoryProvider.notifier).refresh()
+                    : null,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.m),
+          ],
+          if (historyAsync.hasError && entries.isEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
+              child: _HistoryLoadErrorNotice(
+                onRetry: isOnline
+                    ? () => ref.read(rideHistoryProvider.notifier).refresh()
                     : null,
               ),
             ),
@@ -123,7 +94,7 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
               child: Column(
-                children: entries!
+                children: entries
                     .map(
                       (entry) => Padding(
                         padding: const EdgeInsets.only(bottom: AppSpacing.s),
@@ -141,9 +112,14 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
 }
 
 class _StaleNotice extends StatelessWidget {
-  const _StaleNotice({required this.isOnline, this.onRetry});
+  const _StaleNotice({
+    required this.isOnline,
+    required this.hasRemoteError,
+    this.onRetry,
+  });
 
   final bool isOnline;
+  final bool hasRemoteError;
   final VoidCallback? onRetry;
 
   @override
@@ -168,12 +144,56 @@ class _StaleNotice extends StatelessWidget {
           Expanded(
             child: Text(
               isOnline
-                  ? 'Showing locally cached history. Some rides may be missing.'
+                  ? hasRemoteError
+                      ? 'Live history could not be refreshed. Showing the latest cached history from this device.'
+                      : 'Showing locally cached history while fresh data is loading.'
                   : 'You are offline. Showing the last locally saved history.',
               style: TextStyle(
                 color: palette.textPrimary,
                 fontWeight: FontWeight.w600,
                 height: 1.35,
+              ),
+            ),
+          ),
+          if (onRetry != null) ...[
+            const SizedBox(width: 12),
+            OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryLoadErrorNotice extends StatelessWidget {
+  const _HistoryLoadErrorNotice({this.onRetry});
+
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: palette.secondary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.secondary.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline, color: palette.secondary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'We could not load your ride history right now, and there is no saved cache on this device yet.',
+              style: TextStyle(
+                color: palette.textPrimary,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),

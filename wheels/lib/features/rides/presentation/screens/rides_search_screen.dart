@@ -78,6 +78,10 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   }
 
   Future<void> _prefillOriginWithCurrentLocation() async {
+    if (_cachedSearchCache != null) {
+      return;
+    }
+
     if (_originController.text.trim().isNotEmpty) {
       return;
     }
@@ -101,7 +105,9 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   Future<void> _initializeSearchState() async {
     await _restoreLatestSearch();
     await _syncOfflineFallbackWithConnectivity();
-    await _prefillOriginWithCurrentLocation();
+    if (_cachedSearchCache == null) {
+      await _prefillOriginWithCurrentLocation();
+    }
   }
 
   Future<void> _syncOfflineFallbackWithConnectivity() async {
@@ -132,6 +138,10 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
       _sort = filters.sort;
       _originController.text = filters.originQuery;
       _destinationController.text = filters.destinationQuery;
+      _currentLocationSuggestion = filters.originQuery.trim().isEmpty
+          ? _currentLocationSuggestion
+          : filters.originQuery;
+      _originLocationError = null;
       _dateController.text = _formatDate(_selectedDate);
       _appliedOriginQuery = filters.originQuery.trim().toLowerCase();
       _appliedDestinationQuery = filters.destinationQuery.trim().toLowerCase();
@@ -480,6 +490,11 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
 
     setState(() {
       _isShowingOfflineFallback = true;
+      final restoredOrigin = _cachedSearchCache?.filters.originQuery.trim();
+      if (restoredOrigin != null && restoredOrigin.isNotEmpty) {
+        _originController.text = restoredOrigin;
+        _currentLocationSuggestion = restoredOrigin;
+      }
     });
 
     final hasCachedResults = _cachedSearchCache != null;
