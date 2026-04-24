@@ -17,6 +17,7 @@ class AppRoutes {
   static const trust = '/trust';
   static const reviews = '/reviews';
   static const adminAnalytics = '/admin-analytics';
+  static const rideHistory = '/ride-history';
 
   static String groupByRideId(String rideId) => '/group/$rideId';
   static String groupChatByTripId(String tripId) =>
