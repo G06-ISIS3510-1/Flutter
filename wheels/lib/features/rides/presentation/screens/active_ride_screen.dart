@@ -743,10 +743,6 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
       }
 
       for (final application in applications) {
-        if (application.usesCardPayment) {
-          continue;
-        }
-
         final reviewedStatus =
             review.paymentStatuses[application.id] ??
             RidePassengerPaymentStatus.pending;
@@ -767,7 +763,7 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
             .read(ridePaymentControllerProvider.notifier)
             .updatePassengerPaymentStatus(
               rideId: ride.id,
-              passengerId: application.id,
+              passengerId: application.passengerId,
               paymentMethod: paymentMethod,
               paymentStatus: finalPaymentStatus,
               isPaymentLocked: true,
@@ -778,7 +774,7 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
       ref.read(ridePaymentControllerProvider.notifier).clear();
       await updateStatus(
         'completed',
-        'Ride finished and manual payment statuses were saved.',
+        'Ride finished and passenger payment statuses were saved.',
       );
     }
 
@@ -1041,7 +1037,7 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(false),
+                        onPressed: () => Navigator.of(context).pop(),
                         child: const Text('Go Back'),
                       ),
                     ),

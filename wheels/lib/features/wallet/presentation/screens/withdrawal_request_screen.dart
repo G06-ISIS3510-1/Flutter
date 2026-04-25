@@ -33,6 +33,7 @@ class _WithdrawalRequestScreenState
   final _bankNameController = TextEditingController();
   final _accountNumberController = TextEditingController();
   final _accountHolderNameController = TextEditingController();
+
   Timer? _draftSaveDebounce;
   String _accountType = 'savings';
   bool _isDraftLoaded = false;
@@ -175,6 +176,7 @@ class _WithdrawalRequestScreenState
     _bankNameController.clear();
     _accountNumberController.clear();
     _accountHolderNameController.clear();
+
     if (mounted) {
       setState(() {
         _accountType = 'savings';
@@ -182,6 +184,7 @@ class _WithdrawalRequestScreenState
     } else {
       _accountType = 'savings';
     }
+
     _formKey.currentState?.reset();
   }
 
@@ -195,7 +198,7 @@ class _WithdrawalRequestScreenState
   Widget build(BuildContext context) {
     final currentUser = ref.watch(authUserProvider);
     final role = ref.watch(currentUserRoleProvider);
-    final walletSummary = ref.watch(driverWalletSummaryProvider).valueOrNull;
+    final walletSummaryAsync = ref.watch(driverWalletSummaryProvider);
     final requestState = ref.watch(withdrawalRequestControllerProvider);
     final isLoading = requestState.isLoading;
 
@@ -246,136 +249,165 @@ class _WithdrawalRequestScreenState
       title: 'Request Withdrawal',
       child: currentUser == null || role != UserRole.driver
           ? const _WithdrawalAccessCard()
-          : SingleChildScrollView(
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (_draftRestored && _draftSavedAt != null) ...[
-                      _DraftNoticeCard(
-                        savedAtLabel: _formatDraftSavedAt(_draftSavedAt!),
-                        onSaveNow: isLoading
-                            ? null
-                            : () => _persistDraft(showFeedback: true),
-                        onDiscard: isLoading
-                            ? null
-                            : () async {
-                                _resetForm();
-                                await _clearDraft(showFeedback: true);
-                              },
-                      ),
-                      const SizedBox(height: AppSpacing.l),
-                    ],
-                    _WithdrawalInfoCard(walletSummary: walletSummary),
-                    const SizedBox(height: AppSpacing.l),
-                    _FormTextField(
-                      controller: _amountController,
-                      label: 'Amount',
-                      hintText: '10000',
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      validator: (value) {
-                        final amount = _parseAmount(value);
-                        if (amount == null) {
-                          return 'Enter a valid amount.';
-                        }
-                        if (amount < walletMinimumWithdrawalAmountCop) {
-                          return 'Minimum withdrawal is COP 10.000.';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: AppSpacing.m),
-                    _FormTextField(
-                      controller: _bankNameController,
-                      label: 'Bank name',
-                      hintText: 'Bancolombia',
-                      textCapitalization: TextCapitalization.words,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Enter the bank name.';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: AppSpacing.m),
-                    DropdownButtonFormField<String>(
-                      initialValue: _accountType,
-                      decoration: _inputDecoration('Account type'),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'savings',
-                          child: Text('Savings'),
+          : walletSummaryAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, _) => _WithdrawalLoadErrorCard(
+                message: error.toString().replaceFirst('Exception: ', ''),
+                onRetry: () => ref.invalidate(driverWalletSummaryProvider),
+              ),
+              data: (walletSummary) {
+                if (walletSummary == null) {
+                  return const _WithdrawalAccessCard();
+                }
+
+                return SingleChildScrollView(
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_draftRestored && _draftSavedAt != null) ...[
+                          _DraftNoticeCard(
+                            savedAtLabel: _formatDraftSavedAt(_draftSavedAt!),
+                            onSaveNow: isLoading
+                                ? null
+                                : () => _persistDraft(showFeedback: true),
+                            onDiscard: isLoading
+                                ? null
+                                : () async {
+                                    _resetForm();
+                                    await _clearDraft(showFeedback: true);
+                                  },
+                          ),
+                          const SizedBox(height: AppSpacing.l),
+                        ],
+                        _WithdrawalInfoCard(walletSummary: walletSummary),
+                        const SizedBox(height: AppSpacing.l),
+                        _FormTextField(
+                          controller: _amountController,
+                          label: 'Amount',
+                          hintText: '10000',
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          validator: (value) {
+                            final amount = _parseAmount(value);
+                            if (amount == null) {
+                              return 'Enter a valid amount.';
+                            }
+                            if (amount < walletMinimumWithdrawalAmountCop) {
+                              return 'Minimum withdrawal is COP 10.000.';
+                            }
+                            if (amount > walletSummary.availableBalance) {
+                              return 'Amount exceeds your available balance.';
+                            }
+                            return null;
+                          },
                         ),
-                        DropdownMenuItem(
-                          value: 'checking',
-                          child: Text('Checking'),
+                        const SizedBox(height: AppSpacing.m),
+                        _FormTextField(
+                          controller: _bankNameController,
+                          label: 'Bank name',
+                          hintText: 'Bancolombia',
+                          textCapitalization: TextCapitalization.words,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Enter the bank name.';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.m),
+                        DropdownButtonFormField<String>(
+                          initialValue: _accountType,
+                          decoration: _inputDecoration('Account type'),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'savings',
+                              child: Text('Savings'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'checking',
+                              child: Text('Checking'),
+                            ),
+                          ],
+                          onChanged: isLoading
+                              ? null
+                              : (value) {
+                                  if (value != null) {
+                                    setState(() {
+                                      _accountType = value;
+                                    });
+                                    _scheduleDraftSave();
+                                  }
+                                },
+                        ),
+                        const SizedBox(height: AppSpacing.m),
+                        _FormTextField(
+                          controller: _accountNumberController,
+                          label: 'Account number',
+                          hintText: '0123456789',
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Enter the account number.';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.m),
+                        _FormTextField(
+                          controller: _accountHolderNameController,
+                          label: 'Account holder name',
+                          hintText: 'Full legal name',
+                          textCapitalization: TextCapitalization.words,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Enter the account holder name.';
+                            }
+                            return null;
+                          },
+                        ),
+                        if (isLoading) ...[
+                          const SizedBox(height: AppSpacing.m),
+                          const LinearProgressIndicator(),
+                        ],
+                        const SizedBox(height: AppSpacing.l),
+                        AppButton(
+                          label: isLoading
+                              ? 'Submitting withdrawal...'
+                              : 'Submit withdrawal request',
+                          onPressed:
+                              isLoading || !walletSummary.canRequestWithdrawal
+                              ? null
+                              : () => _submit(
+                                  userId: currentUser.uid,
+                                  walletSummary: walletSummary,
+                                ),
+                        ),
+                        const SizedBox(height: AppSpacing.s),
+                        AppButton(
+                          label: 'Back',
+                          onPressed: isLoading ? null : () => context.pop(),
+                          isPrimary: false,
                         ),
                       ],
-                      onChanged: isLoading
-                          ? null
-                          : (value) {
-                              if (value != null) {
-                                setState(() => _accountType = value);
-                                _scheduleDraftSave();
-                              }
-                            },
                     ),
-                    const SizedBox(height: AppSpacing.m),
-                    _FormTextField(
-                      controller: _accountNumberController,
-                      label: 'Account number',
-                      hintText: '0123456789',
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Enter the account number.';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: AppSpacing.m),
-                    _FormTextField(
-                      controller: _accountHolderNameController,
-                      label: 'Account holder name',
-                      hintText: 'Full legal name',
-                      textCapitalization: TextCapitalization.words,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Enter the account holder name.';
-                        }
-                        return null;
-                      },
-                    ),
-                    if (isLoading) ...[
-                      const SizedBox(height: AppSpacing.m),
-                      const LinearProgressIndicator(),
-                    ],
-                    const SizedBox(height: AppSpacing.l),
-                    AppButton(
-                      label: isLoading
-                          ? 'Submitting withdrawal...'
-                          : 'Submit withdrawal request',
-                      onPressed: isLoading
-                          ? null
-                          : () => _submit(currentUser.uid),
-                    ),
-                    const SizedBox(height: AppSpacing.s),
-                    AppButton(
-                      label: 'Back',
-                      onPressed: isLoading ? null : () => context.pop(),
-                      isPrimary: false,
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             ),
     );
   }
 
-  Future<void> _submit(String userId) async {
+  Future<void> _submit({
+    required String userId,
+    required WalletSummary walletSummary,
+  }) async {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
@@ -401,14 +433,27 @@ class _WithdrawalRequestScreenState
       return;
     }
 
+    if (!mounted) {
+      return;
+    }
+
     final amount = _parseAmount(_amountController.text);
     if (amount == null) {
       return;
     }
 
-    await ref
-        .read(withdrawalRequestControllerProvider.notifier)
-        .submit(
+    if (amount > walletSummary.availableBalance) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Amount exceeds your available balance.'),
+          ),
+        );
+      return;
+    }
+
+    await ref.read(withdrawalRequestControllerProvider.notifier).submit(
           userId: userId,
           amount: amount,
           bankName: _bankNameController.text,
@@ -642,6 +687,58 @@ class _WithdrawalAccessCard extends StatelessWidget {
                 context,
               ).textTheme.bodyMedium?.copyWith(color: palette.textSecondary),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WithdrawalLoadErrorCard extends StatelessWidget {
+  const _WithdrawalLoadErrorCard({
+    required this.message,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    return Center(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.l),
+        decoration: BoxDecoration(
+          color: palette.card,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: palette.border),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline_rounded, color: palette.error),
+            const SizedBox(height: AppSpacing.m),
+            Text(
+              'We could not load the wallet balance.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: palette.primary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.s),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: palette.textSecondary),
+            ),
+            const SizedBox(height: AppSpacing.m),
+            AppButton(label: 'Retry', onPressed: onRetry),
           ],
         ),
       ),
