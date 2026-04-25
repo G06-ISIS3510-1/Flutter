@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../shared/cache/memory_lru_cache.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../data/datasources/create_ride_draft_local_datasource.dart';
 import '../../data/datasources/ride_details_local_datasource.dart';
 import '../../data/datasources/rides_search_local_datasource.dart';
 import '../../data/models/local_ride_details_cache_model.dart';
@@ -32,6 +33,11 @@ final rideDetailsLocalDataSourceProvider = Provider<RideDetailsLocalDataSource>(
 final rideDetailsMemoryCacheProvider =
     Provider<MemoryLruCache<String, LocalRideDetailsCacheModel>>((ref) {
       return MemoryLruCache<String, LocalRideDetailsCacheModel>(maxEntries: 8);
+    });
+
+final createRideDraftLocalDataSourceProvider =
+    Provider<CreateRideDraftLocalDataSource>((ref) {
+      return CreateRideDraftLocalDataSource();
     });
 
 final ridesRepositoryProvider = Provider<RidesRepository>((ref) {
