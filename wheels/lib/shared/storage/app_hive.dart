@@ -3,6 +3,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 class AppHiveBoxes {
   static const String rideDetailsCache = 'ride_details_cache_box_v1';
   static const String dashboardCache = 'dashboard_cache_box_v1';
+  static const String withdrawalRequestDrafts =
+      'withdrawal_request_drafts_box_v1';
   static const String activeRidePendingActions =
       'active_ride_pending_actions_box_v1';
   static const String walletSummaryCache = 'wallet_summary_cache_box_v1';
@@ -19,6 +21,7 @@ Future<void> initializeAppHive() async {
   await Hive.initFlutter();
   await Hive.openBox<String>(AppHiveBoxes.rideDetailsCache);
   await Hive.openBox<String>(AppHiveBoxes.dashboardCache);
+  await Hive.openBox<String>(AppHiveBoxes.withdrawalRequestDrafts);
   await Hive.openBox<String>(AppHiveBoxes.activeRidePendingActions);
   await Hive.openBox<String>(AppHiveBoxes.walletSummaryCache);
   await Hive.openBox<String>(AppHiveBoxes.createRideDrafts);
