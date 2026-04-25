@@ -40,6 +40,7 @@ void main() {
   });
 
   setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
     memoryCache = MemoryLruCache<String, LocalRideDetailsCacheModel>(
       maxEntries: 4,
     );

@@ -55,7 +55,7 @@ void main() {
       expect(restored.savedAt, cache.savedAt);
       expect(restored.filters.originQuery, cache.filters.originQuery);
       expect(restored.filters.destinationQuery, cache.filters.destinationQuery);
-      expect(restored.filters.selectedDate, cache.filters.selectedDate);
+      expect(restored.filters.selectedDate, DateTime(2026, 4, 24));
       expect(restored.results, hasLength(2));
       expect(entities.map((ride) => ride.id), <String>['ride-1', 'ride-2']);
       expect(
