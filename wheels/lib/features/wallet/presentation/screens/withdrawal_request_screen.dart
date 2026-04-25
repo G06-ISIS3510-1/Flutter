@@ -288,7 +288,7 @@ class _WithdrawalRequestScreenState
                           label: 'Amount',
                           hintText: '10000',
                           keyboardType: TextInputType.number,
-                          inputFormatters: const [
+                          inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
                           ],
                           validator: (value) {
@@ -349,7 +349,7 @@ class _WithdrawalRequestScreenState
                           label: 'Account number',
                           hintText: '0123456789',
                           keyboardType: TextInputType.number,
-                          inputFormatters: const [
+                          inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
                           ],
                           validator: (value) {
