@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'app/wheels_app.dart';
 import 'firebase_options.dart';
+import 'shared/storage/app_hive.dart';
 
 Future<void> main() async {
   // Firebase and platform channels must be ready before any async setup runs.

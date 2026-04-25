@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../router/app_routes.dart';
+import '../../../../shared/providers/connectivity_provider.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/utils/app_formatter.dart';
 import '../../../../shared/widgets/app_button.dart';
@@ -30,14 +31,41 @@ class PaymentScreen extends ConsumerStatefulWidget {
   ConsumerState<PaymentScreen> createState() => _PaymentScreenState();
 }
 
-class _PaymentScreenState extends ConsumerState<PaymentScreen> {
+class _PaymentScreenState extends ConsumerState<PaymentScreen>
+    with WidgetsBindingObserver {
   static const _quantity = 1;
 
   String? _observedRideId;
   String? _observedPassengerId;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      return;
+    }
+
+    unawaited(
+      ref.read(paymentProvider.notifier).refreshStatus(allowMissingRecord: true),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final connectivityAsync = ref.watch(connectivityStatusProvider);
+    final isOnline = connectivityAsync.valueOrNull ?? true;
+
     ref.listen<AsyncValue<void>>(ridePaymentControllerProvider, (
       previous,
       next,
@@ -56,6 +84,18 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             );
         },
       );
+    });
+
+    ref.listen<AsyncValue<bool>>(connectivityStatusProvider, (previous, next) {
+      final wasOnline = previous?.valueOrNull ?? true;
+      final isNowOnline = next.valueOrNull ?? true;
+      if (!wasOnline && isNowOnline) {
+        unawaited(
+          ref
+              .read(paymentProvider.notifier)
+              .refreshStatus(allowMissingRecord: true),
+        );
+      }
     });
 
     ref.listen<PaymentState>(paymentProvider, (previous, next) {
@@ -90,6 +130,19 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final resolvedRideId = widget.rideId ?? fallbackRide?.id;
     final currentUser = ref.watch(authUserProvider);
     final resolvedPassengerId = currentUser?.uid;
+    final bootstrapAsync = resolvedRideId == null
+        ? const AsyncValue<RidePaymentBootstrapState>.data(
+            RidePaymentBootstrapState(),
+          )
+        : ref.watch(
+            ridePaymentBootstrapProvider(
+              RidePaymentBootstrapRequest(
+                rideId: resolvedRideId,
+                passengerId: resolvedPassengerId,
+              ),
+            ),
+          );
+    final bootstrapData = bootstrapAsync.valueOrNull;
 
     if (resolvedRideId != null &&
         resolvedPassengerId != null &&
@@ -122,14 +175,26 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     }
 
     final rideAsync = ref.watch(rideProvider(resolvedRideId));
+    final effectiveRide = rideAsync.valueOrNull ?? bootstrapData?.ride;
+    final effectivePassengerApplication = ref
+            .watch(passengerRideApplicationProvider(resolvedRideId))
+            .valueOrNull ??
+        bootstrapData?.passengerApplication;
 
     return AppScaffold(
       title: 'Ride payment',
-      child: rideAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _MissingRideCard(message: error.toString()),
-        data: (ride) {
-          if (ride == null) {
+      child: Builder(
+        builder: (context) {
+          if (effectiveRide == null) {
+            if (rideAsync.isLoading || bootstrapAsync.isLoading) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final error = rideAsync.error ?? bootstrapData?.rideError;
+            if (error != null) {
+              return _MissingRideCard(message: error.toString());
+            }
+
             return const _MissingRideCard(
               message:
                   'This ride is no longer available. Please go back to the dashboard and select another trip.',
@@ -137,13 +202,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           }
 
           return _PaymentContent(
-            ride: ride,
+            ride: effectiveRide,
             quantity: _quantity,
             paymentState: ref.watch(paymentProvider),
-            passengerApplication: ref
-                .watch(passengerRideApplicationProvider(ride.id))
-                .valueOrNull,
+            passengerApplication: effectivePassengerApplication,
             currentUser: currentUser,
+            isOnline: isOnline,
+            showConcurrentLoadNotice: bootstrapData?.hasAnyError ?? false,
             onGoDashboard: () => context.go(AppRoutes.dashboard),
             onStartCheckout: () {
               final user = ref.read(authUserProvider);
@@ -154,9 +219,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               ref
                   .read(paymentProvider.notifier)
                   .startCheckout(
-                    rideId: ride.id,
-                    title: _checkoutTitle(ride),
-                    unitPrice: ride.pricePerSeat.toDouble(),
+                    rideId: effectiveRide.id,
+                    title: _checkoutTitle(effectiveRide),
+                    unitPrice: effectiveRide.pricePerSeat.toDouble(),
                     quantity: _quantity,
                     payerEmail: user.email,
                     userId: user.uid,
@@ -181,6 +246,8 @@ class _PaymentContent extends ConsumerWidget {
     required this.paymentState,
     required this.passengerApplication,
     required this.currentUser,
+    required this.isOnline,
+    required this.showConcurrentLoadNotice,
     required this.onGoDashboard,
     required this.onStartCheckout,
   });
@@ -190,6 +257,8 @@ class _PaymentContent extends ConsumerWidget {
   final PaymentState paymentState;
   final RideApplicationEntity? passengerApplication;
   final AuthEntity? currentUser;
+  final bool isOnline;
+  final bool showConcurrentLoadNotice;
   final VoidCallback onGoDashboard;
   final VoidCallback onStartCheckout;
 
@@ -300,6 +369,7 @@ class _PaymentContent extends ConsumerWidget {
     final userId = currentUser?.uid;
     final amount = ride.pricePerSeat.toDouble();
     final canStartCheckout =
+        isOnline &&
         selectedPaymentMethod == RidePassengerPaymentMethod.card &&
         !isLoading &&
         !isApproved &&
@@ -310,6 +380,7 @@ class _PaymentContent extends ConsumerWidget {
         userId != null &&
         payerEmail.trim().isNotEmpty;
     final canRetryCheckout =
+        isOnline &&
         (isRejected || isExpired || isError) &&
         selectedPaymentMethod == RidePassengerPaymentMethod.card &&
         !paymentMethodLocked &&
@@ -385,6 +456,14 @@ class _PaymentContent extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (!isOnline) ...[
+            const _OfflinePaymentNotice(),
+            const SizedBox(height: AppSpacing.l),
+          ],
+          if (showConcurrentLoadNotice) ...[
+            const _ConcurrentLoadNotice(),
+            const SizedBox(height: AppSpacing.l),
+          ],
           if (ride.acceptsCardPayments) ...[
             _PaymentMethodSelectorCard(
               selectedMethod: selectedPaymentMethod,
@@ -438,6 +517,13 @@ class _PaymentContent extends ConsumerWidget {
               AppButton(
                 label: isExpired ? 'Start new checkout' : 'Try payment again',
                 onPressed: onStartCheckout,
+              ),
+              const SizedBox(height: AppSpacing.s),
+            ] else if (!isOnline &&
+                selectedPaymentMethod == RidePassengerPaymentMethod.card) ...[
+              AppButton(
+                label: 'Reconnect to start payment',
+                onPressed: null,
               ),
               const SizedBox(height: AppSpacing.s),
             ],
@@ -495,6 +581,72 @@ class _MissingRideCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ConcurrentLoadNotice extends StatelessWidget {
+  const _ConcurrentLoadNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFBFDBFE)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.sync_outlined, color: AppColors.primary),
+          const SizedBox(width: AppSpacing.s),
+          Expanded(
+            child: Text(
+              'Ride, passenger application, and payment-related status were loaded concurrently. If one secondary source fails, the payment flow still keeps the screen in a safe state.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OfflinePaymentNotice extends StatelessWidget {
+  const _OfflinePaymentNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4E5),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFFFD9A6)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.wifi_off_outlined, color: AppColors.warning),
+          const SizedBox(width: AppSpacing.s),
+          Expanded(
+            child: Text(
+              'You are offline. New payments stay blocked until connectivity returns. If you already went through checkout, this screen will keep reconciling the final result with the backend when possible.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

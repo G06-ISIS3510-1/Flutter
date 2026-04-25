@@ -8,7 +8,7 @@ import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme_palette.dart';
 
-enum AppBottomNavTab { home, middle, alerts, profile }
+enum AppBottomNavTab { home, middle, alerts, profile, history }
 
 class AppBottomNav extends StatelessWidget {
   const AppBottomNav({required this.currentTab, required this.role, super.key});
@@ -21,6 +21,7 @@ class AppBottomNav extends StatelessWidget {
     AppBottomNavTab.middle => 1,
     AppBottomNavTab.alerts => 2,
     AppBottomNavTab.profile => 3,
+    AppBottomNavTab.history => 4,
   };
 
   @override
@@ -88,6 +89,13 @@ class AppBottomNav extends StatelessWidget {
                       selectedIcon: _ActiveNavIcon(icon: Icons.person_outline),
                       label: 'Profile',
                     ),
+                    const NavigationDestination(
+                      icon: Icon(Icons.history_outlined),
+                      selectedIcon: _ActiveNavIcon(
+                        icon: Icons.history_outlined,
+                      ),
+                      label: 'History',
+                    ),
                   ],
                 ),
               ),
@@ -113,6 +121,9 @@ class AppBottomNav extends StatelessWidget {
         return;
       case 3:
         context.go(AppRoutes.profile);
+        return;
+      case 4:
+        context.go(AppRoutes.rideHistory);
         return;
       default:
         return;

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
+import '../../../../shared/providers/connectivity_provider.dart';
 import '../../../../shared/services/current_location_service.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/utils/app_formatter.dart';
@@ -14,6 +17,7 @@ import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
 import '../../../../theme/app_theme_palette.dart';
+import '../../data/models/local_create_ride_draft_model.dart';
 import '../../domain/entities/rides_entity.dart';
 import '../providers/rides_providers.dart';
 
@@ -34,6 +38,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   final _timeController = TextEditingController();
   final _durationController = TextEditingController(text: '30');
   final _priceController = TextEditingController();
+  Timer? _draftSaveDebounce;
 
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
@@ -42,8 +47,15 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   String _destination = '';
   RidePaymentOption _paymentOption = RidePaymentOption.card;
   bool _isResolvingOriginFromGps = false;
+  bool _isDraftLoaded = false;
+  bool _isRestoringDraft = false;
+  bool _draftRestored = false;
+  bool _hasPendingSyncDraft = false;
+  bool _isPendingSyncAttemptInFlight = false;
   String? _originLocationError;
   String? _currentLocationSuggestion;
+  String? _draftSyncReason;
+  DateTime? _draftSavedAt;
 
   static const List<String> _campusLocations = <String>[
     'Campus Uniandes - Main Gate',
@@ -65,6 +77,12 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
 
   @override
   void dispose() {
+    _draftSaveDebounce?.cancel();
+    _notesController.removeListener(_onDraftFieldChanged);
+    _dateController.removeListener(_onDraftFieldChanged);
+    _timeController.removeListener(_onDraftFieldChanged);
+    _durationController.removeListener(_onDraftFieldChanged);
+    _priceController.removeListener(_onDraftFieldChanged);
     _notesController.dispose();
     _dateController.dispose();
     _timeController.dispose();
@@ -95,6 +113,268 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     }
   }
 
+  String get _draftCacheId {
+    final currentUser = ref.read(authUserProvider);
+    return currentUser?.uid ?? 'anonymous_create_ride';
+  }
+
+  void _onDraftFieldChanged() {
+    if (_isRestoringDraft) {
+      return;
+    }
+
+    _scheduleDraftAutosave();
+  }
+
+  void _scheduleDraftAutosave() {
+    _draftSaveDebounce?.cancel();
+    _draftSaveDebounce = Timer(const Duration(milliseconds: 350), () {
+      unawaited(_persistDraftSnapshot());
+    });
+  }
+
+  Future<void> _restoreDraftIfAvailable() async {
+    final draft = await ref
+        .read(createRideDraftLocalDataSourceProvider)
+        .loadDraft(cacheId: _draftCacheId);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (draft == null || !draft.hasMeaningfulData) {
+      setState(() {
+        _isDraftLoaded = true;
+      });
+      return;
+    }
+
+    _isRestoringDraft = true;
+    _originFieldKey.currentState?.didChange(draft.origin);
+
+    final restoredDate = _parseDraftDate(draft.dateText);
+    final restoredTime = _parseDraftTime(draft.timeText);
+
+    setState(() {
+      _origin = draft.origin;
+      _destination = draft.destination;
+      _notesController.text = draft.notes;
+      _dateController.text = draft.dateText;
+      _timeController.text = draft.timeText;
+      _durationController.text = draft.durationText;
+      _priceController.text = draft.priceText;
+      _selectedDate = restoredDate;
+      _selectedTime = restoredTime;
+      _availableSeats = draft.availableSeats.clamp(1, 4);
+      _paymentOption = draft.paymentOption;
+      _currentLocationSuggestion = draft.currentLocationSuggestion;
+      _hasPendingSyncDraft = draft.pendingSync;
+      _draftSyncReason = draft.pendingSyncReason;
+      _draftSavedAt = draft.savedAt.toLocal();
+      _draftRestored = true;
+      _isDraftLoaded = true;
+    });
+
+    _isRestoringDraft = false;
+
+    if (_hasPendingSyncDraft) {
+      final isOnline = await ref.read(connectivityServiceProvider).hasConnection();
+      if (!mounted || !isOnline) {
+        return;
+      }
+      await _attemptPendingDraftSync(triggeredAutomatically: true);
+    }
+  }
+
+  LocalCreateRideDraftModel _buildDraftSnapshot({
+    bool? pendingSync,
+    String? pendingSyncReason,
+  }) {
+    final effectivePendingSync = pendingSync ?? _hasPendingSyncDraft;
+    final effectiveReason =
+        pendingSyncReason ?? (effectivePendingSync ? _draftSyncReason : null);
+
+    return LocalCreateRideDraftModel.create(
+      origin: _origin.trim(),
+      destination: _destination.trim(),
+      notes: _notesController.text.trim(),
+      dateText: _dateController.text.trim(),
+      timeText: _timeController.text.trim(),
+      durationText: _durationController.text.trim(),
+      priceText: _priceController.text.trim(),
+      availableSeats: _availableSeats,
+      paymentOption: _paymentOption,
+      currentLocationSuggestion: _currentLocationSuggestion,
+      pendingSync: effectivePendingSync,
+      pendingSyncReason: effectiveReason,
+      pendingSyncRequestedAt: effectivePendingSync ? DateTime.now() : null,
+    );
+  }
+
+  Future<void> _persistDraftSnapshot({
+    bool? pendingSync,
+    String? pendingSyncReason,
+    bool showFeedback = false,
+  }) async {
+    final draft = _buildDraftSnapshot(
+      pendingSync: pendingSync,
+      pendingSyncReason: pendingSyncReason,
+    );
+
+    final localDataSource = ref.read(createRideDraftLocalDataSourceProvider);
+    if (!draft.hasMeaningfulData) {
+      await localDataSource.clearDraft(cacheId: _draftCacheId);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _draftRestored = false;
+        _hasPendingSyncDraft = false;
+        _draftSyncReason = null;
+        _draftSavedAt = null;
+      });
+      return;
+    }
+
+    await localDataSource.saveDraft(cacheId: _draftCacheId, draft: draft);
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _draftSavedAt = draft.savedAt.toLocal();
+      _hasPendingSyncDraft = draft.pendingSync;
+      _draftSyncReason = draft.pendingSyncReason;
+    });
+
+    if (showFeedback) {
+      final message = draft.pendingSync
+          ? 'Ride saved locally and queued for sync when internet returns.'
+          : 'Ride draft saved on this device.';
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
+  Future<void> _clearDraft({
+    bool resetForm = false,
+    bool showFeedback = false,
+  }) async {
+    await ref
+        .read(createRideDraftLocalDataSourceProvider)
+        .clearDraft(cacheId: _draftCacheId);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _draftRestored = false;
+      _hasPendingSyncDraft = false;
+      _draftSyncReason = null;
+      _draftSavedAt = null;
+    });
+
+    if (resetForm) {
+      _resetFormToInitialState();
+    }
+
+    if (showFeedback) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Saved ride draft discarded.')),
+        );
+    }
+  }
+
+  void _resetFormToInitialState() {
+    _isRestoringDraft = true;
+    _originFieldKey.currentState?.didChange('');
+    setState(() {
+      _origin = '';
+      _destination = '';
+      _notesController.clear();
+      _dateController.clear();
+      _timeController.clear();
+      _durationController.text = '30';
+      _priceController.clear();
+      _selectedDate = null;
+      _selectedTime = null;
+      _availableSeats = 3;
+      _paymentOption = RidePaymentOption.card;
+      _draftRestored = false;
+      _hasPendingSyncDraft = false;
+      _draftSyncReason = null;
+      _draftSavedAt = null;
+    });
+    _isRestoringDraft = false;
+    unawaited(_prefillOriginWithCurrentLocation());
+  }
+
+  DateTime? _parseDraftDate(String value) {
+    final parts = value.split('/');
+    if (parts.length != 3) {
+      return null;
+    }
+
+    final day = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    final year = int.tryParse(parts[2]);
+    if (day == null || month == null || year == null) {
+      return null;
+    }
+
+    return DateTime(year, month, day);
+  }
+
+  TimeOfDay? _parseDraftTime(String value) {
+    final parts = value.split(':');
+    if (parts.length != 2) {
+      return null;
+    }
+
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) {
+      return null;
+    }
+
+    return TimeOfDay(hour: hour, minute: minute);
+  }
+
+  bool _looksLikeConnectivityFailure(Object error) {
+    final normalized = error.toString().toLowerCase();
+    return normalized.contains('network') ||
+        normalized.contains('offline') ||
+        normalized.contains('connection') ||
+        normalized.contains('unavailable') ||
+        normalized.contains('socket');
+  }
+
+  Future<void> _attemptPendingDraftSync({
+    required bool triggeredAutomatically,
+  }) async {
+    if (_isPendingSyncAttemptInFlight || !_hasPendingSyncDraft) {
+      return;
+    }
+
+    setState(() {
+      _isPendingSyncAttemptInFlight = true;
+    });
+
+    try {
+      await _publishRide(triggeredAutomatically: triggeredAutomatically);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPendingSyncAttemptInFlight = false;
+        });
+      }
+    }
+  }
+
   Future<void> _useCurrentLocationAsOrigin() async {
     setState(() {
       _isResolvingOriginFromGps = true;
@@ -114,6 +394,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
         _origin = address;
         _currentLocationSuggestion = address;
       });
+      _scheduleDraftAutosave();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Pickup location updated from GPS.')),
@@ -179,10 +460,11 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
       return;
     }
 
-    setState(() {
-      _selectedDate = pickedDate;
-      _dateController.text = _formatDate(pickedDate);
-    });
+      setState(() {
+        _selectedDate = pickedDate;
+        _dateController.text = _formatDate(pickedDate);
+      });
+      _scheduleDraftAutosave();
   }
 
   Future<void> _pickTime() async {
@@ -198,6 +480,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
       _selectedTime = pickedTime;
       _timeController.text = _formatTime(pickedTime);
     });
+    _scheduleDraftAutosave();
   }
 
   String _formatDate(DateTime value) {
@@ -210,6 +493,14 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     final hour = value.hour.toString().padLeft(2, '0');
     final minute = value.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+
+  String _formatDraftSavedAt(DateTime value) {
+    final day = value.day.toString().padLeft(2, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '$day/$month/${value.year} $hour:$minute';
   }
 
   int get _durationMinutes {
@@ -232,7 +523,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   double get _estimatedNetIfAllSeatsPayByCard =>
       _availableSeats * _estimatedNetPerCardSeat;
 
-  Future<void> _publishRide() async {
+  Future<void> _publishRide({bool triggeredAutomatically = false}) async {
     final isValid = _formKey.currentState?.validate() ?? false;
     if (!isValid) {
       return;
@@ -273,37 +564,73 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
       return;
     }
 
-    final rideId = await ref
-        .read(createRideControllerProvider.notifier)
-        .createRide(
-          driverId: currentUser.uid,
-          driverName: currentUser.fullName,
-          driverEmail: currentUser.email,
-          origin: _origin.trim(),
-          destination: _destination.trim(),
-          departureAt: departureAt,
-          estimatedDurationMinutes: _durationMinutes,
-          totalSeats: _availableSeats,
-          pricePerSeat: _pricePerSeat,
-          paymentOption: _paymentOption,
-          notes: _notesController.text.trim(),
-        );
-
-    if (!mounted || rideId == null) {
+    final isOnline = await ref.read(connectivityServiceProvider).hasConnection();
+    if (!isOnline) {
+      await _persistDraftSnapshot(
+        pendingSync: true,
+        pendingSyncReason: 'offline_publish_attempt',
+        showFeedback: !triggeredAutomatically,
+      );
       return;
     }
 
-    ref.read(createRideControllerProvider.notifier).clear();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Ride published successfully.')),
-    );
-    context.go(AppRoutes.activeRideById(rideId));
+    try {
+      final rideId = await ref
+          .read(createRideControllerProvider.notifier)
+          .createRide(
+            driverId: currentUser.uid,
+            driverName: currentUser.fullName,
+            driverEmail: currentUser.email,
+            origin: _origin.trim(),
+            destination: _destination.trim(),
+            departureAt: departureAt,
+            estimatedDurationMinutes: _durationMinutes,
+            totalSeats: _availableSeats,
+            pricePerSeat: _pricePerSeat,
+            paymentOption: _paymentOption,
+            notes: _notesController.text.trim(),
+          );
+
+      if (!mounted || rideId == null) {
+        return;
+      }
+
+      await _clearDraft();
+      if (!mounted) {
+        return;
+      }
+      ref.read(createRideControllerProvider.notifier).clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            triggeredAutomatically
+                ? 'Saved ride draft published automatically.'
+                : 'Ride published successfully.',
+          ),
+        ),
+      );
+      context.go(AppRoutes.activeRideById(rideId));
+    } catch (error) {
+      if (_looksLikeConnectivityFailure(error)) {
+        await _persistDraftSnapshot(
+          pendingSync: true,
+          pendingSyncReason: 'publish_failed_connectivity',
+          showFeedback: !triggeredAutomatically,
+        );
+        return;
+      }
+
+      await _persistDraftSnapshot(showFeedback: false);
+      rethrow;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final role = ref.watch(currentUserRoleProvider);
     final createRideState = ref.watch(createRideControllerProvider);
+    final connectivityAsync = ref.watch(connectivityStatusProvider);
+    final isOnline = connectivityAsync.valueOrNull ?? true;
     final palette = context.palette;
 
     ref.listen<AsyncValue<String?>>(createRideControllerProvider, (
@@ -320,6 +647,20 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
             ..showSnackBar(SnackBar(content: Text(message)));
         },
       );
+    });
+
+    ref.listen<AsyncValue<bool>>(connectivityStatusProvider, (previous, next) {
+      final previousValue = previous?.valueOrNull;
+      final nextValue = next.valueOrNull;
+      if (previousValue == nextValue) {
+        return;
+      }
+
+      if (nextValue == true && _hasPendingSyncDraft) {
+        Future.microtask(() {
+          _attemptPendingDraftSync(triggeredAutomatically: true);
+        });
+      }
     });
 
     return AppScaffold(
@@ -355,7 +696,10 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: createRideState.isLoading ? null : _publishRide,
+                  onPressed:
+                      createRideState.isLoading || _isPendingSyncAttemptInFlight
+                      ? null
+                      : () => _publishRide(),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: palette.accent,
                     foregroundColor: palette.accentForeground,
@@ -389,16 +733,28 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
           key: _formKey,
           child: Column(
             children: [
+              if (_isDraftLoaded &&
+                  (_draftRestored || _hasPendingSyncDraft || !isOnline)) ...[
+                _draftStatusCard(
+                  isOnline: isOnline,
+                  isSyncing: _isPendingSyncAttemptInFlight,
+                ),
+                const SizedBox(height: AppSpacing.m),
+              ],
               _sectionCard(
                 title: 'Route Details',
                 child: Column(
                   children: [
                     _locationAutocompleteField(
                       fieldKey: _originFieldKey,
+                      currentValueOverride: _origin,
                       label: 'Pickup Location',
                       hint: 'e.g. Campus Uniandes - Main Gate',
                       icon: Icons.location_pin,
-                      onChanged: (value) => _origin = value,
+                      onChanged: (value) {
+                        _origin = value;
+                        _scheduleDraftAutosave();
+                      },
                       validatorText: 'Pickup location is required.',
                       suggestions: _locationSuggestionsFor,
                       suffixIcon: _isResolvingOriginFromGps
@@ -446,10 +802,14 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                     ],
                     const SizedBox(height: AppSpacing.m),
                     _locationAutocompleteField(
+                      currentValueOverride: _destination,
                       label: 'Destination',
                       hint: 'e.g. Centro Comercial Andino',
                       icon: Icons.place_outlined,
-                      onChanged: (value) => _destination = value,
+                      onChanged: (value) {
+                        _destination = value;
+                        _scheduleDraftAutosave();
+                      },
                       validatorText: 'Destination is required.',
                       suggestions: _locationSuggestionsFor,
                     ),
@@ -535,6 +895,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                           onTap: _availableSeats > 1
                               ? () => setState(() {
                                   _availableSeats -= 1;
+                                  _scheduleDraftAutosave();
                                 })
                               : null,
                         ),
@@ -561,6 +922,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                           onTap: _availableSeats < 4
                               ? () => setState(() {
                                   _availableSeats += 1;
+                                  _scheduleDraftAutosave();
                                 })
                               : null,
                         ),
@@ -622,6 +984,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                         setState(() {
                           _paymentOption = RidePaymentOption.card;
                         });
+                        _scheduleDraftAutosave();
                       },
                     ),
                     const SizedBox(height: AppSpacing.s),
@@ -638,6 +1001,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                         setState(() {
                           _paymentOption = RidePaymentOption.bankTransfer;
                         });
+                        _scheduleDraftAutosave();
                       },
                     ),
                     const SizedBox(height: AppSpacing.m),
@@ -757,8 +1121,149 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     );
   }
 
+  Widget _draftStatusCard({
+    required bool isOnline,
+    required bool isSyncing,
+  }) {
+    final palette = context.palette;
+    final title = _hasPendingSyncDraft
+        ? isSyncing
+              ? 'Syncing saved ride draft'
+              : isOnline
+              ? 'Ride draft ready to sync'
+              : 'Ride draft saved offline'
+        : _draftRestored
+        ? 'Recovered local ride draft'
+        : 'Offline mode';
+
+    final message = _hasPendingSyncDraft
+        ? isSyncing
+              ? 'We are retrying the ride publication now that connectivity is available.'
+              : isOnline
+              ? 'This draft was saved after a failed publish attempt. You can wait for automatic sync or publish again manually.'
+              : 'Your ride was saved locally after a publish attempt without internet. It will retry once the connection returns.'
+        : _draftRestored
+        ? 'This device restored your latest saved Create Ride draft so you can continue where you left off.'
+        : 'You are offline. Any progress on this form can still be saved locally on this device.';
+
+    final savedAtLabel = _draftSavedAt == null
+        ? null
+        : 'Last local save: ${_formatDraftSavedAt(_draftSavedAt!)}';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: _hasPendingSyncDraft
+            ? palette.secondarySoft
+            : palette.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(
+          color: _hasPendingSyncDraft ? palette.secondary : palette.border,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                _hasPendingSyncDraft
+                    ? Icons.sync_problem_outlined
+                    : Icons.save_outlined,
+                color: _hasPendingSyncDraft ? palette.secondary : palette.primary,
+              ),
+              const SizedBox(width: AppSpacing.s),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      message,
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        height: 1.35,
+                      ),
+                    ),
+                    if (savedAtLabel != null) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        savedAtLabel,
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                    if (_draftSyncReason != null && _hasPendingSyncDraft) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'Sync reason: ${_draftSyncReason!.replaceAll('_', ' ')}',
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.m),
+          Wrap(
+            spacing: AppSpacing.s,
+            runSpacing: AppSpacing.s,
+            children: [
+              OutlinedButton.icon(
+                onPressed: isSyncing
+                    ? null
+                    : () => _persistDraftSnapshot(showFeedback: true),
+                icon: const Icon(Icons.save_alt_outlined, size: 18),
+                label: const Text('Save draft now'),
+              ),
+              if (_hasPendingSyncDraft && isOnline)
+                OutlinedButton.icon(
+                  onPressed: isSyncing
+                      ? null
+                      : () => _attemptPendingDraftSync(
+                          triggeredAutomatically: false,
+                        ),
+                  icon: isSyncing
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.cloud_upload_outlined, size: 18),
+                  label: Text(isSyncing ? 'Syncing...' : 'Retry sync'),
+                ),
+              OutlinedButton.icon(
+                onPressed: isSyncing
+                    ? null
+                    : () => _clearDraft(resetForm: true, showFeedback: true),
+                icon: const Icon(Icons.delete_outline, size: 18),
+                label: const Text('Discard draft'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _locationAutocompleteField({
     GlobalKey<FormFieldState<String>>? fieldKey,
+    required String currentValueOverride,
     required String label,
     required String hint,
     required IconData icon,
@@ -769,16 +1274,21 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   }) {
     return FormField<String>(
       key: fieldKey,
-      initialValue: '',
+      initialValue: currentValueOverride,
       validator: (value) {
-        if (value == null || value.trim().isEmpty) {
+        final effectiveValue = (value == null || value.trim().isEmpty)
+            ? currentValueOverride
+            : value;
+        if (effectiveValue.trim().isEmpty) {
           return validatorText;
         }
         return null;
       },
       builder: (field) {
         final palette = context.palette;
-        final currentValue = field.value ?? '';
+        final currentValue = (field.value == null || field.value!.trim().isEmpty)
+            ? currentValueOverride
+            : field.value!;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
