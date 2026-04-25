@@ -5,6 +5,7 @@ class AppHiveBoxes {
   static const String dashboardCache = 'dashboard_cache_box_v1';
   static const String withdrawalRequestDrafts =
       'withdrawal_request_drafts_box_v1';
+  static const String createRideDrafts = 'create_ride_drafts_box_v1';
 }
 
 class AppHiveKeys {
@@ -17,4 +18,5 @@ Future<void> initializeAppHive() async {
   await Hive.openBox<String>(AppHiveBoxes.rideDetailsCache);
   await Hive.openBox<String>(AppHiveBoxes.dashboardCache);
   await Hive.openBox<String>(AppHiveBoxes.withdrawalRequestDrafts);
+  await Hive.openBox<String>(AppHiveBoxes.createRideDrafts);
 }
