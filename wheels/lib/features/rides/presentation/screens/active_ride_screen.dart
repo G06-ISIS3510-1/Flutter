@@ -24,8 +24,6 @@ import '../providers/rides_providers.dart';
 class ActiveRideScreen extends ConsumerStatefulWidget {
   const ActiveRideScreen({this.rideId, super.key});
 
-  static const _navigationLauncher = NavigationLauncherService();
-
   final String? rideId;
 
   @override
@@ -321,11 +319,11 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
           );
           final statusState = ref.watch(rideStatusControllerProvider);
           final paymentState = ref.watch(ridePaymentControllerProvider);
-          final hasPendingStatusAction =
-              pendingAction != null && pendingAction.rideId == ride.id;
-          final pendingActionForRide = hasPendingStatusAction
-              ? pendingAction!
+          final pendingActionForRide =
+              pendingAction != null && pendingAction.rideId == ride.id
+              ? pendingAction
               : null;
+          final hasPendingStatusAction = pendingActionForRide != null;
           final isLoading =
               statusState.isLoading ||
               paymentState.isLoading ||
@@ -341,11 +339,11 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
               ),
               const SizedBox(height: AppSpacing.m),
               _routeCard(context, ride),
-              if (hasPendingStatusAction) ...[
+              if (pendingActionForRide != null) ...[
                 const SizedBox(height: AppSpacing.m),
                 _pendingStatusActionCard(
                   context: context,
-                  pendingAction: pendingActionForRide!,
+                  pendingAction: pendingActionForRide,
                   isSyncing: _isSyncingPendingAction,
                 ),
               ],
