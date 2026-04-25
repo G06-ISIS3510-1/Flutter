@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../shared/cache/memory_lru_cache.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../data/datasources/active_ride_pending_action_local_datasource.dart';
 import '../../data/datasources/ride_details_local_datasource.dart';
 import '../../data/datasources/rides_search_local_datasource.dart';
 import '../../data/models/local_ride_details_cache_model.dart';
@@ -20,6 +21,11 @@ final ridesSearchLocalDataSourceProvider = Provider<RidesSearchLocalDataSource>(
     return RidesSearchLocalDataSource();
   },
 );
+
+final activeRidePendingActionLocalDataSourceProvider =
+    Provider<ActiveRidePendingActionLocalDataSource>((ref) {
+      return const ActiveRidePendingActionLocalDataSource();
+    });
 
 final rideDetailsLocalDataSourceProvider = Provider<RideDetailsLocalDataSource>((
   ref,

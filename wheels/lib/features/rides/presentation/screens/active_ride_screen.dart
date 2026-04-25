@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +8,7 @@ import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../features/payments/domain/entities/payment_record.dart';
 import '../../../../features/payments/presentation/providers/payment_provider.dart';
 import '../../../../router/app_routes.dart';
+import '../../../../shared/providers/connectivity_provider.dart';
 import '../../../../shared/services/navigation_launcher_service.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
@@ -13,11 +16,12 @@ import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
 import '../../../../theme/app_theme_palette.dart';
+import '../../data/models/local_pending_ride_status_action_model.dart';
 import '../../domain/entities/rides_entity.dart';
 import '../models/ride_listing.dart';
 import '../providers/rides_providers.dart';
 
-class ActiveRideScreen extends ConsumerWidget {
+class ActiveRideScreen extends ConsumerStatefulWidget {
   const ActiveRideScreen({this.rideId, super.key});
 
   static const _navigationLauncher = NavigationLauncherService();
@@ -25,7 +29,230 @@ class ActiveRideScreen extends ConsumerWidget {
   final String? rideId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ActiveRideScreen> createState() => _ActiveRideScreenState();
+}
+
+class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
+  LocalPendingRideStatusActionModel? _pendingStatusAction;
+  bool _isRestoringPendingAction = false;
+  bool _isSyncingPendingAction = false;
+  String? _loadedPendingActionRideId;
+  StreamSubscription<bool>? _connectivitySubscription;
+
+  static const _navigationLauncher = NavigationLauncherService();
+
+  String? get rideId => widget.rideId;
+
+  @override
+  void initState() {
+    super.initState();
+    _connectivitySubscription = ref
+        .read(connectivityServiceProvider)
+        .watchConnection()
+        .listen((isOnline) {
+          if (isOnline && mounted) {
+            unawaited(_attemptPendingStatusSync(triggeredAutomatically: true));
+          }
+        });
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _ensurePendingActionForRide(String rideId) async {
+    if (_loadedPendingActionRideId == rideId || _isRestoringPendingAction) {
+      return;
+    }
+
+    setState(() {
+      _isRestoringPendingAction = true;
+    });
+
+    final pendingAction = await ref
+        .read(activeRidePendingActionLocalDataSourceProvider)
+        .loadPendingAction(rideId: rideId);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _pendingStatusAction = pendingAction;
+      _loadedPendingActionRideId = rideId;
+      _isRestoringPendingAction = false;
+    });
+  }
+
+  Future<void> _persistPendingStatusAction({
+    required String rideId,
+    required String targetStatus,
+    required String lastKnownStatus,
+  }) async {
+    final action = LocalPendingRideStatusActionModel.create(
+      rideId: rideId,
+      targetStatus: targetStatus,
+      lastKnownStatus: lastKnownStatus,
+    );
+
+    await ref
+        .read(activeRidePendingActionLocalDataSourceProvider)
+        .savePendingAction(action);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _pendingStatusAction = action;
+      _loadedPendingActionRideId = rideId;
+      _isSyncingPendingAction = false;
+    });
+  }
+
+  Future<void> _clearPendingStatusAction({String? rideId}) async {
+    final targetRideId = rideId ?? _pendingStatusAction?.rideId;
+    if (targetRideId == null) {
+      if (mounted) {
+        setState(() {
+          _pendingStatusAction = null;
+          _isSyncingPendingAction = false;
+        });
+      }
+      return;
+    }
+
+    await ref
+        .read(activeRidePendingActionLocalDataSourceProvider)
+        .clearPendingAction(rideId: targetRideId);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _pendingStatusAction = null;
+      _isSyncingPendingAction = false;
+      if (_loadedPendingActionRideId == targetRideId) {
+        _loadedPendingActionRideId = targetRideId;
+      }
+    });
+  }
+
+  bool _looksLikeConnectivityFailure(Object error) {
+    final message = error.toString().toLowerCase();
+    return message.contains('network') ||
+        message.contains('socket') ||
+        message.contains('timeout') ||
+        message.contains('connection') ||
+        message.contains('unavailable');
+  }
+
+  String _pendingActionLabel(String status) {
+    switch (status) {
+      case 'in_progress':
+        return 'Ride start pending sync';
+      case 'cancelled':
+        return 'Ride cancellation pending sync';
+      default:
+        return 'Ride status update pending sync';
+    }
+  }
+
+  String _pendingActionMessage(String status) {
+    switch (status) {
+      case 'in_progress':
+        return 'The ride will start automatically when connectivity returns.';
+      case 'cancelled':
+        return 'The ride will be cancelled automatically when connectivity returns.';
+      default:
+        return 'This ride status update will be sent when connectivity returns.';
+    }
+  }
+
+  String _formatPendingSavedAt(DateTime savedAt) {
+    final date = '${savedAt.day}/${savedAt.month}/${savedAt.year}';
+    final hour = TimeOfDay.fromDateTime(savedAt).format(context);
+    return '$date at $hour';
+  }
+
+  Future<void> _attemptPendingStatusSync({
+    required bool triggeredAutomatically,
+  }) async {
+    final pendingAction = _pendingStatusAction;
+    if (pendingAction == null || _isSyncingPendingAction) {
+      return;
+    }
+
+    final hasConnection = await ref
+        .read(connectivityServiceProvider)
+        .hasConnection();
+    if (!hasConnection) {
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _isSyncingPendingAction = true;
+      });
+    }
+
+    try {
+      await ref
+          .read(rideStatusControllerProvider.notifier)
+          .updateRideStatus(
+            rideId: pendingAction.rideId,
+            status: pendingAction.targetStatus,
+          );
+      ref.read(rideStatusControllerProvider.notifier).clear();
+      await _clearPendingStatusAction(rideId: pendingAction.rideId);
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              triggeredAutomatically
+                  ? 'Pending ride action synced successfully.'
+                  : 'Ride action synced successfully.',
+            ),
+          ),
+        );
+
+      if (pendingAction.targetStatus == 'cancelled') {
+        context.go(AppRoutes.dashboard);
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isSyncingPendingAction = false;
+      });
+
+      if (!_looksLikeConnectivityFailure(error)) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                'We could not sync the pending ride action yet: $error',
+              ),
+            ),
+          );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final palette = context.palette;
     final rideAsync = rideId == null
         ? ref.watch(currentDriverRideProvider)
@@ -72,19 +299,56 @@ class ActiveRideScreen extends ConsumerWidget {
             );
           }
 
+          if (_loadedPendingActionRideId != ride.id && !_isRestoringPendingAction) {
+            Future<void>.microtask(() => _ensurePendingActionForRide(ride.id));
+          }
+
+          final pendingAction = _pendingStatusAction;
+          if (pendingAction != null && pendingAction.rideId == ride.id) {
+            if (ride.status == pendingAction.targetStatus) {
+              Future<void>.microtask(
+                () => _clearPendingStatusAction(rideId: ride.id),
+              );
+            } else if (ride.status != pendingAction.lastKnownStatus) {
+              Future<void>.microtask(
+                () => _clearPendingStatusAction(rideId: ride.id),
+              );
+            }
+          }
+
           final applicationsAsync = ref.watch(
             rideApplicationsProvider(ride.id),
           );
           final statusState = ref.watch(rideStatusControllerProvider);
           final paymentState = ref.watch(ridePaymentControllerProvider);
-          final isLoading = statusState.isLoading || paymentState.isLoading;
+          final hasPendingStatusAction =
+              pendingAction != null && pendingAction.rideId == ride.id;
+          final pendingActionForRide = hasPendingStatusAction
+              ? pendingAction!
+              : null;
+          final isLoading =
+              statusState.isLoading ||
+              paymentState.isLoading ||
+              _isSyncingPendingAction;
 
           return ListView(
             padding: const EdgeInsets.all(AppSpacing.m),
             children: [
-              _headerCard(context, ride),
+              _headerCard(
+                context,
+                ride,
+                statusOverride: pendingActionForRide?.targetStatus,
+              ),
               const SizedBox(height: AppSpacing.m),
               _routeCard(context, ride),
+              if (hasPendingStatusAction) ...[
+                const SizedBox(height: AppSpacing.m),
+                _pendingStatusActionCard(
+                  context: context,
+                  pendingAction: pendingActionForRide!,
+                  isSyncing: _isSyncingPendingAction,
+                ),
+              ],
               const SizedBox(height: AppSpacing.m),
               applicationsAsync.when(
                 data: (applications) => _statusActions(
@@ -93,6 +357,7 @@ class ActiveRideScreen extends ConsumerWidget {
                   ride: ride,
                   applications: applications,
                   isLoading: isLoading,
+                  hasPendingStatusAction: hasPendingStatusAction,
                 ),
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (error, _) => _errorCard(
@@ -125,7 +390,11 @@ class ActiveRideScreen extends ConsumerWidget {
     );
   }
 
-  Widget _headerCard(BuildContext context, RidesEntity ride) {
+  Widget _headerCard(
+    BuildContext context,
+    RidesEntity ride, {
+    String? statusOverride,
+  }) {
     final palette = context.palette;
 
     return Container(
@@ -185,7 +454,7 @@ class ActiveRideScreen extends ConsumerWidget {
               borderRadius: BorderRadius.circular(AppRadius.xl),
             ),
             child: Text(
-              _rideStatusLabel(ride.status),
+              _rideStatusLabel(statusOverride ?? ride.status),
               style: TextStyle(
                 color: palette.primaryForeground,
                 fontWeight: FontWeight.w700,
@@ -250,12 +519,87 @@ class ActiveRideScreen extends ConsumerWidget {
     );
   }
 
+  Widget _pendingStatusActionCard({
+    required BuildContext context,
+    required LocalPendingRideStatusActionModel pendingAction,
+    required bool isSyncing,
+  }) {
+    final palette = context.palette;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: palette.warning.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: palette.warning.withValues(alpha: 0.28)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _pendingActionLabel(pendingAction.targetStatus),
+            style: TextStyle(
+              color: palette.textPrimary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            _pendingActionMessage(pendingAction.targetStatus),
+            style: TextStyle(color: palette.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Saved ${_formatPendingSavedAt(pendingAction.savedAt)}',
+            style: TextStyle(
+              color: palette.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          Wrap(
+            spacing: AppSpacing.s,
+            runSpacing: AppSpacing.s,
+            children: [
+              ElevatedButton.icon(
+                onPressed: isSyncing
+                    ? null
+                    : () => _attemptPendingStatusSync(
+                        triggeredAutomatically: false,
+                      ),
+                icon: Icon(
+                  isSyncing ? Icons.sync : Icons.cloud_upload_outlined,
+                ),
+                label: Text(isSyncing ? 'Syncing...' : 'Retry Sync'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: palette.warning,
+                  foregroundColor: palette.textPrimary,
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: isSyncing
+                    ? null
+                    : () => _clearPendingStatusAction(
+                        rideId: pendingAction.rideId,
+                      ),
+                icon: const Icon(Icons.delete_outline_rounded),
+                label: const Text('Discard Pending Action'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _statusActions({
     required BuildContext context,
     required WidgetRef ref,
     required RidesEntity ride,
     required List<RideApplicationEntity> applications,
     required bool isLoading,
+    required bool hasPendingStatusAction,
   }) {
     Future<void> openNavigation() async {
       final opened = await _navigationLauncher.openDrivingDirections(
@@ -278,9 +622,87 @@ class ActiveRideScreen extends ConsumerWidget {
     }
 
     Future<void> updateStatus(String status, String successMessage) async {
-      await ref
-          .read(rideStatusControllerProvider.notifier)
-          .updateRideStatus(rideId: ride.id, status: status);
+      if (hasPendingStatusAction) {
+        return;
+      }
+
+      final hasConnection = await ref
+          .read(connectivityServiceProvider)
+          .hasConnection();
+      if (!hasConnection) {
+        if (status == 'completed') {
+          if (!context.mounted) {
+            return;
+          }
+
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Finishing a ride requires an internet connection because passenger payment updates must be saved live.',
+                ),
+              ),
+            );
+          return;
+        }
+
+        await _persistPendingStatusAction(
+          rideId: ride.id,
+          targetStatus: status,
+          lastKnownStatus: ride.status,
+        );
+
+        if (!context.mounted) {
+          return;
+        }
+
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                status == 'in_progress'
+                    ? 'Ride start saved locally. It will sync when you reconnect.'
+                    : 'Ride cancellation saved locally. It will sync when you reconnect.',
+              ),
+            ),
+          );
+        return;
+      }
+
+      try {
+        await ref
+            .read(rideStatusControllerProvider.notifier)
+            .updateRideStatus(rideId: ride.id, status: status);
+      } catch (error) {
+        if (status != 'completed' && _looksLikeConnectivityFailure(error)) {
+          await _persistPendingStatusAction(
+            rideId: ride.id,
+            targetStatus: status,
+            lastKnownStatus: ride.status,
+          );
+
+          if (!context.mounted) {
+            return;
+          }
+
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(
+                  status == 'in_progress'
+                      ? 'Ride start saved locally after a connection issue. It will sync automatically later.'
+                      : 'Ride cancellation saved locally after a connection issue. It will sync automatically later.',
+                ),
+              ),
+            );
+          return;
+        }
+
+        rethrow;
+      }
 
       if (!context.mounted) {
         return;
@@ -381,7 +803,7 @@ class ActiveRideScreen extends ConsumerWidget {
         const SizedBox(height: AppSpacing.s),
         if (ride.status == 'open')
           ElevatedButton(
-            onPressed: isLoading
+            onPressed: isLoading || hasPendingStatusAction
                 ? null
                 : () =>
                       updateStatus('in_progress', 'Ride started successfully.'),
@@ -398,7 +820,9 @@ class ActiveRideScreen extends ConsumerWidget {
         if (ride.status == 'in_progress') ...[
           const SizedBox(height: AppSpacing.s),
           ElevatedButton.icon(
-            onPressed: isLoading ? null : openNavigation,
+            onPressed: isLoading || hasPendingStatusAction
+                ? null
+                : openNavigation,
             icon: const Icon(Icons.navigation_outlined),
             label: const Text('Open Navigation'),
             style: ElevatedButton.styleFrom(
@@ -412,7 +836,7 @@ class ActiveRideScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.s),
           OutlinedButton.icon(
-            onPressed: isLoading ? null : finishRide,
+            onPressed: isLoading || hasPendingStatusAction ? null : finishRide,
             icon: const Icon(Icons.check_circle_outline),
             label: Text(isLoading ? 'Updating...' : 'Finish Ride'),
             style: OutlinedButton.styleFrom(
@@ -425,7 +849,8 @@ class ActiveRideScreen extends ConsumerWidget {
           const SizedBox(height: AppSpacing.s),
         ],
         OutlinedButton(
-          onPressed: isLoading || ride.status == 'completed'
+          onPressed:
+              isLoading || ride.status == 'completed' || hasPendingStatusAction
               ? null
               : () => updateStatus('cancelled', 'Ride cancelled.'),
           style: OutlinedButton.styleFrom(
