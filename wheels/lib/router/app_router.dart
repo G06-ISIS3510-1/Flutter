@@ -34,6 +34,8 @@ class AppRouter {
       firebase_auth.FirebaseAuth.instance.authStateChanges(),
     ),
     redirect: (context, state) {
+      // Route guards depend on the synchronized Riverpod auth snapshot, not only
+      // on FirebaseAuth, because role-based permissions live in app state.
       final container = ProviderScope.containerOf(context, listen: false);
       final isReady = container.read(authSessionReadyProvider);
       final isAuthenticated = container.read(isAuthenticatedProvider);
@@ -46,6 +48,7 @@ class AppRouter {
           location == AppRoutes.forgotPassword;
 
       if (!isReady) {
+        // Wait until session restoration completes to avoid redirect flicker.
         return null;
       }
 
@@ -174,6 +177,7 @@ class AppRouter {
 
 class GoRouterRefreshStream extends ChangeNotifier {
   GoRouterRefreshStream(Stream<dynamic> stream) {
+    // GoRouter refreshes whenever Firebase emits a new auth state.
     _subscription = stream.asBroadcastStream().listen((_) => notifyListeners());
   }
 

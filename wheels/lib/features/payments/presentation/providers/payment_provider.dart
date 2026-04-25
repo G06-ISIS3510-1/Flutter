@@ -13,6 +13,7 @@ import '../../domain/repositories/payment_repository.dart';
 
 const Duration _paymentExpirationWindow = Duration(minutes: 3);
 
+/// UI-facing snapshot of the current checkout session and Firestore payment state.
 class PaymentState {
   const PaymentState({
     this.status = PaymentFlowStatus.idle,
@@ -55,6 +56,7 @@ class PaymentState {
     DateTime? lastCheckedAt,
     bool clearLastCheckedAt = false,
   }) {
+    // Boolean "clear" flags let the notifier explicitly remove nullable values.
     return PaymentState(
       status: status ?? this.status,
       checkoutUrl: clearCheckoutUrl ? null : (checkoutUrl ?? this.checkoutUrl),
@@ -90,6 +92,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       return;
     }
 
+    // Reset transient checkout data when the screen starts observing another ride.
     final hasChangedRide =
         state.rideId != rideId || state.passengerId != passengerId;
 
@@ -115,6 +118,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     required String userId,
     required String passengerId,
   }) async {
+    // Opening a brand-new checkout always clears stale status from a previous try.
     state = state.copyWith(
       status: PaymentFlowStatus.loading,
       rideId: rideId,
@@ -189,6 +193,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
         passengerId: passengerId,
       );
       if (paymentRecord == null) {
+        // Firestore writes can lag slightly behind checkout creation.
         _handleMissingPaymentRecord(allowMissingRecord: allowMissingRecord);
         return;
       }
@@ -211,6 +216,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     required String rideId,
     required String passengerId,
   }) {
+    // The stream is the source of truth once the backend updates Firestore.
     _paymentSubscription?.cancel();
     _paymentSubscription = _repository
         .watchPaymentStatus(rideId: rideId, passengerId: passengerId)
@@ -225,6 +231,8 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
 
   void _handleMissingPaymentRecord({required bool allowMissingRecord}) {
     if (allowMissingRecord) {
+      // During checkout creation we keep the UX in a waiting state instead of
+      // surfacing a false error before Firestore receives the first record.
       final waitingStatus =
           state.checkoutCreatedAt != null ||
               state.status == PaymentFlowStatus.pending ||
@@ -348,6 +356,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       return;
     }
 
+    // Deep links carry the redirect outcome from Mercado Pago back into the app.
     final rideIdFromLink = uri.queryParameters['rideId'];
     if (rideIdFromLink != null && rideIdFromLink.isNotEmpty) {
       state = state.copyWith(rideId: rideIdFromLink);
@@ -372,6 +381,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
   }
 
   void _applyPaymentRecord(PaymentRecord paymentRecord) {
+    // Backend status wins over local assumptions whenever a record is available.
     final effectiveExpiresAt = _effectiveExpiresAt(paymentRecord);
     final flowStatus = _mapStatus(paymentRecord.effectiveStatus);
 
@@ -400,6 +410,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
   }
 
   PaymentFlowStatus _mapStatus(String? rawStatus) {
+    // The backend may emit a few spelling or provider variants for the same idea.
     final normalizedStatus = rawStatus?.trim().toLowerCase();
     switch (normalizedStatus) {
       case 'approved':

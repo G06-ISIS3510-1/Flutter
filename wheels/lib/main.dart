@@ -6,8 +6,10 @@ import 'app/wheels_app.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
+  // Firebase and platform channels must be ready before any async setup runs.
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // The experience is designed around a portrait-first mobile layout.
   await SystemChrome.setPreferredOrientations(<DeviceOrientation>[
     DeviceOrientation.portraitUp,
   ]);

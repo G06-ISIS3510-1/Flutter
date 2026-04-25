@@ -4,10 +4,13 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 
+/// Resolves the most human-friendly pickup label available from GPS data.
 class CurrentLocationService {
   const CurrentLocationService();
 
   Future<String> getCurrentAddress() async {
+    // Permission checks stay here so presentation widgets only deal with one
+    // happy-path method and a readable exception message.
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       throw const CurrentLocationException(
@@ -44,6 +47,8 @@ class CurrentLocationService {
         'Current location (${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)})';
 
     try {
+      // Native placemark lookup is preferred because it is faster and offline-
+      // friendly on some devices, but we still keep an HTTP fallback.
       final placemarks = await placemarkFromCoordinates(
         position.latitude,
         position.longitude,
@@ -85,6 +90,7 @@ class CurrentLocationService {
   }
 
   Future<String?> _reverseGeocodeWithHttp(Position position) async {
+    // Nominatim helps when the native geocoder returns vague labels.
     final uri = Uri.https('nominatim.openstreetmap.org', '/reverse', {
       'format': 'jsonv2',
       'lat': position.latitude.toString(),
@@ -218,6 +224,7 @@ class CurrentLocationService {
   }
 
   String _normalizeColombianAddress(String value) {
+    // Normalize common abbreviations so the UI shows more familiar addresses.
     return value
         .replaceAll(RegExp(r'\bCl\.?\b', caseSensitive: false), 'Calle')
         .replaceAll(RegExp(r'\bCra\.?\b', caseSensitive: false), 'Carrera')

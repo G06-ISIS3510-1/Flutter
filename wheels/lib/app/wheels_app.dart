@@ -8,6 +8,7 @@ import '../router/app_router.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_controller.dart';
 
+/// Root widget that wires Riverpod, theme state, auth recovery, and router setup.
 class WheelsApp extends StatelessWidget {
   const WheelsApp({super.key});
 
@@ -31,6 +32,7 @@ class _WheelsAppViewState extends ConsumerState<_WheelsAppView>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     Future.microtask(() async {
+      // Recover push notifications and persisted auth before the user navigates.
       await ref.read(engagementServiceProvider).initializeMessaging();
       await ref.read(authSessionControllerProvider).restoreSession();
     });
@@ -48,6 +50,7 @@ class _WheelsAppViewState extends ConsumerState<_WheelsAppView>
       return;
     }
 
+    // Re-register device metadata when the app comes back from background.
     final user = ref.read(authUserProvider);
     if (user == null) {
       return;
@@ -68,6 +71,7 @@ class _WheelsAppViewState extends ConsumerState<_WheelsAppView>
       next,
     ) {
       next.whenData((authEntity) {
+        // Keep local Riverpod state aligned with Firebase auth stream updates.
         ref.read(authSessionControllerProvider).syncFromStream(authEntity);
         if (authEntity == null) {
           return;

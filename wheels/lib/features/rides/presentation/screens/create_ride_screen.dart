@@ -17,6 +17,7 @@ import '../../../../theme/app_theme_palette.dart';
 import '../../domain/entities/rides_entity.dart';
 import '../providers/rides_providers.dart';
 
+/// Driver form used to publish a ride with schedule, seats, route, and payment details.
 class CreateRideScreen extends ConsumerStatefulWidget {
   const CreateRideScreen({super.key});
 
@@ -58,6 +59,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   @override
   void initState() {
     super.initState();
+    // Pre-fill the pickup field when GPS resolution succeeds on first load.
     Future.microtask(_prefillOriginWithCurrentLocation);
   }
 
@@ -145,6 +147,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   }
 
   List<String> _locationSuggestionsFor(String query) {
+    // Blend static campus shortcuts with the latest resolved GPS suggestion.
     final normalizedQuery = query.trim().toLowerCase();
     final baseSuggestions = <String>[
       ...(_currentLocationSuggestion == null
@@ -262,6 +265,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
       selectedTime.minute,
     );
 
+    // Drivers should only publish future departures to keep listings coherent.
     if (!departureAt.isAfter(DateTime.now())) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Departure time must be in the future.')),
@@ -960,6 +964,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
 
   Widget _estimatedEarningsCard() {
     final palette = context.palette;
+    // The summary updates live so drivers understand card fees before posting.
     final headlineAmount = _paymentOption == RidePaymentOption.card
         ? _estimatedNetIfAllSeatsPayByCard
         : _estimatedGrossIfFull;

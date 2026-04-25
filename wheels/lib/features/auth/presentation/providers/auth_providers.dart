@@ -11,6 +11,7 @@ import '../../domain/repositories/auth_repository.dart';
 
 enum UserRole { passenger, driver, admin }
 
+// Firebase is initialized during app startup, so the provider stays simple.
 final firebaseReadyProvider = Provider<bool>((ref) => true);
 
 final firebaseAnalyticsProvider = Provider<FirebaseAnalytics>((ref) {
@@ -70,6 +71,7 @@ final authSessionControllerProvider = Provider<AuthSessionController>((ref) {
   return AuthSessionController(ref);
 });
 
+/// Centralizes how auth data is mirrored into Riverpod state for the UI.
 class AuthSessionController {
   const AuthSessionController(this._ref);
 
@@ -82,6 +84,7 @@ class AuthSessionController {
           .restoreSession();
       _syncState(authEntity);
     } finally {
+      // Route guards wait on this flag before deciding whether to redirect.
       _ref.read(authSessionReadyProvider.notifier).state = true;
     }
   }
@@ -97,6 +100,7 @@ class AuthSessionController {
 
   void _syncState(AuthEntity? authEntity) {
     _ref.read(authUserProvider.notifier).state = authEntity;
+    // The UI switches flows quickly from this enum instead of string compares.
     _ref.read(currentUserRoleProvider.notifier).state = _mapRole(authEntity?.role);
     _ref.read(authStepProvider.notifier).state = authEntity == null ? 0 : 1;
   }

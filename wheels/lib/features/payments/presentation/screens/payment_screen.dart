@@ -20,6 +20,7 @@ import '../providers/payment_provider.dart';
 import '../widgets/payment_status_banner.dart';
 import 'checkout_webview_screen.dart';
 
+/// Payment hub for a passenger's selected ride, including card and transfer flows.
 class PaymentScreen extends ConsumerStatefulWidget {
   const PaymentScreen({this.rideId, super.key});
 
@@ -72,6 +73,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           return;
         }
 
+        // Checkout is pushed after build so navigation does not happen mid-frame.
         Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => CheckoutWebViewScreen(
@@ -99,6 +101,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         if (!mounted) {
           return;
         }
+        // Start listening once we know both the ride and the signed-in passenger.
         ref
             .read(paymentProvider.notifier)
             .observeRide(
@@ -193,6 +196,7 @@ class _PaymentContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final paymentRecord = paymentState.paymentRecord;
+    // A Firestore card record can recover the selected method after app restarts.
     final selectedPaymentMethod =
         (passengerApplication?.paymentMethod ==
                 RidePassengerPaymentMethod.pendingSelection &&
@@ -215,6 +219,8 @@ class _PaymentContent extends ConsumerWidget {
         return;
       }
 
+      // The ride document stores the passenger's choice so driver and passenger
+      // see the same payment workflow state.
       final currentMethod = application.paymentMethod;
       final currentStatus = application.paymentStatus;
       if (currentMethod == paymentMethod &&
@@ -734,6 +740,7 @@ class _PaymentWindowCardState extends State<_PaymentWindowCard> {
   void initState() {
     super.initState();
     _remaining = _remainingTime();
+    // A local countdown gives immediate feedback while Firestore catches up.
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) {
         return;
