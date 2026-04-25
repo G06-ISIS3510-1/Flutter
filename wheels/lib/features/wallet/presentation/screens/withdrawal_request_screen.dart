@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../shared/providers/connectivity_provider.dart';
 import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/utils/app_formatter.dart';
 import '../../../../shared/widgets/app_button.dart';
@@ -10,6 +13,7 @@ import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_spacing.dart';
 import '../../../../theme/app_theme_palette.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../data/models/local_withdrawal_request_draft_model.dart';
 import '../../domain/entities/withdrawal_request_input.dart';
 import '../../domain/entities/wallet_summary.dart';
 import '../providers/wallet_providers.dart';
@@ -29,15 +33,162 @@ class _WithdrawalRequestScreenState
   final _bankNameController = TextEditingController();
   final _accountNumberController = TextEditingController();
   final _accountHolderNameController = TextEditingController();
+  Timer? _draftSaveDebounce;
   String _accountType = 'savings';
+  bool _isDraftLoaded = false;
+  bool _draftRestored = false;
+  DateTime? _draftSavedAt;
+
+  String get _draftCacheId {
+    final user = ref.read(authUserProvider);
+    return user == null
+        ? 'anonymous_withdrawal_request'
+        : 'withdrawal_request_${user.uid}';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _amountController.addListener(_onDraftChanged);
+    _bankNameController.addListener(_onDraftChanged);
+    _accountNumberController.addListener(_onDraftChanged);
+    _accountHolderNameController.addListener(_onDraftChanged);
+    Future<void>.microtask(_restoreDraftIfAvailable);
+  }
 
   @override
   void dispose() {
+    _draftSaveDebounce?.cancel();
+    _amountController.removeListener(_onDraftChanged);
+    _bankNameController.removeListener(_onDraftChanged);
+    _accountNumberController.removeListener(_onDraftChanged);
+    _accountHolderNameController.removeListener(_onDraftChanged);
     _amountController.dispose();
     _bankNameController.dispose();
     _accountNumberController.dispose();
     _accountHolderNameController.dispose();
     super.dispose();
+  }
+
+  void _onDraftChanged() {
+    if (!_isDraftLoaded) {
+      return;
+    }
+
+    _scheduleDraftSave();
+  }
+
+  void _scheduleDraftSave() {
+    _draftSaveDebounce?.cancel();
+    _draftSaveDebounce = Timer(const Duration(milliseconds: 350), () {
+      unawaited(_persistDraft());
+    });
+  }
+
+  LocalWithdrawalRequestDraftModel _buildDraftSnapshot() {
+    return LocalWithdrawalRequestDraftModel.create(
+      amountText: _amountController.text,
+      bankName: _bankNameController.text,
+      accountType: _accountType,
+      accountNumber: _accountNumberController.text,
+      accountHolderName: _accountHolderNameController.text,
+    );
+  }
+
+  Future<void> _restoreDraftIfAvailable() async {
+    final draft = await ref
+        .read(withdrawalRequestDraftLocalDataSourceProvider)
+        .loadDraft(cacheId: _draftCacheId);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (draft != null && draft.hasMeaningfulData) {
+      _amountController.text = draft.amountText;
+      _bankNameController.text = draft.bankName;
+      _accountNumberController.text = draft.accountNumber;
+      _accountHolderNameController.text = draft.accountHolderName;
+      _accountType = draft.accountType;
+    }
+
+    setState(() {
+      _isDraftLoaded = true;
+      _draftRestored = draft != null && draft.hasMeaningfulData;
+      _draftSavedAt = draft?.savedAt;
+    });
+  }
+
+  Future<void> _persistDraft({bool showFeedback = false}) async {
+    final draft = _buildDraftSnapshot();
+    if (!draft.hasMeaningfulData) {
+      await _clearDraft(showFeedback: false);
+      return;
+    }
+
+    await ref
+        .read(withdrawalRequestDraftLocalDataSourceProvider)
+        .saveDraft(cacheId: _draftCacheId, draft: draft);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _draftSavedAt = draft.savedAt;
+    });
+
+    if (showFeedback) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Withdrawal form draft saved locally.')),
+        );
+    }
+  }
+
+  Future<void> _clearDraft({bool showFeedback = false}) async {
+    await ref
+        .read(withdrawalRequestDraftLocalDataSourceProvider)
+        .clearDraft(cacheId: _draftCacheId);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _draftRestored = false;
+      _draftSavedAt = null;
+    });
+
+    if (showFeedback) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Withdrawal form draft cleared.')),
+        );
+    }
+  }
+
+  void _resetForm() {
+    _amountController.clear();
+    _bankNameController.clear();
+    _accountNumberController.clear();
+    _accountHolderNameController.clear();
+    if (mounted) {
+      setState(() {
+        _accountType = 'savings';
+      });
+    } else {
+      _accountType = 'savings';
+    }
+    _formKey.currentState?.reset();
+  }
+
+  String _formatDraftSavedAt(DateTime savedAt) {
+    final date = '${savedAt.day}/${savedAt.month}/${savedAt.year}';
+    final hour = TimeOfDay.fromDateTime(savedAt).format(context);
+    return '$date at $hour';
   }
 
   @override
@@ -58,6 +209,8 @@ class _WithdrawalRequestScreenState
             }
 
             ref.read(withdrawalRequestControllerProvider.notifier).clear();
+            unawaited(_clearDraft(showFeedback: false));
+            _resetForm();
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
               ..showSnackBar(
@@ -110,6 +263,21 @@ class _WithdrawalRequestScreenState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (_draftRestored && _draftSavedAt != null) ...[
+                          _DraftNoticeCard(
+                            savedAtLabel: _formatDraftSavedAt(_draftSavedAt!),
+                            onSaveNow: isLoading
+                                ? null
+                                : () => _persistDraft(showFeedback: true),
+                            onDiscard: isLoading
+                                ? null
+                                : () async {
+                                    _resetForm();
+                                    await _clearDraft(showFeedback: true);
+                                  },
+                          ),
+                          const SizedBox(height: AppSpacing.l),
+                        ],
                         _WithdrawalInfoCard(walletSummary: walletSummary),
                         const SizedBox(height: AppSpacing.l),
                         _FormTextField(
@@ -166,6 +334,7 @@ class _WithdrawalRequestScreenState
                               : (value) {
                                   if (value != null) {
                                     setState(() => _accountType = value);
+                                    _scheduleDraftSave();
                                   }
                                 },
                         ),
@@ -207,9 +376,13 @@ class _WithdrawalRequestScreenState
                           label: isLoading
                               ? 'Submitting withdrawal...'
                               : 'Submit withdrawal request',
-                          onPressed: isLoading || !walletSummary.canRequestWithdrawal
+                          onPressed:
+                              isLoading || !walletSummary.canRequestWithdrawal
                               ? null
-                              : () => _submit(userId: currentUser.uid, walletSummary: walletSummary),
+                              : () => _submit(
+                                  userId: currentUser.uid,
+                                  walletSummary: walletSummary,
+                                ),
                         ),
                         const SizedBox(height: AppSpacing.s),
                         AppButton(
@@ -231,6 +404,27 @@ class _WithdrawalRequestScreenState
     required WalletSummary walletSummary,
   }) async {
     if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+
+    final hasConnection = await ref
+        .read(connectivityServiceProvider)
+        .hasConnection();
+    if (!hasConnection) {
+      await _persistDraft(showFeedback: false);
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'You need an internet connection to submit a withdrawal request. Your draft was saved locally.',
+            ),
+          ),
+        );
       return;
     }
 
@@ -286,6 +480,69 @@ class _WithdrawalRequestScreenState
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.md),
         borderSide: BorderSide(color: palette.primary),
+      ),
+    );
+  }
+}
+
+class _DraftNoticeCard extends StatelessWidget {
+  const _DraftNoticeCard({
+    required this.savedAtLabel,
+    required this.onSaveNow,
+    required this.onDiscard,
+  });
+
+  final String savedAtLabel;
+  final VoidCallback? onSaveNow;
+  final VoidCallback? onDiscard;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: palette.warning.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: palette.warning.withValues(alpha: 0.24)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Restored local withdrawal draft',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: palette.textPrimary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'The form data saved on $savedAtLabel was restored so you can continue where you left off.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: palette.textSecondary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          Wrap(
+            spacing: AppSpacing.s,
+            runSpacing: AppSpacing.s,
+            children: [
+              OutlinedButton.icon(
+                onPressed: onSaveNow,
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Save Draft'),
+              ),
+              OutlinedButton.icon(
+                onPressed: onDiscard,
+                icon: const Icon(Icons.delete_outline_rounded),
+                label: const Text('Discard Draft'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../data/datasources/withdrawal_request_draft_local_datasource.dart';
 import '../../data/datasources/wallet_remote_datasource.dart';
+import '../../data/datasources/wallet_summary_local_datasource.dart';
 import '../../data/repositories/wallet_repository_impl.dart';
 import '../../domain/entities/withdrawal_request_input.dart';
 import '../../domain/entities/wallet_summary.dart';
@@ -10,6 +12,16 @@ import '../../domain/repositories/wallet_repository.dart';
 final walletRemoteDataSourceProvider = Provider<WalletRemoteDataSource>((ref) {
   return WalletRemoteDataSource();
 });
+
+final withdrawalRequestDraftLocalDataSourceProvider =
+    Provider<WithdrawalRequestDraftLocalDataSource>((ref) {
+      return const WithdrawalRequestDraftLocalDataSource();
+    });
+
+final walletSummaryLocalDataSourceProvider =
+    Provider<WalletSummaryLocalDataSource>((ref) {
+      return const WalletSummaryLocalDataSource();
+    });
 
 final walletRepositoryProvider = Provider<WalletRepository>((ref) {
   return WalletRepositoryImpl(
