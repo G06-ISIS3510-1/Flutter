@@ -7,7 +7,6 @@ class RideHistoryRemoteDataSource {
     : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
-  static const int _limit = 20;
 
   Future<List<RideHistoryModel>> fetchHistory(String userId) async {
     // Driver rides and passenger rides are independent — fetch concurrently
@@ -30,7 +29,6 @@ class RideHistoryRemoteDataSource {
     final snapshot = await _firestore
         .collection('rides')
         .where('driverId', isEqualTo: userId)
-        .limit(_limit)
         .get();
 
     return snapshot.docs
@@ -42,7 +40,6 @@ class RideHistoryRemoteDataSource {
     final snapshot = await _firestore
         .collection('rides')
         .where('passengerIds', arrayContains: userId)
-        .limit(_limit)
         .get();
 
     return snapshot.docs

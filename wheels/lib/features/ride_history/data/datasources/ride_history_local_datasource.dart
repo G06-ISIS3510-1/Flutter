@@ -45,7 +45,6 @@ class RideHistoryLocalDataSource {
       where: 'userId = ?',
       whereArgs: [userId],
       orderBy: 'departureAt DESC',
-      limit: 50,
     );
     return rows.map(RideHistoryModel.fromSqlite).toList();
   }
