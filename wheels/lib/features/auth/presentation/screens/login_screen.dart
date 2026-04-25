@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../theme/app_colors.dart';
+import '../../../../theme/app_theme_palette.dart';
 import '../providers/auth_providers.dart';
 
 class LoginScreen extends ConsumerWidget {
@@ -23,7 +24,9 @@ class _LoginScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
+      backgroundColor: palette.background,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
@@ -40,6 +43,7 @@ class _LoginBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final status = ref.watch(authStatusProvider);
+    final palette = context.palette;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -52,7 +56,7 @@ class _LoginBody extends ConsumerWidget {
             width: 78,
             height: 78,
             decoration: BoxDecoration(
-              color: const Color(0xFF123A5F),
+              color: palette.primary,
               borderRadius: BorderRadius.circular(22),
               boxShadow: [
                 BoxShadow(
@@ -69,22 +73,22 @@ class _LoginBody extends ConsumerWidget {
         ),
 
         const SizedBox(height: 18),
-        const Center(
+        Center(
           child: Text(
             'Wheels',
             style: TextStyle(
               fontSize: 40,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF123A5F),
+              color: palette.textPrimary,
               letterSpacing: -0.8,
             ),
           ),
         ),
         const SizedBox(height: 6),
-        const Center(
+        Center(
           child: Text(
             'Smart student ride coordination',
-            style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 16, color: palette.textSecondary),
           ),
         ),
 
@@ -94,7 +98,7 @@ class _LoginBody extends ConsumerWidget {
         Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: palette.card,
             borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
@@ -110,7 +114,7 @@ class _LoginBody extends ConsumerWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: AppColors.background,
+                  color: palette.surface,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Icon(
@@ -119,20 +123,20 @@ class _LoginBody extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'Safe rides. Verified students only.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+                  color: palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 6),
-              const Text(
+              Text(
                 'Join a trusted community of university students sharing safe, reliable rides.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary, height: 1.3),
+                style: TextStyle(color: palette.textSecondary, height: 1.3),
               ),
             ],
           ),
@@ -166,45 +170,37 @@ class _LoginBody extends ConsumerWidget {
         // Primary button: usando tu AppButton (quedará con colorScheme.primary)
         AppButton(
           label: 'Continue with University Email',
-          onPressed: () => context.go(AppRoutes.dashboard),
+          onPressed: () => context.push('${AppRoutes.register}?mode=login'),
         ),
 
         const SizedBox(height: 12),
 
-        // Secondary google (Outlined)
         SizedBox(
           height: 48,
           child: OutlinedButton(
             style: OutlinedButton.styleFrom(
-              backgroundColor: Colors.white,
+              backgroundColor: palette.card,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              side: BorderSide(color: Colors.black.withValues(alpha: 0.10)),
+              side: BorderSide(color: palette.border),
             ),
-            onPressed: () => context.go(AppRoutes.dashboard),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                Text('G', style: TextStyle(fontWeight: FontWeight.w900)),
-                SizedBox(width: 12),
-                Text(
-                  'Continue with Google',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ],
+            onPressed: () => context.go(AppRoutes.register),
+            child: const Text(
+              'Create account',
+              style: TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
         ),
 
         const SizedBox(height: 14),
 
-        const Text(
+        Text(
           "By continuing, you agree to Wheels' Terms of Service and Privacy\nPolicy",
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 12,
-            color: AppColors.textSecondary,
+            color: palette.textSecondary,
             height: 1.3,
           ),
         ),
@@ -215,11 +211,6 @@ class _LoginBody extends ConsumerWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            TextButton(
-              onPressed: () => context.go(AppRoutes.register),
-              child: const Text('Register'),
-            ),
-            const SizedBox(width: 8),
             TextButton(
               onPressed: () => context.go(AppRoutes.forgotPassword),
               child: const Text('Forgot password?'),
@@ -232,7 +223,7 @@ class _LoginBody extends ConsumerWidget {
         Text(
           'Auth state: $status',
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 12, color: palette.textSecondary),
         ),
       ],
     );
@@ -252,11 +243,12 @@ class _MiniFeature extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.card,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
@@ -274,7 +266,7 @@ class _MiniFeature extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
+              color: palette.surface,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(icon, color: iconColor),
@@ -283,9 +275,9 @@ class _MiniFeature extends StatelessWidget {
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w700,
-              color: Color(0xFF0F172A),
+              color: palette.textPrimary,
             ),
           ),
         ],

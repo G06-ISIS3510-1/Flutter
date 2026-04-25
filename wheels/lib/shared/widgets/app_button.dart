@@ -10,7 +10,7 @@ class AppButton extends StatelessWidget {
   });
 
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final bool fullWidth;
   final bool isPrimary;
 
@@ -19,8 +19,12 @@ class AppButton extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     final style = ElevatedButton.styleFrom(
-      backgroundColor: isPrimary ? colorScheme.primary : colorScheme.secondaryContainer,
-      foregroundColor: isPrimary ? colorScheme.onPrimary : colorScheme.onSecondaryContainer,
+      backgroundColor: isPrimary
+          ? colorScheme.primary
+          : colorScheme.secondaryContainer,
+      foregroundColor: isPrimary
+          ? colorScheme.onPrimary
+          : colorScheme.onSecondaryContainer,
       minimumSize: fullWidth ? const Size(double.infinity, 48) : null,
     );
 

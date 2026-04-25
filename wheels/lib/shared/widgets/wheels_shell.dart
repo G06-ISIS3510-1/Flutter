@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../router/app_routes.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/app_theme_palette.dart';
 
 class WheelsShell extends StatelessWidget {
   final int currentIndex;
@@ -37,6 +37,8 @@ class WheelsShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     return Scaffold(
       appBar: appBar,
       body: child,
@@ -44,11 +46,11 @@ class WheelsShell extends StatelessWidget {
         top: false,
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: palette.card,
             boxShadow: [
               BoxShadow(
                 blurRadius: 20,
-                color: Colors.black.withValues(alpha: 0.06),
+                color: palette.shadow,
                 offset: const Offset(0, -6),
               ),
             ],
@@ -57,8 +59,9 @@ class WheelsShell extends StatelessWidget {
             currentIndex: currentIndex,
             onTap: (i) => _onTap(context, i),
             type: BottomNavigationBarType.fixed,
-            selectedItemColor: AppColors.primary,
-            unselectedItemColor: AppColors.textSecondary,
+            backgroundColor: palette.card,
+            selectedItemColor: palette.primary,
+            unselectedItemColor: palette.textSecondary,
             showUnselectedLabels: true,
             items: const [
               BottomNavigationBarItem(

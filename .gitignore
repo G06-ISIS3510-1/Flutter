@@ -1,0 +1,16 @@
+# Workspace-level ignores
+.idea/
+.vscode/
+.DS_Store
+
+# Flutter
+**/.dart_tool/
+**/.flutter-plugins-dependencies
+**/build/
+**/coverage/
+
+# Firebase Functions
+wheels/functions/
+**/functions/node_modules/
+**/functions/.firebase/
+**/functions/firebase-debug.log
