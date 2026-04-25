@@ -234,6 +234,28 @@ class _WithdrawalRequestScreenState
       return;
     }
 
+    final hasConnection = await ref
+        .read(connectivityServiceProvider)
+        .hasConnection();
+    if (!hasConnection) {
+      await _persistDraft(showFeedback: false);
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'You need an internet connection to submit a withdrawal request. Your draft was saved locally.',
+            ),
+          ),
+        );
+      return;
+    }
+
     final amount = _parseAmount(_amountController.text);
     if (amount == null) {
       return;
