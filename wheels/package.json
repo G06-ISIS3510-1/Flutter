@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "seed": "node seed.js",
+    "seed:reviews": "node seed.js reviews"
+  },
   "dependencies": {
     "firebase-admin": "^13.8.0"
   }

@@ -297,7 +297,8 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
             );
           }
 
-          if (_loadedPendingActionRideId != ride.id && !_isRestoringPendingAction) {
+          if (_loadedPendingActionRideId != ride.id &&
+              !_isRestoringPendingAction) {
             Future<void>.microtask(() => _ensurePendingActionForRide(ride.id));
           }
 
@@ -742,6 +743,14 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
         return;
       }
 
+      await ref
+          .read(ridesRepositoryProvider)
+          .submitPassengerReviews(
+            ride: ride,
+            applications: applications,
+            ratingsByApplicationId: review.ratings,
+          );
+
       for (final application in applications) {
         final reviewedStatus =
             review.paymentStatuses[application.id] ??
@@ -868,6 +877,7 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
     if (applications.isEmpty) {
       return const _RideCompletionReviewResult(
         <String, RidePassengerPaymentStatus>{},
+        <String, int>{},
       );
     }
 
@@ -1024,9 +1034,9 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                             borderRadius: BorderRadius.circular(AppRadius.md),
                           ),
                         ),
-                        onPressed: () => Navigator.of(
-                          context,
-                        ).pop(_RideCompletionReviewResult(paymentStatuses)),
+                        onPressed: () => Navigator.of(context).pop(
+                          _RideCompletionReviewResult(paymentStatuses, ratings),
+                        ),
                         child: const Text(
                           'Save payment statuses and finish ride',
                           style: TextStyle(fontWeight: FontWeight.w700),
@@ -1370,10 +1380,7 @@ class _PassengerReviewTile extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           Text(
             subtitle,
-            style: TextStyle(
-              color: palette.textSecondary,
-              fontSize: 12,
-            ),
+            style: TextStyle(color: palette.textSecondary, fontSize: 12),
           ),
           const SizedBox(height: AppSpacing.s),
           Text(
@@ -1472,18 +1479,17 @@ class _PaymentDecisionButton extends StatelessWidget {
         color: isSelected ? palette.primary : palette.textSecondary,
         fontWeight: FontWeight.w700,
       ),
-      side: BorderSide(
-        color: isSelected ? palette.primary : palette.border,
-      ),
+      side: BorderSide(color: isSelected ? palette.primary : palette.border),
       backgroundColor: palette.card,
     );
   }
 }
 
 class _RideCompletionReviewResult {
-  const _RideCompletionReviewResult(this.paymentStatuses);
+  const _RideCompletionReviewResult(this.paymentStatuses, this.ratings);
 
   final Map<String, RidePassengerPaymentStatus> paymentStatuses;
+  final Map<String, int> ratings;
 }
 
 class _InfoRow extends StatelessWidget {
