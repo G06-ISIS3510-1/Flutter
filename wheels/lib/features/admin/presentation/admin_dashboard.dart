@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../theme/app_colors.dart';
 import '../../engagement/presentation/providers/engagement_providers.dart';
+import 'providers/ride_conversion_providers.dart';
 
 class AdminDashboard extends ConsumerStatefulWidget {
   const AdminDashboard({super.key});
@@ -14,10 +15,13 @@ class AdminDashboard extends ConsumerStatefulWidget {
 
 class _AdminDashboardState extends ConsumerState<AdminDashboard> {
   String? _selectedUserId;
+  bool _isRebuildingRideAnalytics = false;
 
   @override
   Widget build(BuildContext context) {
     final usersAsync = ref.watch(adminUsersProvider);
+    final rideConversionSummaryAsync = ref.watch(rideConversionSummaryProvider);
+    final rideConversionRoutesAsync = ref.watch(rideConversionRoutesProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FB),
@@ -83,6 +87,13 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
                         counts: counts,
                         preferredHour: preferredHour,
                       ),
+                      const SizedBox(height: 20),
+                      _RideConversionSection(
+                        summaryAsync: rideConversionSummaryAsync,
+                        routesAsync: rideConversionRoutesAsync,
+                        isRebuilding: _isRebuildingRideAnalytics,
+                        onRebuild: _rebuildRideConversionAnalytics,
+                      ),
                     ],
                   );
                 },
@@ -107,6 +118,55 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       24,
       (hour) => (countsMap['$hour'] as num? ?? 0).toInt(),
     );
+  }
+
+  Future<void> _rebuildRideConversionAnalytics() async {
+    if (_isRebuildingRideAnalytics) {
+      return;
+    }
+
+    setState(() {
+      _isRebuildingRideAnalytics = true;
+    });
+
+    try {
+      await ref
+          .read(rideConversionAnalyticsAdminServiceProvider)
+          .rebuildAnalytics();
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Ride conversion analytics were rebuilt from the current rides collection.',
+            ),
+          ),
+        );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not rebuild ride conversion analytics: $error',
+            ),
+          ),
+        );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRebuildingRideAnalytics = false;
+        });
+      }
+    }
   }
 }
 
@@ -368,6 +428,276 @@ class _BarChartCard extends StatelessWidget {
                     ),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RideConversionSection extends StatelessWidget {
+  const _RideConversionSection({
+    required this.summaryAsync,
+    required this.routesAsync,
+    required this.isRebuilding,
+    required this.onRebuild,
+  });
+
+  final AsyncValue<RideConversionSummary?> summaryAsync;
+  final AsyncValue<List<RideConversionRouteSummary>> routesAsync;
+  final bool isRebuilding;
+  final Future<void> Function() onRebuild;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Ride conversion efficiency',
+            style: TextStyle(
+              color: AppColors.primary,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Business question: What percentage of published rides end up being completed?',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.icon(
+              onPressed: isRebuilding ? null : onRebuild,
+              icon: isRebuilding
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh_rounded),
+              label: Text(
+                isRebuilding
+                    ? 'Rebuilding metrics...'
+                    : 'Rebuild from current rides',
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          summaryAsync.when(
+            data: (summary) {
+              if (summary == null) {
+                return const Text('No ride conversion analytics available yet.');
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      _AnalyticsMetricCard(
+                        label: 'Published rides',
+                        value: '${summary.totalPublishedRides}',
+                      ),
+                      _AnalyticsMetricCard(
+                        label: 'Completed rides',
+                        value: '${summary.completedRides}',
+                      ),
+                      _AnalyticsMetricCard(
+                        label: 'Completion rate',
+                        value:
+                            '${(summary.completionRate * 100).toStringAsFixed(1)}%',
+                      ),
+                      _AnalyticsMetricCard(
+                        label: 'Cancellation rate',
+                        value:
+                            '${(summary.cancellationRate * 100).toStringAsFixed(1)}%',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      _CompactStatusChip(
+                        label: 'Open',
+                        value: summary.openRides,
+                      ),
+                      _CompactStatusChip(
+                        label: 'In progress',
+                        value: summary.inProgressRides,
+                      ),
+                      _CompactStatusChip(
+                        label: 'Completed',
+                        value: summary.completedRides,
+                      ),
+                      _CompactStatusChip(
+                        label: 'Cancelled',
+                        value: summary.cancelledRides,
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (error, _) => Text('Could not load ride metrics: $error'),
+          ),
+          const SizedBox(height: 18),
+          const Text(
+            'Top routes by completed rides',
+            style: TextStyle(
+              color: AppColors.primary,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 10),
+          routesAsync.when(
+            data: (routes) {
+              if (routes.isEmpty) {
+                return const Text('No route summaries available yet.');
+              }
+
+              return Column(
+                children: routes
+                    .map(
+                      (route) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _RouteConversionTile(route: route),
+                      ),
+                    )
+                    .toList(),
+              );
+            },
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (error, _) => Text('Could not load route metrics: $error'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AnalyticsMetricCard extends StatelessWidget {
+  const _AnalyticsMetricCard({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 170,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F8FC),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompactStatusChip extends StatelessWidget {
+  const _CompactStatusChip({required this.label, required this.value});
+
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F8FC),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Text(
+        '$label: $value',
+        style: const TextStyle(
+          color: AppColors.primary,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _RouteConversionTile extends StatelessWidget {
+  const _RouteConversionTile({required this.route});
+
+  final RideConversionRouteSummary route;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F8FC),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            route.routeLabel,
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Published: ${route.totalPublishedRides} - Completed: ${route.completedRides} - Cancelled: ${route.cancelledRides}',
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Completion rate: ${(route.completionRate * 100).toStringAsFixed(1)}%',
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
