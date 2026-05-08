@@ -119,4 +119,17 @@ class RidesRepositoryImpl extends RidesRepository {
   Future<void> confirmCardRidePayments({required String rideId}) {
     return _remoteDataSource.confirmCardRidePayments(rideId: rideId);
   }
+
+  @override
+  Future<void> submitPassengerReviews({
+    required RidesEntity ride,
+    required List<RideApplicationEntity> applications,
+    required Map<String, int> ratingsByApplicationId,
+  }) {
+    return _remoteDataSource.submitPassengerReviews(
+      ride: ride,
+      applications: applications,
+      ratingsByApplicationId: ratingsByApplicationId,
+    );
+  }
 }
