@@ -75,18 +75,25 @@ class RidesModel extends RidesEntity {
   }
 
   Map<String, dynamic> toFirestore() {
+    final routeLabel = '${origin.trim()} -> ${destination.trim()}';
+    final routeKey =
+        '${origin.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_')}_to_'
+        '${destination.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_')}';
     return <String, dynamic>{
       'driverId': driverId,
       'driverName': driverName,
       'driverEmail': driverEmail,
       'origin': origin,
       'destination': destination,
+      'routeLabel': routeLabel,
+      'routeKey': routeKey,
       'originSearch': origin.toLowerCase(),
       'destinationSearch': destination.toLowerCase(),
       'departureAt': Timestamp.fromDate(departureAt),
       'estimatedDurationMinutes': estimatedDurationMinutes,
       'totalSeats': totalSeats,
       'availableSeats': availableSeats,
+      'bookedSeats': bookedSeats,
       'pricePerSeat': pricePerSeat,
       'paymentOption': paymentOption.storageValue,
       'status': status,

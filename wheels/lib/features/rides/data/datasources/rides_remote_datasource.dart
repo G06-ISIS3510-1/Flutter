@@ -15,6 +15,12 @@ class RidesRemoteDataSource {
   CollectionReference<Map<String, dynamic>> get _paymentsCollection =>
       _firestore.collection('payments');
 
+  CollectionReference<Map<String, dynamic>> get _analyticsCollection =>
+      _firestore.collection('analytics');
+
+  CollectionReference<Map<String, dynamic>> get _rideConversionRoutesCollection =>
+      _firestore.collection('ride_conversion_routes');
+
   CollectionReference<Map<String, dynamic>> _applicationsCollection(
     String rideId,
   ) => _ridesCollection.doc(rideId).collection('applications');
@@ -24,6 +30,9 @@ class RidesRemoteDataSource {
     String passengerId,
   ) =>
       _paymentsCollection.doc(rideId).collection('passengers').doc(passengerId);
+
+  DocumentReference<Map<String, dynamic>> get _rideConversionSummaryDocument =>
+      _analyticsCollection.doc('ride_conversion_summary');
 
   Stream<List<RidesEntity>> watchAvailableRides() {
     return _ridesCollection.snapshots().map((snapshot) {
@@ -120,6 +129,8 @@ class RidesRemoteDataSource {
   }) async {
     final document = _ridesCollection.doc();
     final now = DateTime.now();
+    final routeKey = _routeKey(origin, destination);
+    final routeLabel = _routeLabel(origin, destination);
     final ride = RidesModel(
       id: document.id,
       driverId: driverId,
@@ -140,7 +151,30 @@ class RidesRemoteDataSource {
       updatedAt: now,
     );
 
-    await document.set(ride.toFirestore());
+    final batch = _firestore.batch();
+    batch.set(document, ride.toFirestore());
+    batch.set(
+      _rideConversionSummaryDocument,
+      _rideConversionSummaryDelta(
+        statusDelta: const <String, int>{'open': 1},
+        totalPublishedDelta: 1,
+        timestampField: 'lastRideCreatedAt',
+      ),
+      SetOptions(merge: true),
+    );
+    batch.set(
+      _rideConversionRoutesCollection.doc(routeKey),
+      _rideConversionRouteDelta(
+        routeKey: routeKey,
+        routeLabel: routeLabel,
+        origin: origin,
+        destination: destination,
+        statusDelta: const <String, int>{'open': 1},
+        totalPublishedDelta: 1,
+      ),
+      SetOptions(merge: true),
+    );
+    await batch.commit();
     return ride;
   }
 
@@ -180,6 +214,7 @@ class RidesRemoteDataSource {
 
       transaction.update(rideRef, <String, dynamic>{
         'availableSeats': ride.availableSeats - 1,
+        'bookedSeats': ride.bookedSeats + 1,
         'passengerIds': FieldValue.arrayUnion(<String>[passengerId]),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -218,10 +253,47 @@ class RidesRemoteDataSource {
   Future<void> updateRideStatus({
     required String rideId,
     required String status,
-  }) {
-    return _ridesCollection.doc(rideId).update(<String, dynamic>{
-      'status': status,
-      'updatedAt': FieldValue.serverTimestamp(),
+  }) async {
+    final rideRef = _ridesCollection.doc(rideId);
+    await _firestore.runTransaction((transaction) async {
+      final rideSnapshot = await transaction.get(rideRef);
+      if (!rideSnapshot.exists) {
+        throw const RideFailure('This ride is no longer available.');
+      }
+
+      final ride = RidesModel.fromFirestore(rideSnapshot);
+      final previousStatus = ride.status.trim().toLowerCase();
+      final nextStatus = status.trim().toLowerCase();
+      if (previousStatus == nextStatus) {
+        return;
+      }
+
+      transaction.update(rideRef, <String, dynamic>{
+        'status': status,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      transaction.set(
+        _rideConversionSummaryDocument,
+        _rideConversionSummaryDelta(
+          statusDelta: <String, int>{previousStatus: -1, nextStatus: 1},
+          totalPublishedDelta: 0,
+          timestampField: 'lastStatusChangedAt',
+        ),
+        SetOptions(merge: true),
+      );
+      final routeKey = _routeKey(ride.origin, ride.destination);
+      transaction.set(
+        _rideConversionRoutesCollection.doc(routeKey),
+        _rideConversionRouteDelta(
+          routeKey: routeKey,
+          routeLabel: _routeLabel(ride.origin, ride.destination),
+          origin: ride.origin,
+          destination: ride.destination,
+          statusDelta: <String, int>{previousStatus: -1, nextStatus: 1},
+          totalPublishedDelta: 0,
+        ),
+        SetOptions(merge: true),
+      );
     });
   }
 
@@ -366,5 +438,77 @@ class RidesRemoteDataSource {
           : 'card_payment_pending_confirmation';
     }
     return 'awaiting_manual_transfer_confirmation';
+  }
+
+  Map<String, dynamic> _rideConversionSummaryDelta({
+    required Map<String, int> statusDelta,
+    required int totalPublishedDelta,
+    required String timestampField,
+  }) {
+    return <String, dynamic>{
+      'question':
+          'What percentage of published rides end up being completed?',
+      'totalPublishedRides': FieldValue.increment(totalPublishedDelta),
+      'openRides': FieldValue.increment(_statusDelta(statusDelta, 'open')),
+      'inProgressRides': FieldValue.increment(
+        _statusDelta(statusDelta, 'in_progress'),
+      ),
+      'completedRides': FieldValue.increment(
+        _statusDelta(statusDelta, 'completed'),
+      ),
+      'cancelledRides': FieldValue.increment(
+        _statusDelta(statusDelta, 'cancelled'),
+      ),
+      timestampField: FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+  }
+
+  Map<String, dynamic> _rideConversionRouteDelta({
+    required String routeKey,
+    required String routeLabel,
+    required String origin,
+    required String destination,
+    required Map<String, int> statusDelta,
+    required int totalPublishedDelta,
+  }) {
+    return <String, dynamic>{
+      'routeKey': routeKey,
+      'routeLabel': routeLabel,
+      'origin': origin,
+      'destination': destination,
+      'totalPublishedRides': FieldValue.increment(totalPublishedDelta),
+      'openRides': FieldValue.increment(_statusDelta(statusDelta, 'open')),
+      'inProgressRides': FieldValue.increment(
+        _statusDelta(statusDelta, 'in_progress'),
+      ),
+      'completedRides': FieldValue.increment(
+        _statusDelta(statusDelta, 'completed'),
+      ),
+      'cancelledRides': FieldValue.increment(
+        _statusDelta(statusDelta, 'cancelled'),
+      ),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+  }
+
+  int _statusDelta(Map<String, int> statusDelta, String key) {
+    return statusDelta[key] ?? 0;
+  }
+
+  String _routeKey(String origin, String destination) {
+    final normalizedOrigin = origin.trim().toLowerCase().replaceAll(
+      RegExp(r'[^a-z0-9]+'),
+      '_',
+    );
+    final normalizedDestination = destination.trim().toLowerCase().replaceAll(
+      RegExp(r'[^a-z0-9]+'),
+      '_',
+    );
+    return '${normalizedOrigin}_to_$normalizedDestination';
+  }
+
+  String _routeLabel(String origin, String destination) {
+    return '${origin.trim()} -> ${destination.trim()}';
   }
 }
