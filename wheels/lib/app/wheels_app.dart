@@ -9,11 +9,28 @@ import '../theme/app_theme.dart';
 import '../theme/theme_controller.dart';
 
 class WheelsApp extends StatelessWidget {
-  const WheelsApp({super.key});
+  const WheelsApp({
+    super.key,
+    this.initialThemePreference = ThemePreference.automatic,
+    this.initialThemeUserId,
+  });
+
+  final ThemePreference initialThemePreference;
+  final String? initialThemeUserId;
 
   @override
   Widget build(BuildContext context) {
-    return const ProviderScope(child: _WheelsAppView());
+    return ProviderScope(
+      overrides: [
+        themeControllerProvider.overrideWith(
+          (ref) => ThemeController(
+            initialPreference: initialThemePreference,
+            initialUserId: initialThemeUserId,
+          ),
+        ),
+      ],
+      child: const _WheelsAppView(),
+    );
   }
 }
 
@@ -62,6 +79,13 @@ class _WheelsAppViewState extends ConsumerState<_WheelsAppView>
   @override
   Widget build(BuildContext context) {
     final themeController = ref.watch(themeControllerProvider);
+
+    ref.listen<AuthEntity?>(authUserProvider, (previous, next) {
+      if (previous?.uid == next?.uid) {
+        return;
+      }
+      ref.read(themeControllerProvider).loadPreferenceForUser(next?.uid);
+    });
 
     ref.listen<AsyncValue<AuthEntity?>>(authSessionStreamProvider, (
       previous,
