@@ -39,7 +39,8 @@ class AppScaffold extends StatelessWidget {
         drawer: drawer,
         bottomNavigationBar: bottomNavigationBar,
         body: SafeArea(
-          child: Center(
+          child: Align(
+            alignment: Alignment.topCenter,
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: maxScrollableWidth ?? 430),
               child: SingleChildScrollView(

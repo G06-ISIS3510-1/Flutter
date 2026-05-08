@@ -15,6 +15,9 @@ class RidesRemoteDataSource {
   CollectionReference<Map<String, dynamic>> get _paymentsCollection =>
       _firestore.collection('payments');
 
+  CollectionReference<Map<String, dynamic>> get _reviewsCollection =>
+      _firestore.collection('reviews');
+
   CollectionReference<Map<String, dynamic>> _applicationsCollection(
     String rideId,
   ) => _ridesCollection.doc(rideId).collection('applications');
@@ -287,6 +290,41 @@ class RidesRemoteDataSource {
         SetOptions(merge: true),
       );
     }
+    await batch.commit();
+  }
+
+  Future<void> submitPassengerReviews({
+    required RidesEntity ride,
+    required List<RideApplicationEntity> applications,
+    required Map<String, int> ratingsByApplicationId,
+  }) async {
+    if (applications.isEmpty) {
+      return;
+    }
+
+    final batch = _firestore.batch();
+    for (final application in applications) {
+      final rating = (ratingsByApplicationId[application.id] ?? 5).clamp(1, 5);
+      final reviewRef = _reviewsCollection.doc(
+        '${ride.id}_${application.passengerId}_from_driver',
+      );
+
+      batch.set(reviewRef, <String, dynamic>{
+        'rideId': ride.id,
+        'reviewedUserId': application.passengerId,
+        'reviewedUserName': application.passengerName,
+        'reviewerUserId': ride.driverId,
+        'reviewerName': ride.driverName,
+        'rating': rating,
+        'roleTag': 'passenger',
+        'reviewedAs': 'passenger',
+        'reviewText':
+            'Rated after completing the ride from ${ride.origin} to ${ride.destination}.',
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+
     await batch.commit();
   }
 

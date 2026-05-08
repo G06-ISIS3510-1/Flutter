@@ -54,4 +54,10 @@ abstract class RidesRepository {
   });
 
   Future<void> confirmCardRidePayments({required String rideId});
+
+  Future<void> submitPassengerReviews({
+    required RidesEntity ride,
+    required List<RideApplicationEntity> applications,
+    required Map<String, int> ratingsByApplicationId,
+  });
 }
