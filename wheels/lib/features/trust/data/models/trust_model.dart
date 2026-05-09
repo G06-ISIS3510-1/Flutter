@@ -38,6 +38,74 @@ class TrustModel extends TrustEntity {
     );
   }
 
+  factory TrustModel.fromEntity(TrustEntity entity) {
+    return TrustModel(
+      userId: entity.userId,
+      role: entity.role,
+      accountCreatedAt: entity.accountCreatedAt,
+      totalRides: entity.totalRides,
+      completedRides: entity.completedRides,
+      cancelledRides: entity.cancelledRides,
+      activeRides: entity.activeRides,
+      totalPayments: entity.totalPayments,
+      approvedPayments: entity.approvedPayments,
+      pendingPayments: entity.pendingPayments,
+      failedPayments: entity.failedPayments,
+      score: entity.score,
+      rewardPoints: entity.rewardPoints,
+    );
+  }
+
+  TrustModel copyWith({
+    String? userId,
+    String? role,
+    DateTime? accountCreatedAt,
+    int? totalRides,
+    int? completedRides,
+    int? cancelledRides,
+    int? activeRides,
+    int? totalPayments,
+    int? approvedPayments,
+    int? pendingPayments,
+    int? failedPayments,
+    int? score,
+    int? rewardPoints,
+  }) {
+    return TrustModel(
+      userId: userId ?? this.userId,
+      role: role ?? this.role,
+      accountCreatedAt: accountCreatedAt ?? this.accountCreatedAt,
+      totalRides: totalRides ?? this.totalRides,
+      completedRides: completedRides ?? this.completedRides,
+      cancelledRides: cancelledRides ?? this.cancelledRides,
+      activeRides: activeRides ?? this.activeRides,
+      totalPayments: totalPayments ?? this.totalPayments,
+      approvedPayments: approvedPayments ?? this.approvedPayments,
+      pendingPayments: pendingPayments ?? this.pendingPayments,
+      failedPayments: failedPayments ?? this.failedPayments,
+      score: score ?? this.score,
+      rewardPoints: rewardPoints ?? this.rewardPoints,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'userId': userId,
+      'role': role,
+      'accountCreatedAt': accountCreatedAt.toUtc().toIso8601String(),
+      'totalRides': totalRides,
+      'completedRides': completedRides,
+      'cancelledRides': cancelledRides,
+      'activeRides': activeRides,
+      'totalPayments': totalPayments,
+      'approvedPayments': approvedPayments,
+      'pendingPayments': pendingPayments,
+      'failedPayments': failedPayments,
+      'score': score,
+      'rewardPoints': rewardPoints,
+    };
+  }
+
   static int _readInt(Object? value) {
     if (value is int) {
       return value;

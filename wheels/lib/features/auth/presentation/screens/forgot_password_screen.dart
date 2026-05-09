@@ -49,7 +49,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.chevron_left, color: palette.textPrimary),
+                            Icon(
+                              Icons.chevron_left,
+                              color: palette.textPrimary,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               'Back',

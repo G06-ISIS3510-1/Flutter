@@ -42,6 +42,7 @@ class ReviewsLocalDataSource {
     }
 
     try {
+      // Uso de isolate
       final cache = await compute(_decodeReviewsCache, rawCache);
       if (!cache.matchesUser(userId)) {
         await clearUserReviews(userId);
@@ -58,6 +59,7 @@ class ReviewsLocalDataSource {
   }
 
   Future<void> saveUserReviews(LocalReviewsCacheModel cache) async {
+    // Uso de Isolate
     final encoded = await compute(_encodeReviewsCache, cache);
     final box = Hive.box<String>(AppHiveBoxes.userReviewsCache);
     await box.put(cache.userId, encoded);

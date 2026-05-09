@@ -1,7 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/trust_model.dart';
@@ -29,9 +29,11 @@ class TrustRemoteDataSource {
 
   Future<TrustModel> getTrustData(String userId) async {
     try {
-      return await _fetchTrustFromFunction(userId);
+      final trust = await _fetchTrustFromFunction(userId);
+      return trust.copyWith(userId: userId);
     } catch (_) {
-      return _fetchTrustFromFirestore(userId);
+      final trust = await _fetchTrustFromFirestore(userId);
+      return trust.copyWith(userId: userId);
     }
   }
 
@@ -66,13 +68,14 @@ class TrustRemoteDataSource {
   }
 
   Future<TrustModel> _fetchTrustFromFirestore(String userId) async {
-    final userFuture = _usersCollection.doc(userId).get();
+    const serverOnly = GetOptions(source: Source.server);
+    final userFuture = _usersCollection.doc(userId).get(serverOnly);
     final driverRidesFuture = _ridesCollection
         .where('driverId', isEqualTo: userId)
-        .get();
+        .get(serverOnly);
     final passengerRidesFuture = _ridesCollection
         .where('passengerIds', arrayContains: userId)
-        .get();
+        .get(serverOnly);
 
     final userSnapshot = await userFuture;
     final driverRidesSnapshot = await driverRidesFuture;
@@ -261,16 +264,21 @@ class TrustRemoteDataSource {
         .collection('passengers');
 
     if (relation == _RideUserRelation.passenger) {
-      final snapshot = await passengersCollection.doc(userId).get();
+      final snapshot = await passengersCollection
+          .doc(userId)
+          .get(const GetOptions(source: Source.server));
       if (!snapshot.exists) {
         return const _PaymentCounters();
       }
       return _classifyPayments([snapshot.data() ?? <String, dynamic>{}]);
     }
 
-    final snapshot = await passengersCollection.get();
-    final records =
-        snapshot.docs.map((document) => document.data()).toList(growable: false);
+    final snapshot = await passengersCollection.get(
+      const GetOptions(source: Source.server),
+    );
+    final records = snapshot.docs
+        .map((document) => document.data())
+        .toList(growable: false);
     return _classifyPayments(records);
   }
 
