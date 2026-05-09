@@ -4,6 +4,7 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/datasources/auth_remote_datasource.dart';
+import '../../data/datasources/registration_draft_local_datasource.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../data/services/auth_service.dart';
 import '../../domain/entities/auth_entity.dart';
@@ -32,6 +33,11 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
     ),
   );
 });
+
+final registrationDraftLocalDataSourceProvider =
+    Provider<RegistrationDraftLocalDataSource>((ref) {
+      return const RegistrationDraftLocalDataSource();
+    });
 
 final authStatusProvider = Provider<String>((ref) {
   final user = ref.watch(authUserProvider);
@@ -97,7 +103,9 @@ class AuthSessionController {
 
   void _syncState(AuthEntity? authEntity) {
     _ref.read(authUserProvider.notifier).state = authEntity;
-    _ref.read(currentUserRoleProvider.notifier).state = _mapRole(authEntity?.role);
+    _ref.read(currentUserRoleProvider.notifier).state = _mapRole(
+      authEntity?.role,
+    );
     _ref.read(authStepProvider.notifier).state = authEntity == null ? 0 : 1;
   }
 

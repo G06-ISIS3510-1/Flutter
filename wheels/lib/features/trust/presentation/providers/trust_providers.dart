@@ -1,10 +1,16 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/cache/memory_lru_cache.dart';
+import '../../../../shared/providers/connectivity_provider.dart';
 import '../../../../theme/app_colors.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../data/datasources/trust_local_datasource.dart';
 import '../../data/datasources/trust_remote_datasource.dart';
+import '../../data/models/local_trust_cache_model.dart';
 import '../../data/repositories/trust_repository_impl.dart';
 import '../../domain/entities/trust_entity.dart';
 import '../../domain/repositories/trust_repository.dart';
@@ -114,6 +120,44 @@ class TrustRewardItemData {
   final String pointsLabel;
 }
 
+class TrustLoadState {
+  const TrustLoadState({
+    required this.trust,
+    required this.viewData,
+    required this.isFromCache,
+    required this.isStaleCache,
+    required this.hasRemoteError,
+    required this.isOffline,
+    this.savedAt,
+  });
+
+  final TrustEntity trust;
+  final TrustViewData viewData;
+  final bool isFromCache;
+  final bool isStaleCache;
+  final bool hasRemoteError;
+  final bool isOffline;
+  final DateTime? savedAt;
+}
+
+class TrustOfflineException implements Exception {
+  const TrustOfflineException();
+
+  @override
+  String toString() {
+    return 'Connect to the internet to calculate your trust score for the first time.';
+  }
+}
+
+final trustMemoryCacheProvider =
+    Provider<MemoryLruCache<String, LocalTrustCacheModel>>((ref) {
+      return MemoryLruCache<String, LocalTrustCacheModel>(maxEntries: 8);
+    });
+
+final trustLocalDataSourceProvider = Provider<TrustLocalDataSource>((ref) {
+  return TrustLocalDataSource(memoryCache: ref.watch(trustMemoryCacheProvider));
+});
+
 final trustRemoteDataSourceProvider = Provider<TrustRemoteDataSource>((ref) {
   return TrustRemoteDataSource(firestore: FirebaseFirestore.instance);
 });
@@ -121,20 +165,21 @@ final trustRemoteDataSourceProvider = Provider<TrustRemoteDataSource>((ref) {
 final trustRepositoryProvider = Provider<TrustRepository>((ref) {
   return TrustRepositoryImpl(
     remoteDataSource: ref.watch(trustRemoteDataSourceProvider),
+    localDataSource: ref.watch(trustLocalDataSourceProvider),
   );
 });
 
-final currentTrustProvider = FutureProvider<TrustEntity>((ref) async {
-  final user = ref.watch(authUserProvider);
-  if (user == null) {
-    throw StateError('You need to sign in to see your trust score.');
-  }
-  return ref.watch(trustRepositoryProvider).getTrustData(user.uid);
+final trustLoadStateProvider =
+    AsyncNotifierProvider.autoDispose<TrustNotifier, TrustLoadState>(
+      TrustNotifier.new,
+    );
+
+final currentTrustProvider = Provider<AsyncValue<TrustEntity>>((ref) {
+  return ref.watch(trustLoadStateProvider).whenData((state) => state.trust);
 });
 
-final trustViewDataProvider = FutureProvider<TrustViewData>((ref) async {
-  final trust = await ref.watch(currentTrustProvider.future);
-  return _mapTrustEntityToViewData(trust);
+final trustViewDataProvider = Provider<AsyncValue<TrustLoadState>>((ref) {
+  return ref.watch(trustLoadStateProvider);
 });
 
 final trustStatusProvider = Provider<String>((ref) {
@@ -149,12 +194,167 @@ final trustPendingStepsProvider = Provider<int>(
   (ref) => _buildPolicySteps().length,
 );
 
+class TrustNotifier extends AutoDisposeAsyncNotifier<TrustLoadState> {
+  static const Duration _connectivityCheckTimeout = Duration(seconds: 1);
+  static const Duration _remoteLoadTimeout = Duration(seconds: 4);
+
+  @override
+  Future<TrustLoadState> build() async {
+    final user = ref.watch(authUserProvider);
+    ref.watch(connectivityStatusProvider);
+    if (user == null) {
+      throw StateError('You need to sign in to see your trust score.');
+    }
+
+    return _loadForUser(
+      userId: user.uid,
+      allowFreshCache: true,
+      isOnline: await _hasConnection(),
+    );
+  }
+
+  Future<void> refresh() async {
+    final user = ref.read(authUserProvider);
+    if (user == null) {
+      state = AsyncError(
+        StateError('You need to sign in to see your trust score.'),
+        StackTrace.current,
+      );
+      return;
+    }
+
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      return _loadForUser(
+        userId: user.uid,
+        allowFreshCache: false,
+        isOnline: await _hasConnection(),
+      );
+    });
+  }
+
+  Future<void> clearCache() async {
+    final user = ref.read(authUserProvider);
+    if (user == null) {
+      return;
+    }
+    await ref.read(trustRepositoryProvider).clearCachedTrustData(user.uid);
+    ref.invalidateSelf();
+  }
+
+  Future<TrustLoadState> _loadForUser({
+    required String userId,
+    required bool allowFreshCache,
+    required bool isOnline,
+  }) async {
+    final repository = ref.read(trustRepositoryProvider);
+    final cached = await repository.getCachedTrustData(userId);
+
+    if (!isOnline) {
+      if (cached != null) {
+        return _buildLoadState(
+          trust: cached.trust,
+          isFromCache: true,
+          isStaleCache: cached.isExpired,
+          hasRemoteError: false,
+          isOffline: true,
+          savedAt: cached.savedAt,
+        );
+      }
+
+      throw const TrustOfflineException();
+    }
+
+    if (cached != null && allowFreshCache && !cached.isExpired) {
+      return _buildLoadState(
+        trust: cached.trust,
+        isFromCache: true,
+        isStaleCache: false,
+        hasRemoteError: false,
+        isOffline: false,
+        savedAt: cached.savedAt,
+      );
+    }
+
+    if (cached != null) {
+      state = AsyncData(
+        _buildLoadState(
+          trust: cached.trust,
+          isFromCache: true,
+          isStaleCache: cached.isExpired,
+          hasRemoteError: false,
+          isOffline: false,
+          savedAt: cached.savedAt,
+        ),
+      );
+    }
+
+    try {
+      final liveTrust = await repository
+          .getTrustData(userId)
+          .timeout(_remoteLoadTimeout);
+      return _buildLoadState(
+        trust: liveTrust,
+        isFromCache: false,
+        isStaleCache: false,
+        hasRemoteError: false,
+        isOffline: false,
+      );
+    } catch (error) {
+      if (cached != null) {
+        final isStillOnline = await _hasConnection();
+        return _buildLoadState(
+          trust: cached.trust,
+          isFromCache: true,
+          isStaleCache: true,
+          hasRemoteError: true,
+          isOffline: !isStillOnline || error is TimeoutException,
+          savedAt: cached.savedAt,
+        );
+      }
+
+      final isStillOnline = await _hasConnection();
+      if (!isStillOnline || error is TimeoutException) {
+        throw const TrustOfflineException();
+      }
+      rethrow;
+    }
+  }
+
+  TrustLoadState _buildLoadState({
+    required TrustEntity trust,
+    required bool isFromCache,
+    required bool isStaleCache,
+    required bool hasRemoteError,
+    required bool isOffline,
+    DateTime? savedAt,
+  }) {
+    return TrustLoadState(
+      trust: trust,
+      viewData: _mapTrustEntityToViewData(trust),
+      isFromCache: isFromCache,
+      isStaleCache: isStaleCache,
+      hasRemoteError: hasRemoteError,
+      isOffline: isOffline,
+      savedAt: savedAt,
+    );
+  }
+
+  Future<bool> _hasConnection() {
+    return ref
+        .read(connectivityServiceProvider)
+        .hasConnection()
+        .timeout(_connectivityCheckTimeout, onTimeout: () => false);
+  }
+}
+
 TrustViewData _mapTrustEntityToViewData(TrustEntity trust) {
   final headline = _headlineForScore(trust.score);
   final subtitle = _headlineSubtitle(trust);
   final maturityPoints = ((trust.accountAgeMonths * 2).clamp(0, 20)).toInt();
-  final completionBonus =
-      trust.totalRides >= 3 && trust.cancelledRides == 0 ? 20 : 0;
+  final completionBonus = trust.totalRides >= 3 && trust.cancelledRides == 0
+      ? 20
+      : 0;
 
   return TrustViewData(
     score: trust.score,
@@ -275,7 +475,9 @@ String _headlineSubtitle(TrustEntity trust) {
   if (!trust.hasRideHistory) {
     return 'Complete your first ride to start building a stronger score.';
   }
-  if (trust.score >= 90 && trust.cancelledRides == 0 && trust.failedPayments == 0) {
+  if (trust.score >= 90 &&
+      trust.cancelledRides == 0 &&
+      trust.failedPayments == 0) {
     return 'Clean record across ${trust.totalRides} rides and resolved payments.';
   }
   if (trust.score >= 80) {

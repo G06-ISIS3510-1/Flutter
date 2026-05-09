@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../router/app_routes.dart';
+import '../../../../shared/providers/connectivity_provider.dart';
 import '../../../../theme/app_colors.dart';
 import '../../../../theme/app_spacing.dart';
 import '../../../../theme/app_theme_palette.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
+import '../../data/models/local_registration_draft_model.dart';
 import '../../domain/entities/auth_entity.dart';
 import '../../domain/validation/auth_input_constraints.dart';
 import '../providers/auth_providers.dart';
@@ -22,6 +26,9 @@ class RegisterScreen extends ConsumerStatefulWidget {
 }
 
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
+  static const Duration _connectivityCheckTimeout = Duration(seconds: 1);
+  static const Duration _registrationTimeout = Duration(seconds: 5);
+
   final _registerFormKey = GlobalKey<FormState>();
   final _loginFormKey = GlobalKey<FormState>();
 
@@ -38,15 +45,26 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   UserRole? _selectedRole = UserRole.passenger;
   bool _isRegisterLoading = false;
   bool _isLoginLoading = false;
+  bool _isRestoringDraft = false;
+  bool _hasRestoredDraft = false;
+  Timer? _draftSaveDebounce;
 
   @override
   void initState() {
     super.initState();
     _selectedModeIndex = widget.initialModeIndex.clamp(0, 1);
+    _firstNameController.addListener(_scheduleRegistrationDraftSave);
+    _lastNameController.addListener(_scheduleRegistrationDraftSave);
+    _registerUsernameController.addListener(_scheduleRegistrationDraftSave);
+    Future.microtask(_restoreRegistrationDraft);
   }
 
   @override
   void dispose() {
+    _draftSaveDebounce?.cancel();
+    _firstNameController.removeListener(_scheduleRegistrationDraftSave);
+    _lastNameController.removeListener(_scheduleRegistrationDraftSave);
+    _registerUsernameController.removeListener(_scheduleRegistrationDraftSave);
     _firstNameController.dispose();
     _lastNameController.dispose();
     _registerUsernameController.dispose();
@@ -96,6 +114,87 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         !trimmed.contains('@');
   }
 
+  Future<void> _restoreRegistrationDraft() async {
+    if (_isRestoringDraft) {
+      return;
+    }
+
+    _isRestoringDraft = true;
+    final draft = await ref
+        .read(registrationDraftLocalDataSourceProvider)
+        .loadDraft();
+    _isRestoringDraft = false;
+
+    if (!mounted || draft == null) {
+      return;
+    }
+
+    setState(() {
+      _firstNameController.text = draft.firstName;
+      _lastNameController.text = draft.lastName;
+      _registerUsernameController.text = draft.username;
+      _selectedRole = _roleFromStorageValue(draft.role);
+      _selectedModeIndex = 0;
+      _hasRestoredDraft = true;
+    });
+  }
+
+  void _scheduleRegistrationDraftSave() {
+    if (_isRestoringDraft) {
+      return;
+    }
+
+    _draftSaveDebounce?.cancel();
+    _draftSaveDebounce = Timer(const Duration(milliseconds: 450), () {
+      unawaited(_saveRegistrationDraft());
+    });
+  }
+
+  Future<void> _saveRegistrationDraft() async {
+    final role = _selectedRole ?? UserRole.passenger;
+    final draft = LocalRegistrationDraftModel.create(
+      firstName: _firstNameController.text.trim(),
+      lastName: _lastNameController.text.trim(),
+      username: _registerUsernameController.text.trim(),
+      role: _roleStorageValue(role),
+    );
+
+    await ref.read(registrationDraftLocalDataSourceProvider).saveDraft(draft);
+  }
+
+  Future<void> _clearRegistrationDraft() {
+    _draftSaveDebounce?.cancel();
+    return ref.read(registrationDraftLocalDataSourceProvider).clearDraft();
+  }
+
+  Future<bool> _hasConnection() {
+    return ref
+        .read(connectivityServiceProvider)
+        .hasConnection()
+        .timeout(_connectivityCheckTimeout, onTimeout: () => false);
+  }
+
+  bool _looksLikeConnectivityFailure(Object error) {
+    final message = error.toString().toLowerCase();
+    return message.contains('network') ||
+        message.contains('internet') ||
+        message.contains('connection') ||
+        message.contains('offline') ||
+        message.contains('timeout') ||
+        message.contains('unavailable') ||
+        message.contains('socket');
+  }
+
+  Future<void> _saveDraftAndShowConnectionMessage() async {
+    await _saveRegistrationDraft();
+    if (!mounted) {
+      return;
+    }
+    _showSnackBar(
+      'No internet connection. Your registration draft was saved locally; reconnect and enter your password again to finish.',
+    );
+  }
+
   Future<void> _submitRegister() async {
     final formState = _registerFormKey.currentState;
     if (formState == null || !formState.validate()) {
@@ -103,6 +202,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
     if (_selectedRole == null) {
       _showSnackBar('Please choose Driver or Passenger before registering.');
+      return;
+    }
+
+    final hasConnection = await _hasConnection();
+    if (!hasConnection) {
+      await _saveDraftAndShowConnectionMessage();
       return;
     }
 
@@ -120,14 +225,29 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             username: _registerUsernameController.text.trim(),
             password: _registerPasswordController.text,
             role: _roleStorageValue(role),
-          );
+          )
+          .timeout(_registrationTimeout);
 
+      if (!mounted) return;
+      await _clearRegistrationDraft();
       if (!mounted) return;
       _completeAuth(authEntity, role);
       _showSnackBar('Welcome to Wheels, ${_firstNameController.text.trim()}!');
       context.go(AppRoutes.dashboard);
     } on AuthFailure catch (error) {
-      _showSnackBar(error.message);
+      if (_looksLikeConnectivityFailure(error.message)) {
+        await _saveDraftAndShowConnectionMessage();
+      } else {
+        _showSnackBar(error.message);
+      }
+    } on TimeoutException {
+      await _saveDraftAndShowConnectionMessage();
+    } catch (error) {
+      if (_looksLikeConnectivityFailure(error)) {
+        await _saveDraftAndShowConnectionMessage();
+      } else {
+        _showSnackBar('We could not create your account right now.');
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -215,6 +335,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     return role == UserRole.driver ? 'driver' : 'passenger';
   }
 
+  static UserRole _roleFromStorageValue(String role) {
+    return role == 'driver' ? UserRole.driver : UserRole.passenger;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -275,6 +399,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                     setState(() {
                                       _selectedRole = role;
                                     });
+                                    _scheduleRegistrationDraftSave();
                                   },
                                   onChanged: () => setState(() {}),
                                   onSubmit: _submitRegister,
@@ -298,6 +423,28 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.m),
+                  if (_hasRestoredDraft) ...[
+                    _RestoredDraftNotice(
+                      onDiscard: () async {
+                        await _clearRegistrationDraft();
+                        if (!mounted) {
+                          return;
+                        }
+                        setState(() {
+                          _isRestoringDraft = true;
+                          _firstNameController.clear();
+                          _lastNameController.clear();
+                          _registerUsernameController.clear();
+                          _registerPasswordController.clear();
+                          _confirmPasswordController.clear();
+                          _isRestoringDraft = false;
+                          _selectedRole = UserRole.passenger;
+                          _hasRestoredDraft = false;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.m),
+                  ],
                   Row(
                     children: [
                       const Expanded(
@@ -324,6 +471,45 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _RestoredDraftNotice extends StatelessWidget {
+  const _RestoredDraftNotice({required this.onDiscard});
+
+  final VoidCallback onDiscard;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.m),
+      decoration: BoxDecoration(
+        color: palette.accentSoft,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.accent.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.edit_note_rounded, color: palette.accent),
+          const SizedBox(width: AppSpacing.s),
+          Expanded(
+            child: Text(
+              'Your saved registration draft was restored. Re-enter your password to finish creating the account.',
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
+            ),
+          ),
+          TextButton(onPressed: onDiscard, child: const Text('Discard')),
+        ],
       ),
     );
   }

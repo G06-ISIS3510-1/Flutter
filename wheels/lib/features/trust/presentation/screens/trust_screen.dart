@@ -48,35 +48,58 @@ class TrustScreen extends ConsumerWidget {
           AppSpacing.l,
         ),
         child: trustAsync.when(
-          data: (trust) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Transform.translate(
-                offset: const Offset(0, -26),
-                child: _TrustOverviewCard(trust: trust),
-              ),
-              _SectionTitle(label: 'Performance Breakdown'),
-              const SizedBox(height: AppSpacing.m),
-              _PaymentReliabilityCard(data: trust.paymentReliability),
-              const SizedBox(height: AppSpacing.m),
-              _ConsistencyCard(data: trust.consistency),
-              const SizedBox(height: AppSpacing.m),
-              _CancellationCard(data: trust.cancellation),
-              const SizedBox(height: AppSpacing.xl),
-              _SectionTitle(label: 'Accountability System'),
-              const SizedBox(height: AppSpacing.m),
-              _PolicyCard(steps: trust.policySteps, notice: trust.policyNotice),
-              const SizedBox(height: AppSpacing.xl),
-              _SectionTitle(label: 'Trust Rewards'),
-              const SizedBox(height: AppSpacing.m),
-              _RewardsCard(
-                rewardPoints: trust.rewardPoints,
-                items: trust.rewardItems,
-              ),
-            ],
-          ),
+          data: (loadState) {
+            final trust = loadState.viewData;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Transform.translate(
+                  offset: const Offset(0, -26),
+                  child: _TrustOverviewCard(trust: trust),
+                ),
+                if (loadState.isFromCache) ...[
+                  Transform.translate(
+                    offset: const Offset(0, -12),
+                    child: _TrustConnectivityNotice(
+                      loadState: loadState,
+                      onRefresh: () {
+                        ref.read(trustLoadStateProvider.notifier).refresh();
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.s),
+                ],
+                _SectionTitle(label: 'Performance Breakdown'),
+                const SizedBox(height: AppSpacing.m),
+                _PaymentReliabilityCard(data: trust.paymentReliability),
+                const SizedBox(height: AppSpacing.m),
+                _ConsistencyCard(data: trust.consistency),
+                const SizedBox(height: AppSpacing.m),
+                _CancellationCard(data: trust.cancellation),
+                const SizedBox(height: AppSpacing.xl),
+                _SectionTitle(label: 'Accountability System'),
+                const SizedBox(height: AppSpacing.m),
+                _PolicyCard(
+                  steps: trust.policySteps,
+                  notice: trust.policyNotice,
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                _SectionTitle(label: 'Trust Rewards'),
+                const SizedBox(height: AppSpacing.m),
+                _RewardsCard(
+                  rewardPoints: trust.rewardPoints,
+                  items: trust.rewardItems,
+                ),
+              ],
+            );
+          },
           loading: () => const _TrustLoadingBody(),
-          error: (error, _) => _TrustErrorCard(message: '$error'),
+          error: (error, _) => _TrustErrorCard(
+            message: '$error',
+            onRetry: () {
+              ref.read(trustLoadStateProvider.notifier).refresh();
+            },
+          ),
         ),
       ),
     );
@@ -96,9 +119,10 @@ class _TrustLoadingBody extends StatelessWidget {
 }
 
 class _TrustErrorCard extends StatelessWidget {
-  const _TrustErrorCard({required this.message});
+  const _TrustErrorCard({required this.message, required this.onRetry});
 
   final String message;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -116,11 +140,7 @@ class _TrustErrorCard extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Icon(
-              Icons.error_outline_rounded,
-              color: palette.warning,
-              size: 42,
-            ),
+            Icon(Icons.error_outline_rounded, color: palette.warning, size: 42),
             const SizedBox(height: 16),
             Text(
               'We could not calculate your trust score right now.',
@@ -141,10 +161,108 @@ class _TrustErrorCard extends StatelessWidget {
                 fontWeight: FontWeight.w500,
               ),
             ),
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: onRetry,
+              style: FilledButton.styleFrom(
+                backgroundColor: palette.primary,
+                foregroundColor: palette.primaryForeground,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 12,
+                ),
+              ),
+              icon: const Icon(Icons.refresh_rounded, size: 20),
+              label: const Text(
+                'Retry',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+}
+
+class _TrustConnectivityNotice extends StatelessWidget {
+  const _TrustConnectivityNotice({
+    required this.loadState,
+    required this.onRefresh,
+  });
+
+  final TrustLoadState loadState;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final savedAt = loadState.savedAt;
+    final title = loadState.isOffline
+        ? 'Showing cached trust score'
+        : loadState.hasRemoteError
+        ? 'Live score unavailable'
+        : 'Showing recently saved score';
+    final savedAtLabel = savedAt == null
+        ? null
+        : 'Saved ${_formatSavedAt(context, savedAt)}.';
+    final detail = loadState.isStaleCache
+        ? 'This score may be imprecise until live data refreshes.'
+        : 'This avoids a server call while the local score is still fresh.';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.warning.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: palette.warning.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.wifi_off_rounded, color: palette.warning, size: 24),
+          const SizedBox(width: AppSpacing.s),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: palette.primary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  savedAtLabel == null ? detail : '$savedAtLabel $detail',
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: onRefresh,
+            icon: Icon(Icons.refresh_rounded, color: palette.primary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatSavedAt(BuildContext context, DateTime savedAt) {
+    final local = savedAt.toLocal();
+    final date = '${local.day}/${local.month}/${local.year}';
+    final hour = TimeOfDay.fromDateTime(local).format(context);
+    return '$date at $hour';
   }
 }
 
@@ -640,15 +758,9 @@ class _ConsistencyCard extends StatelessWidget {
             subtitle: 'Ride completion and account maturity',
           ),
           const SizedBox(height: 20),
-          _MetricLine(
-            label: data.primaryLabel,
-            value: data.primaryValue,
-          ),
+          _MetricLine(label: data.primaryLabel, value: data.primaryValue),
           const SizedBox(height: 14),
-          _MetricLine(
-            label: data.secondaryLabel,
-            value: data.secondaryValue,
-          ),
+          _MetricLine(label: data.secondaryLabel, value: data.secondaryValue),
           const SizedBox(height: 18),
           Container(
             width: double.infinity,
@@ -719,7 +831,9 @@ class _CancellationCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: palette.warning.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: palette.warning.withValues(alpha: 0.35)),
+              border: Border.all(
+                color: palette.warning.withValues(alpha: 0.35),
+              ),
             ),
             child: RichText(
               text: TextSpan(

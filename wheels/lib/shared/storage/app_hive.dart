@@ -10,6 +10,8 @@ class AppHiveBoxes {
   static const String walletSummaryCache = 'wallet_summary_cache_box_v1';
   static const String createRideDrafts = 'create_ride_drafts_box_v1';
   static const String userReviewsCache = 'user_reviews_cache_box_v1';
+  static const String registrationDrafts = 'registration_drafts_box_v1';
+  static const String trustScoreCache = 'trust_score_cache_box_v1';
 }
 
 class AppHiveKeys {
@@ -27,4 +29,6 @@ Future<void> initializeAppHive() async {
   await Hive.openBox<String>(AppHiveBoxes.walletSummaryCache);
   await Hive.openBox<String>(AppHiveBoxes.createRideDrafts);
   await Hive.openBox<String>(AppHiveBoxes.userReviewsCache);
+  await Hive.openBox<String>(AppHiveBoxes.registrationDrafts);
+  await Hive.openBox<String>(AppHiveBoxes.trustScoreCache);
 }
