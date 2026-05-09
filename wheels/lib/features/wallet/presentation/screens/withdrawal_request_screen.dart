@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../shared/providers/connectivity_provider.dart';
 import '../../../../shared/ui/app_scaffold.dart';
@@ -37,6 +38,7 @@ class _WithdrawalRequestScreenState
 
   Timer? _draftSaveDebounce;
   String _accountType = 'savings';
+  String _preferredAccountType = 'savings';
   bool _isDraftLoaded = false;
   bool _draftRestored = false;
   bool _isApplyingLocalState = false;
@@ -48,6 +50,13 @@ class _WithdrawalRequestScreenState
     return user == null
         ? 'anonymous_withdrawal_request'
         : 'withdrawal_request_${user.uid}';
+  }
+
+  String get _preferredAccountTypeKey {
+    final user = ref.read(authUserProvider);
+    return user == null
+        ? 'preferred_withdrawal_account_type_anonymous'
+        : 'preferred_withdrawal_account_type_${user.uid}';
   }
 
   @override
@@ -100,6 +109,7 @@ class _WithdrawalRequestScreenState
   }
 
   Future<void> _restoreDraftIfAvailable() async {
+    final preferredAccountType = await _loadPreferredAccountType();
     final draft = await ref
         .read(withdrawalRequestDraftLocalDataSourceProvider)
         .loadDraft(cacheId: _draftCacheId);
@@ -107,6 +117,9 @@ class _WithdrawalRequestScreenState
     if (!mounted) {
       return;
     }
+
+    _preferredAccountType = preferredAccountType;
+    _accountType = preferredAccountType;
 
     if (draft != null && draft.hasMeaningfulData) {
       _isApplyingLocalState = true;
@@ -123,6 +136,20 @@ class _WithdrawalRequestScreenState
       _draftRestored = draft != null && draft.hasMeaningfulData;
       _draftSavedAt = draft?.savedAt;
     });
+  }
+
+  Future<String> _loadPreferredAccountType() async {
+    final prefs = await SharedPreferences.getInstance();
+    final preferred = prefs.getString(_preferredAccountTypeKey);
+    if (preferred == 'checking') {
+      return 'checking';
+    }
+    return 'savings';
+  }
+
+  Future<void> _savePreferredAccountType(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_preferredAccountTypeKey, value);
   }
 
   Future<void> _persistDraft({bool showFeedback = false}) async {
@@ -183,7 +210,7 @@ class _WithdrawalRequestScreenState
     _bankNameController.clear();
     _accountNumberController.clear();
     _accountHolderNameController.clear();
-    _accountType = 'savings';
+    _accountType = _preferredAccountType;
     _isApplyingLocalState = false;
     _formKey.currentState?.reset();
 
@@ -371,9 +398,11 @@ class _WithdrawalRequestScreenState
                               ? null
                               : (value) {
                                   if (value != null) {
+                                    _preferredAccountType = value;
                                     setState(() {
                                       _accountType = value;
                                     });
+                                    unawaited(_savePreferredAccountType(value));
                                     _scheduleDraftSave();
                                   }
                                 },

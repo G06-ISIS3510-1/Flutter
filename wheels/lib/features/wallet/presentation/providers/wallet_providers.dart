@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/cache/memory_lru_cache.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../data/datasources/withdrawal_request_draft_local_datasource.dart';
 import '../../data/datasources/wallet_remote_datasource.dart';
 import '../../data/datasources/wallet_summary_local_datasource.dart';
 import '../../data/repositories/wallet_repository_impl.dart';
+import '../../data/models/local_wallet_summary_cache_model.dart';
 import '../../domain/entities/withdrawal_request_input.dart';
 import '../../domain/entities/wallet_summary.dart';
 import '../../domain/repositories/wallet_repository.dart';
@@ -18,9 +20,19 @@ final withdrawalRequestDraftLocalDataSourceProvider =
       return const WithdrawalRequestDraftLocalDataSource();
     });
 
+final walletSummaryMemoryCacheProvider =
+    Provider<MemoryLruCache<String, LocalWalletSummaryCacheModel>>((ref) {
+      // The wallet screen only needs the latest snapshot, so a tiny LRU is enough.
+      return MemoryLruCache<String, LocalWalletSummaryCacheModel>(
+        maxEntries: 1,
+      );
+    });
+
 final walletSummaryLocalDataSourceProvider =
     Provider<WalletSummaryLocalDataSource>((ref) {
-      return const WalletSummaryLocalDataSource();
+      return WalletSummaryLocalDataSource(
+        memoryCache: ref.watch(walletSummaryMemoryCacheProvider),
+      );
     });
 
 final walletRepositoryProvider = Provider<WalletRepository>((ref) {
