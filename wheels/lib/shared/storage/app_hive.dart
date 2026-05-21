@@ -16,6 +16,7 @@ class AppHiveBoxes {
   static const String helpBookmarks = 'help_bookmarks_box_v1';
   static const String helpFeedbackPending = 'help_feedback_pending_box_v1';
   static const String helpBookmarksPending = 'help_bookmarks_pending_box_v1';
+  static const String helpUserVotes = 'help_user_votes_box_v1';
 }
 
 class AppHiveKeys {
@@ -39,4 +40,5 @@ Future<void> initializeAppHive() async {
   await Hive.openBox<String>(AppHiveBoxes.helpBookmarks);
   await Hive.openBox<String>(AppHiveBoxes.helpFeedbackPending);
   await Hive.openBox<String>(AppHiveBoxes.helpBookmarksPending);
+  await Hive.openBox<String>(AppHiveBoxes.helpUserVotes);
 }

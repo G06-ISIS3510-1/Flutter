@@ -171,6 +171,57 @@ class HelpLocalDataSource {
     return raw != null && raw.trim().isNotEmpty;
   }
 
+  Future<List<HelpBookmark>> loadPendingBookmarks() async {
+    final box = Hive.box<String>(AppHiveBoxes.helpBookmarks);
+    final bookmarks = <HelpBookmarkModel>[];
+    final keysToDrop = <String>[];
+    for (final key in box.keys) {
+      final raw = box.get(key);
+      if (raw == null || raw.trim().isEmpty) {
+        continue;
+      }
+      try {
+        final model = await compute(_decodeBookmark, raw);
+        if (model.pendingSync) {
+          bookmarks.add(model);
+        }
+      } catch (_) {
+        keysToDrop.add(key.toString());
+      }
+    }
+    if (keysToDrop.isNotEmpty) {
+      await box.deleteAll(keysToDrop);
+    }
+    bookmarks.sort((a, b) => a.savedAt.compareTo(b.savedAt));
+    return bookmarks.map((m) => m.toEntity()).toList(growable: false);
+  }
+
+  Future<void> markBookmarkSynced({
+    required String userId,
+    required String articleId,
+  }) async {
+    final box = Hive.box<String>(AppHiveBoxes.helpBookmarks);
+    final key = _bookmarkKey(userId: userId, articleId: articleId);
+    final raw = box.get(key);
+    if (raw == null || raw.trim().isEmpty) {
+      return;
+    }
+    final HelpBookmarkModel current;
+    try {
+      current = await compute(_decodeBookmark, raw);
+    } catch (_) {
+      await box.delete(key);
+      return;
+    }
+    if (!current.pendingSync) {
+      return;
+    }
+    final updated = current.copyWith(pendingSync: false);
+    final encoded = await compute(_encodeBookmark, updated);
+    await box.put(key, encoded);
+    await _emitBookmarksNow(userId);
+  }
+
   Future<void> upsertBookmark(HelpBookmark bookmark) async {
     final encoded = await compute(
       _encodeBookmark,
@@ -191,6 +242,49 @@ class HelpLocalDataSource {
     final box = Hive.box<String>(AppHiveBoxes.helpBookmarks);
     await box.delete(_bookmarkKey(userId: userId, articleId: articleId));
     await _emitBookmarksNow(userId);
+  }
+
+  // ----- Per-user vote persistence ---------------------------------------
+  // Survives sync-worker drains: the pending-feedback queue holds the
+  // outbound payload (with UUID, retryable), but this box keeps the
+  // user's latest vote per article so the UI can restore the selected
+  // button on reopen.
+
+  Future<void> saveUserVote({
+    required String userId,
+    required String articleId,
+    required HelpFeedbackVote vote,
+  }) async {
+    final box = Hive.box<String>(AppHiveBoxes.helpUserVotes);
+    await box.put(
+      _userVoteKey(userId: userId, articleId: articleId),
+      vote.storageValue,
+    );
+  }
+
+  Future<HelpFeedbackVote?> loadUserVote({
+    required String userId,
+    required String articleId,
+  }) async {
+    final box = Hive.box<String>(AppHiveBoxes.helpUserVotes);
+    final raw =
+        box.get(_userVoteKey(userId: userId, articleId: articleId));
+    if (raw == null || raw.trim().isEmpty) {
+      return null;
+    }
+    return helpFeedbackVoteFromStorage(raw);
+  }
+
+  Future<void> clearUserVote({
+    required String userId,
+    required String articleId,
+  }) async {
+    final box = Hive.box<String>(AppHiveBoxes.helpUserVotes);
+    await box.delete(_userVoteKey(userId: userId, articleId: articleId));
+  }
+
+  String _userVoteKey({required String userId, required String articleId}) {
+    return 'vote:$userId:$articleId';
   }
 
   Future<void> _emitArticlesNow() async {

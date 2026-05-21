@@ -32,9 +32,17 @@ class _HelpArticleScreenState extends ConsumerState<HelpArticleScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       ref.read(helpRecentlyViewedProvider.notifier).markViewed(widget.articleId);
+      // Restore the user's previous vote so the 👍 / 👎 selection survives
+      // navigation and sync drains.
+      final existingVote = await ref.read(helpRepositoryProvider).loadUserVote(
+            userId: currentHelpUserId(),
+            articleId: widget.articleId,
+          );
+      if (!mounted || existingVote == null) return;
+      setState(() => _localVote = existingVote);
     });
   }
 
@@ -122,6 +130,17 @@ class _HelpArticleScreenState extends ConsumerState<HelpArticleScreen> {
         title: const Text('Article'),
         backgroundColor: palette.background,
         elevation: 0,
+        leading: IconButton(
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(AppRoutes.helpCenter);
+            }
+          },
+        ),
         actions: [
           articleAsync.maybeWhen(
             data: (article) {

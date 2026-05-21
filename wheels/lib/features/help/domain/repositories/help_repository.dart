@@ -27,7 +27,24 @@ abstract class HelpRepository {
     required String articleId,
   });
 
+  Future<List<HelpBookmark>> loadPendingBookmarks();
+
+  Future<void> markBookmarkSynced({
+    required String userId,
+    required String articleId,
+  });
+
   Future<void> submitFeedback(HelpFeedback feedback);
+
+  Future<HelpFeedbackVote?> loadUserVote({
+    required String userId,
+    required String articleId,
+  });
+
+  Future<void> clearUserVote({
+    required String userId,
+    required String articleId,
+  });
 
   Future<List<HelpFeedback>> loadPendingFeedback();
 
