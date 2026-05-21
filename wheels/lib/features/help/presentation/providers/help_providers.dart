@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../data/cache/help_articles_lru_cache.dart';
+import '../../data/datasources/help_feedback_pending_local_datasource.dart';
 import '../../data/datasources/help_local_datasource.dart';
 import '../../data/datasources/help_preferences_local_datasource.dart';
 import '../../data/datasources/help_remote_datasource.dart';
@@ -45,6 +46,11 @@ final helpPreferencesDataSourceProvider =
   return HelpPreferencesLocalDataSource();
 });
 
+final helpFeedbackPendingDataSourceProvider =
+    Provider<HelpFeedbackPendingLocalDataSource>((ref) {
+  return const HelpFeedbackPendingLocalDataSource();
+});
+
 final helpSearchIsolateProvider = Provider<HelpSearchIsolate>((ref) {
   final isolate = HelpSearchIsolate();
   ref.onDispose(() => isolate.dispose());
@@ -57,6 +63,7 @@ final helpRepositoryProvider = Provider<HelpRepository>((ref) {
     remoteDataSource: ref.watch(helpRemoteDataSourceProvider),
     preferencesDataSource: ref.watch(helpPreferencesDataSourceProvider),
     articlesCache: ref.watch(helpArticlesLruCacheProvider),
+    feedbackPendingDataSource: ref.watch(helpFeedbackPendingDataSourceProvider),
   );
 });
 
@@ -209,6 +216,65 @@ final helpSearchResultsProvider =
   }
   return results;
 });
+
+// ----- Article detail providers ------------------------------------------
+
+final helpArticleByIdProvider =
+    FutureProvider.autoDispose.family<HelpArticle?, String>((ref, articleId) {
+  final repo = ref.watch(helpRepositoryProvider);
+  return repo.getArticle(articleId);
+});
+
+final helpArticleBookmarkedProvider =
+    FutureProvider.autoDispose.family<bool, String>((ref, articleId) {
+  final repo = ref.watch(helpRepositoryProvider);
+  return repo.isBookmarked(
+    userId: currentHelpUserId(),
+    articleId: articleId,
+  );
+});
+
+class HelpRelatedArticlesQuery {
+  const HelpRelatedArticlesQuery({
+    required this.articleId,
+    required this.category,
+  });
+
+  final String articleId;
+  final HelpCategory category;
+
+  @override
+  bool operator ==(Object other) {
+    return other is HelpRelatedArticlesQuery &&
+        other.articleId == articleId &&
+        other.category == category;
+  }
+
+  @override
+  int get hashCode => Object.hash(articleId, category);
+}
+
+final helpRelatedArticlesProvider =
+    Provider.family<List<HelpArticle>, HelpRelatedArticlesQuery>((ref, query) {
+  final articles =
+      ref.watch(helpArticlesStreamProvider).valueOrNull ?? const [];
+  if (articles.isEmpty) {
+    return const <HelpArticle>[];
+  }
+  final related = articles
+      .where((article) =>
+          article.category == query.category && article.id != query.articleId)
+      .toList()
+    ..sort((a, b) => b.netHelpfulness.compareTo(a.netHelpfulness));
+  return related.take(3).toList(growable: false);
+});
+
+String generateHelpFeedbackId() {
+  final ts = DateTime.now().toUtc().millisecondsSinceEpoch;
+  final rng = math.Random();
+  final tail = rng.nextInt(0xFFFFFF).toRadixString(16).padLeft(6, '0');
+  return 'feedback-$ts-$tail';
+}
 
 // ----- Recently viewed ---------------------------------------------------
 

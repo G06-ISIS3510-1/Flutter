@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../router/app_routes.dart';
 import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_spacing.dart';
 import '../../../../theme/app_theme_palette.dart';
@@ -129,14 +131,7 @@ class _HelpCenterScreenState extends ConsumerState<HelpCenterScreen> {
   }
 
   void _onArticleTap(HelpArticle article) {
-    // F-J-5 will replace this with go_router navigation to HelpArticleScreen.
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('Opening "${article.title}" — coming in F-J-5'),
-        ),
-      );
+    context.go(AppRoutes.helpArticleById(article.id));
   }
 }
 
@@ -431,17 +426,8 @@ class _HelpSearchResults extends ConsumerWidget {
             final article = results[index];
             return HelpArticleTile(
               article: article,
-              onTap: () {
-                ScaffoldMessenger.of(context)
-                  ..hideCurrentSnackBar()
-                  ..showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Opening "${article.title}" — coming in F-J-5',
-                      ),
-                    ),
-                  );
-              },
+              onTap: () =>
+                  context.go(AppRoutes.helpArticleById(article.id)),
             );
           },
         );
