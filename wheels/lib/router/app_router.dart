@@ -12,6 +12,7 @@ import '../features/auth/presentation/screens/register_screen.dart';
 import '../features/admin/presentation/admin_dashboard.dart';
 import '../features/ride_history/presentation/screens/ride_history_screen.dart';
 import '../features/dashboard/presentation/screens/dashboard_screen.dart';
+import '../features/help/presentation/screens/help_center_screen.dart';
 import '../features/notifications/presentation/screens/notifications_screen.dart';
 import '../features/payments/presentation/screens/payment_screen.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
@@ -172,6 +173,10 @@ class AppRouter {
       GoRoute(
         path: AppRoutes.rideHistory,
         builder: (context, state) => const RideHistoryScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.helpCenter,
+        builder: (context, state) => const HelpCenterScreen(),
       ),
     ],
   );

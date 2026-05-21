@@ -156,7 +156,7 @@ class _AppNavigationDrawerState extends ConsumerState<AppNavigationDrawer> {
                   _DrawerItem(
                     icon: Icons.help_outline_rounded,
                     label: 'Help & Support',
-                    onTap: () => _showComingSoon(context, 'Help & Support'),
+                    onTap: () => _go(context, AppRoutes.helpCenter),
                   ),
                 ],
               ),
