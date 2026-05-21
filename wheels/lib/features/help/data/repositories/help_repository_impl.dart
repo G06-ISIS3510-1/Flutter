@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../../domain/entities/help_article.dart';
 import '../../domain/entities/help_feedback.dart';
+import '../../domain/entities/help_resolution_rate.dart';
 import '../../domain/repositories/help_repository.dart';
 import '../cache/help_articles_lru_cache.dart';
 import '../datasources/help_feedback_pending_local_datasource.dart';
@@ -203,5 +204,24 @@ class HelpRepositoryImpl implements HelpRepository {
   @override
   Future<void> clearLastQuery(String userId) {
     return _preferences.clearLastQuery(userId);
+  }
+
+  @override
+  Future<HelpResolutionRate> loadWeeklyResolutionRate({DateTime? now}) async {
+    final end = (now ?? DateTime.now()).toUtc();
+    final start = end.subtract(const Duration(days: 7));
+    try {
+      final events = await _remote.loadResolutionEventsSince(start);
+      return computeHelpResolutionRate(
+        events: events,
+        windowStart: start,
+        windowEnd: end,
+      );
+    } catch (_) {
+      return HelpResolutionRate.empty(
+        windowStart: start,
+        windowEnd: end,
+      );
+    }
   }
 }

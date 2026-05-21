@@ -11,6 +11,7 @@ import '../../domain/entities/help_category.dart';
 import '../providers/help_providers.dart';
 import '../widgets/help_article_tile.dart';
 import '../widgets/help_category_card.dart';
+import '../widgets/help_resolution_rate_banner.dart';
 import '../widgets/help_search_bar.dart';
 
 class HelpCenterScreen extends ConsumerStatefulWidget {
@@ -352,6 +353,8 @@ class _HelpBrowseView extends ConsumerWidget {
             const SizedBox(height: AppSpacing.s),
           ],
         ),
+        const SizedBox(height: AppSpacing.l),
+        const HelpResolutionRateBanner(),
         const SizedBox(height: AppSpacing.m),
         _ContactSupportCard(
           onContact: () {
