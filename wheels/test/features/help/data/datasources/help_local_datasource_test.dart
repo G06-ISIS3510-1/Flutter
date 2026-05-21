@@ -17,6 +17,7 @@ void main() {
   late Directory hiveDirectory;
   late Box<String> articlesBox;
   late Box<String> bookmarksBox;
+  late Box<String> userVotesBox;
   late HelpLocalDataSource dataSource;
 
   setUpAll(() async {
@@ -24,11 +25,13 @@ void main() {
     Hive.init(hiveDirectory.path);
     articlesBox = await Hive.openBox<String>(AppHiveBoxes.helpArticles);
     bookmarksBox = await Hive.openBox<String>(AppHiveBoxes.helpBookmarks);
+    userVotesBox = await Hive.openBox<String>(AppHiveBoxes.helpUserVotes);
   });
 
   tearDown(() async {
     await articlesBox.clear();
     await bookmarksBox.clear();
+    await userVotesBox.clear();
     await dataSource.dispose();
   });
 
@@ -194,5 +197,89 @@ void main() {
         expect(bookmarks.single.articleId, 'a-pre');
       },
     );
+  });
+
+  group('HelpLocalDataSource user votes', () {
+    test('loadUserVote returns null when nothing was saved', () async {
+      final vote = await dataSource.loadUserVote(
+        userId: 'u-1',
+        articleId: 'a-1',
+      );
+      expect(vote, isNull);
+    });
+
+    test('saveUserVote persists and loadUserVote returns it', () async {
+      await dataSource.saveUserVote(
+        userId: 'u-1',
+        articleId: 'a-1',
+        vote: HelpFeedbackVote.upvote,
+      );
+
+      final restored = await dataSource.loadUserVote(
+        userId: 'u-1',
+        articleId: 'a-1',
+      );
+
+      expect(restored, HelpFeedbackVote.upvote);
+    });
+
+    test('saveUserVote overwrites the previous vote', () async {
+      await dataSource.saveUserVote(
+        userId: 'u-1',
+        articleId: 'a-1',
+        vote: HelpFeedbackVote.upvote,
+      );
+      await dataSource.saveUserVote(
+        userId: 'u-1',
+        articleId: 'a-1',
+        vote: HelpFeedbackVote.downvote,
+      );
+
+      final restored = await dataSource.loadUserVote(
+        userId: 'u-1',
+        articleId: 'a-1',
+      );
+      expect(restored, HelpFeedbackVote.downvote);
+    });
+
+    test('votes are scoped per user and per article', () async {
+      await dataSource.saveUserVote(
+        userId: 'u-1',
+        articleId: 'a-1',
+        vote: HelpFeedbackVote.upvote,
+      );
+      await dataSource.saveUserVote(
+        userId: 'u-2',
+        articleId: 'a-1',
+        vote: HelpFeedbackVote.downvote,
+      );
+
+      expect(
+        await dataSource.loadUserVote(userId: 'u-1', articleId: 'a-1'),
+        HelpFeedbackVote.upvote,
+      );
+      expect(
+        await dataSource.loadUserVote(userId: 'u-2', articleId: 'a-1'),
+        HelpFeedbackVote.downvote,
+      );
+      expect(
+        await dataSource.loadUserVote(userId: 'u-1', articleId: 'a-other'),
+        isNull,
+      );
+    });
+
+    test('clearUserVote removes the entry', () async {
+      await dataSource.saveUserVote(
+        userId: 'u-1',
+        articleId: 'a-1',
+        vote: HelpFeedbackVote.upvote,
+      );
+      await dataSource.clearUserVote(userId: 'u-1', articleId: 'a-1');
+
+      expect(
+        await dataSource.loadUserVote(userId: 'u-1', articleId: 'a-1'),
+        isNull,
+      );
+    });
   });
 }

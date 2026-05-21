@@ -137,8 +137,44 @@ class HelpRepositoryImpl implements HelpRepository {
   }
 
   @override
-  Future<void> submitFeedback(HelpFeedback feedback) {
-    return _feedbackPending.enqueue(feedback);
+  Future<List<HelpBookmark>> loadPendingBookmarks() {
+    return _local.loadPendingBookmarks();
+  }
+
+  @override
+  Future<void> markBookmarkSynced({
+    required String userId,
+    required String articleId,
+  }) {
+    return _local.markBookmarkSynced(userId: userId, articleId: articleId);
+  }
+
+  @override
+  Future<void> submitFeedback(HelpFeedback feedback) async {
+    // Persist the user's vote first so the UI can restore it across
+    // navigations even after the pending queue is drained by the worker.
+    await _local.saveUserVote(
+      userId: feedback.userId,
+      articleId: feedback.articleId,
+      vote: feedback.vote,
+    );
+    await _feedbackPending.enqueue(feedback);
+  }
+
+  @override
+  Future<HelpFeedbackVote?> loadUserVote({
+    required String userId,
+    required String articleId,
+  }) {
+    return _local.loadUserVote(userId: userId, articleId: articleId);
+  }
+
+  @override
+  Future<void> clearUserVote({
+    required String userId,
+    required String articleId,
+  }) {
+    return _local.clearUserVote(userId: userId, articleId: articleId);
   }
 
   @override

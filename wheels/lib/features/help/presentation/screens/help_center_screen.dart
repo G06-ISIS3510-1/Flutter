@@ -31,9 +31,11 @@ class _HelpCenterScreenState extends ConsumerState<HelpCenterScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _sessionLogged) return;
       _sessionLogged = true;
-      // Touch side-effect providers to start remote sync and isolate corpus sync.
+      // Touch side-effect providers to start remote sync, isolate corpus
+      // sync, and the feedback/bookmark queue worker.
       ref.read(helpRemoteSyncProvider);
       ref.read(helpSearchSyncProvider);
+      ref.read(helpFeedbackSyncWorkerProvider);
       // Fire BQ-J4 session start.
       ref.read(helpAnalyticsServiceProvider).logSessionStarted(
             sessionId: _sessionId,
@@ -58,6 +60,17 @@ class _HelpCenterScreenState extends ConsumerState<HelpCenterScreen> {
         title: const Text('Help Center'),
         backgroundColor: palette.background,
         elevation: 0,
+        leading: IconButton(
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(AppRoutes.dashboard);
+            }
+          },
+        ),
       ),
       body: SafeArea(
         child: Center(

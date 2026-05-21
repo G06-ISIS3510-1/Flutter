@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../../../shared/providers/connectivity_provider.dart';
 import '../../data/cache/help_articles_lru_cache.dart';
 import '../../data/datasources/help_feedback_pending_local_datasource.dart';
 import '../../data/datasources/help_local_datasource.dart';
@@ -15,6 +16,7 @@ import '../../data/datasources/help_remote_datasource.dart';
 import '../../data/isolates/help_search_index_isolate.dart';
 import '../../data/repositories/help_repository_impl.dart';
 import '../../data/services/help_analytics_service.dart';
+import '../../data/sync/help_feedback_sync_worker.dart';
 import '../../domain/entities/help_article.dart';
 import '../../domain/entities/help_category.dart';
 import '../../domain/repositories/help_repository.dart';
@@ -72,6 +74,22 @@ final helpAnalyticsServiceProvider = Provider<HelpAnalyticsService>((ref) {
     firestore: ref.watch(helpFirestoreProvider),
     analytics: ref.watch(firebaseAnalyticsProvider),
   );
+});
+
+/// Long-lived worker that drains the help-feedback and pending-bookmark
+/// queues whenever connectivity returns. The worker `start`s as soon as the
+/// help feature is touched and tears down with the provider container.
+final helpFeedbackSyncWorkerProvider =
+    Provider<HelpFeedbackSyncWorker>((ref) {
+  final worker = HelpFeedbackSyncWorker.firestore(
+    repository: ref.watch(helpRepositoryProvider),
+    connectivityStream:
+        ref.watch(connectivityServiceProvider).watchConnection(),
+    firestore: ref.watch(helpFirestoreProvider),
+  );
+  worker.start();
+  ref.onDispose(() => worker.dispose());
+  return worker;
 });
 
 // ----- Reactive corpus stream --------------------------------------------

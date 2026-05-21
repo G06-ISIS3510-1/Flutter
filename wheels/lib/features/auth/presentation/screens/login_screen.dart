@@ -19,6 +19,7 @@ class LoginScreen extends ConsumerWidget {
 
 /// Usamos tu AppScaffold, pero sin AppBar para que se vea como el mockup.
 class _LoginScaffold extends StatelessWidget {
+  
   final Widget child;
   const _LoginScaffold({required this.child});
 

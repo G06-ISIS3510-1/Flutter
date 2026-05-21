@@ -141,6 +141,7 @@ final profileViewDataProvider = Provider<ProfileViewData>((ref) {
           title: 'Help & Support',
           subtitle: 'Get help and contact support',
           icon: Icons.help_outline_rounded,
+          route: AppRoutes.helpCenter,
         ),
       ],
     ),
