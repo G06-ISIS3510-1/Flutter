@@ -27,6 +27,12 @@ abstract class HelpRepository {
     required String articleId,
   });
 
+  Future<void> submitFeedback(HelpFeedback feedback);
+
+  Future<List<HelpFeedback>> loadPendingFeedback();
+
+  Future<void> removePendingFeedback(String feedbackId);
+
   Future<String?> loadLastQuery(String userId);
 
   Future<void> saveLastQuery({required String userId, required String query});

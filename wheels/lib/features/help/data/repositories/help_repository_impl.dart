@@ -4,6 +4,7 @@ import '../../domain/entities/help_article.dart';
 import '../../domain/entities/help_feedback.dart';
 import '../../domain/repositories/help_repository.dart';
 import '../cache/help_articles_lru_cache.dart';
+import '../datasources/help_feedback_pending_local_datasource.dart';
 import '../datasources/help_local_datasource.dart';
 import '../datasources/help_preferences_local_datasource.dart';
 import '../datasources/help_remote_datasource.dart';
@@ -14,15 +15,19 @@ class HelpRepositoryImpl implements HelpRepository {
     required HelpRemoteDataSource remoteDataSource,
     required HelpPreferencesLocalDataSource preferencesDataSource,
     required HelpArticlesLruCache articlesCache,
+    HelpFeedbackPendingLocalDataSource feedbackPendingDataSource =
+        const HelpFeedbackPendingLocalDataSource(),
   }) : _local = localDataSource,
        _remote = remoteDataSource,
        _preferences = preferencesDataSource,
-       _articlesCache = articlesCache;
+       _articlesCache = articlesCache,
+       _feedbackPending = feedbackPendingDataSource;
 
   final HelpLocalDataSource _local;
   final HelpRemoteDataSource _remote;
   final HelpPreferencesLocalDataSource _preferences;
   final HelpArticlesLruCache _articlesCache;
+  final HelpFeedbackPendingLocalDataSource _feedbackPending;
 
   @override
   Stream<List<HelpArticle>> watchArticles() {
@@ -129,6 +134,21 @@ class HelpRepositoryImpl implements HelpRepository {
         pendingSync: true,
       ),
     );
+  }
+
+  @override
+  Future<void> submitFeedback(HelpFeedback feedback) {
+    return _feedbackPending.enqueue(feedback);
+  }
+
+  @override
+  Future<List<HelpFeedback>> loadPendingFeedback() {
+    return _feedbackPending.loadPending();
+  }
+
+  @override
+  Future<void> removePendingFeedback(String feedbackId) {
+    return _feedbackPending.remove(feedbackId);
   }
 
   @override
