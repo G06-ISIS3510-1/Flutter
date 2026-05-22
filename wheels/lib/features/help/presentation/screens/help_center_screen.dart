@@ -305,6 +305,7 @@ class _HelpBrowseView extends StatelessWidget {
         AppSpacing.m,
         AppSpacing.xl,
       ),
+      // ignore: deprecated_member_use
       cacheExtent: 600,
       addAutomaticKeepAlives: false,
       children: [
@@ -389,6 +390,7 @@ class _RecentlyViewedSection extends ConsumerWidget {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: recentlyViewed.length,
+            // ignore: deprecated_member_use
             cacheExtent: 600,
             addAutomaticKeepAlives: false,
             addRepaintBoundaries: false,
@@ -503,6 +505,7 @@ class _HelpSearchResults extends ConsumerWidget {
             AppSpacing.xl,
           ),
           itemCount: results.length + 1,
+          // ignore: deprecated_member_use
           cacheExtent: 600,
           addAutomaticKeepAlives: false,
           addRepaintBoundaries: false,
@@ -582,6 +585,7 @@ class _HelpCategoryListing extends StatelessWidget {
         AppSpacing.xl,
       ),
       itemCount: filtered.length,
+      // ignore: deprecated_member_use
       cacheExtent: 600,
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: false,
