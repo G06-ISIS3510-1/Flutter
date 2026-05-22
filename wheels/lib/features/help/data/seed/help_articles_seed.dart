@@ -1,9 +1,9 @@
 import '../../domain/entities/help_category.dart';
 import '../models/help_article_model.dart';
 
-const String _seedCorpusVersion = '2026-05-20';
+const String _seedCorpusVersion = '2026-05-21-v2';
 
-DateTime _seedDate() => DateTime.utc(2026, 5, 20);
+DateTime _seedDate() => DateTime.utc(2026, 5, 21);
 
 List<HelpArticleModel> buildSeedHelpArticles() {
   final updatedAt = _seedDate();
@@ -315,6 +315,466 @@ List<HelpArticleModel> buildSeedHelpArticles() {
       tags: const ['driver', 'best practices', 'first time'],
       updatedAt: updatedAt,
       upvotes: 145,
+      downvotes: 6,
+    ),
+
+    // ---------- Account (extra) ----------
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'acc_update_phone',
+      slug: 'updating-your-phone-number',
+      title: 'Updating your phone number',
+      summary:
+          'Drivers and passengers reach each other by phone for last-minute coordination. Keep yours current.',
+      body:
+          '## Steps\n\n1. Open **Profile** → **Contact information**.\n2. Tap the phone row and edit.\n3. Confirm the SMS code we send to the new number.\n\n## Tips\n\n- Use the number you carry on rides; not a landline.\n- If you change your number while a ride is active, the change applies after the ride completes.',
+      category: HelpCategory.account,
+      tags: const ['profile', 'phone', 'sms', 'contact'],
+      updatedAt: updatedAt,
+      upvotes: 64,
+      downvotes: 2,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'acc_two_factor',
+      slug: 'enabling-two-factor-authentication',
+      title: 'Enabling two-factor authentication',
+      summary:
+          'Adds an extra confirmation step at login to protect your Wheels account.',
+      body:
+          '## Enable 2FA\n\n1. Open **Profile → Privacy & security**.\n2. Tap **Two-factor authentication** and choose SMS or authenticator app.\n3. Verify with the one-time code.\n\n## Tips\n\n- Save your backup codes in a safe place — you need them if you lose your phone.\n- 2FA is required for drivers who exceed a monthly payout threshold.',
+      category: HelpCategory.account,
+      tags: const ['security', '2fa', 'login'],
+      updatedAt: updatedAt,
+      upvotes: 91,
+      downvotes: 3,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'acc_delete_account',
+      slug: 'deleting-your-account',
+      title: 'Deleting your Wheels account',
+      summary:
+          'Account deletion is permanent. Make sure you have settled rides and withdrawn earnings first.',
+      body:
+          '## Before you delete\n\n- Complete any active ride.\n- As a driver, withdraw your balance to your bank.\n- Download your ride history from **Profile → Data**.\n\n## How to delete\n\n1. Open **Profile → Privacy & security → Delete account**.\n2. Confirm with your password.\n3. Your account is queued for deletion within 30 days. You can cancel during that window by logging back in.',
+      category: HelpCategory.account,
+      tags: const ['delete', 'account', 'privacy'],
+      updatedAt: updatedAt,
+      upvotes: 47,
+      downvotes: 8,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'acc_link_license',
+      slug: 'linking-your-driver-license',
+      title: 'Linking your driver license',
+      summary:
+          'Drivers must verify their license before publishing rides. The process takes 1-2 business days.',
+      body:
+          '## Steps\n\n1. Open **Profile → Become a driver → License verification**.\n2. Upload a clear photo of the front and back of your license.\n3. Take a live selfie when prompted.\n4. Wait for review. You will get an in-app notification when verified.\n\n## Why we ask\n\nUniandes Wheels partners with a verification provider to confirm the license is real and matches the photo on file.',
+      category: HelpCategory.account,
+      tags: const ['license', 'driver', 'verification'],
+      updatedAt: updatedAt,
+      upvotes: 88,
+      downvotes: 4,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'acc_verified_badge',
+      slug: 'receiving-the-verified-badge',
+      title: 'Receiving the Verified badge',
+      summary:
+          'The Verified badge is granted automatically once email, phone, and (for drivers) license are confirmed.',
+      body:
+          '## Requirements\n\n- Confirmed Uniandes email\n- Confirmed phone number\n- For drivers: license + selfie verified\n\nOnce all three are checked, the badge appears on your profile within a few minutes. If it does not, sign out and back in.',
+      category: HelpCategory.account,
+      tags: const ['badge', 'verified', 'profile'],
+      updatedAt: updatedAt,
+      upvotes: 53,
+      downvotes: 1,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'acc_connect_bank',
+      slug: 'connecting-your-bank-account',
+      title: 'Connecting your bank account',
+      summary:
+          'Drivers need a bank account to receive withdrawals. The connection uses your bank holder name and account number.',
+      body:
+          '## Steps\n\n1. **Wallet → Bank accounts → Add account**.\n2. Pick the bank, account type (checking or savings), and enter the account number.\n3. Confirm the holder name matches your Wheels profile name exactly.\n4. Save.\n\nYou can connect multiple accounts but only one is the default for withdrawals.',
+      category: HelpCategory.account,
+      tags: const ['bank', 'driver', 'withdraw'],
+      updatedAt: updatedAt,
+      upvotes: 75,
+      downvotes: 3,
+    ),
+
+    // ---------- Payments (extra) ----------
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'pay_save_card_securely',
+      slug: 'saving-cards-securely',
+      title: 'Saving cards securely',
+      summary:
+          'Wheels stores only Mercado Pago tokens, never your raw card number.',
+      body:
+          '## What we store\n\nWhen you add a card, Mercado Pago returns a token. Only that token lives in our database. The full card number, CVV, and expiration never touch our servers.\n\n## Tip\n\nIf your card expires while in Wheels, the next checkout will ask you to update it before it can charge.',
+      category: HelpCategory.payments,
+      tags: const ['card', 'security', 'mercado pago'],
+      updatedAt: updatedAt,
+      upvotes: 68,
+      downvotes: 2,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'pay_history',
+      slug: 'reading-your-payment-history',
+      title: 'Reading your payment history',
+      summary:
+          'Every payment, refund and pending verification is logged in Wallet → Payment history.',
+      body:
+          '## What each row shows\n\n- **Date and time** of the transaction.\n- **Status** (paid, pending verification, refunded).\n- **Ride id** linking back to the trip.\n- **Amount** in COP.\n\nTap any row to see the Mercado Pago reference number, which you can give to support if you need to dispute the charge.',
+      category: HelpCategory.payments,
+      tags: const ['history', 'payment', 'wallet'],
+      updatedAt: updatedAt,
+      upvotes: 49,
+      downvotes: 2,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'pay_dispute_charge',
+      slug: 'disputing-a-charge',
+      title: 'Disputing a charge',
+      summary:
+          'If a charge looks wrong, file a dispute within 30 days. Provide the Mercado Pago reference.',
+      body:
+          '## Steps\n\n1. Open **Wallet → Payment history**.\n2. Tap the row in question and tap **Report a problem**.\n3. Pick the category (duplicate charge, ride not taken, wrong amount).\n4. Submit. Wheels acknowledges within 24 hours.\n\nWhile the dispute is open, the amount may stay as **Pending verification** in your statement.',
+      category: HelpCategory.payments,
+      tags: const ['dispute', 'refund', 'payment'],
+      updatedAt: updatedAt,
+      upvotes: 56,
+      downvotes: 7,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'pay_card_declined',
+      slug: 'why-your-card-was-declined',
+      title: 'Why your card was declined',
+      summary:
+          'Decline reasons usually come from the bank, not from Wheels. Here are the common ones.',
+      body:
+          '## Frequent causes\n\n- Insufficient funds\n- The card has international restrictions and Mercado Pago is processed as an international charge\n- Daily spend limit reached\n- Wrong CVV or expiration\n- The card holder name does not match the saved one\n\n## What to do\n\nCheck the in-app banner for the Mercado Pago error code, then contact your bank with that code.',
+      category: HelpCategory.payments,
+      tags: const ['decline', 'card', 'error'],
+      updatedAt: updatedAt,
+      upvotes: 71,
+      downvotes: 6,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'pay_switch_method',
+      slug: 'switching-payment-method-mid-ride',
+      title: 'Switching payment method mid-ride',
+      summary:
+          'If the driver allows it, you can change between card and direct transfer until the ride starts.',
+      body:
+          '## How\n\n1. Open the ride from **Active rides** before the driver taps **Start ride**.\n2. Tap **Payment method**.\n3. Choose card or direct transfer.\n4. Confirm. The previous attempt is automatically voided.\n\nOnce the ride is in progress, the payment method is locked.',
+      category: HelpCategory.payments,
+      tags: const ['switch', 'payment', 'method'],
+      updatedAt: updatedAt,
+      upvotes: 41,
+      downvotes: 3,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'pay_notifications',
+      slug: 'payment-notifications',
+      title: 'Payment notifications',
+      summary:
+          'Wheels notifies you when a payment is approved, pending, refunded, or fails.',
+      body:
+          '## Types\n\n- **Approved** — green check, payment is settled.\n- **Pending verification** — orange clock, Mercado Pago is still confirming.\n- **Refunded** — gray arrow, money is going back to your card.\n- **Failed** — red exclamation, the charge did not go through.\n\nYou can mute payment notifications by category from **Notification preferences**.',
+      category: HelpCategory.payments,
+      tags: const ['notifications', 'payment'],
+      updatedAt: updatedAt,
+      upvotes: 58,
+      downvotes: 1,
+    ),
+
+    // ---------- Rides (extra) ----------
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'ride_edit_published',
+      slug: 'editing-a-published-ride',
+      title: 'Editing a published ride',
+      summary:
+          'Drivers can adjust price, seats, departure time, and notes until the first passenger applies.',
+      body:
+          '## What you can edit\n\n- Departure time (within ±30 minutes of original)\n- Price per seat\n- Available seats\n- Notes for the passenger\n\n## What you cannot change after publishing\n\n- Origin and destination — cancel and republish if you must.\n- Payment option once at least one passenger has paid.',
+      category: HelpCategory.rides,
+      tags: const ['edit', 'ride', 'publish'],
+      updatedAt: updatedAt,
+      upvotes: 102,
+      downvotes: 4,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'ride_group_rides',
+      slug: 'group-rides-explained',
+      title: 'Group rides explained',
+      summary:
+          'Group rides let multiple passengers share the same trip with one driver.',
+      body:
+          '## How they work\n\n1. The driver publishes a ride with more than one available seat.\n2. Each passenger applies and pays independently.\n3. The driver sees pickup order on the route map.\n\n## Tips\n\n- Be ready 5 minutes before pickup; the driver cannot wait long without affecting others.\n- All passengers can use the group chat to coordinate stop changes.',
+      category: HelpCategory.rides,
+      tags: const ['group', 'ride', 'shared'],
+      updatedAt: updatedAt,
+      upvotes: 89,
+      downvotes: 5,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'ride_total_time',
+      slug: 'estimating-total-time-of-a-ride',
+      title: 'Estimating total time of a ride',
+      summary:
+          'Estimated duration in the ride card is based on Google Maps traffic at publish time.',
+      body:
+          '## What the estimate includes\n\n- Drive time from origin to destination at current traffic.\n- An extra 5-minute buffer for pickup of group passengers.\n\n## What it does not include\n\n- Time waiting at the origin if you are early.\n- Delays caused by weather or events that change after publish.\n\nThe driver can refresh the estimate manually before starting.',
+      category: HelpCategory.rides,
+      tags: const ['time', 'estimate', 'maps'],
+      updatedAt: updatedAt,
+      upvotes: 47,
+      downvotes: 2,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'ride_pricing_tips',
+      slug: 'pricing-recommendations',
+      title: 'Pricing recommendations',
+      summary:
+          'Wheels suggests a price band based on distance, time of day, and recent rides on the same route.',
+      body:
+          '## How the band is built\n\n- Median price of completed rides between origin and destination over the last 30 days.\n- ± 15% to give you flexibility.\n- A small surge multiplier on Friday and Saturday nights.\n\nDrivers who price below the band fill rides faster but earn less per seat.',
+      category: HelpCategory.rides,
+      tags: const ['price', 'driver', 'ride'],
+      updatedAt: updatedAt,
+      upvotes: 96,
+      downvotes: 7,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'ride_recent_destinations',
+      slug: 'returning-to-recent-destinations',
+      title: 'Returning to recent destinations',
+      summary:
+          'The origin and destination fields suggest your recent trips as you type.',
+      body:
+          '## How it works\n\nAs you type in the origin or destination field, Wheels checks your last 20 rides and suggests matching addresses. Tap a suggestion to fill the field plus the lat/lng without needing to retype.\n\nYou can clear the suggestion history from **Profile → Privacy & security → Trip data**.',
+      category: HelpCategory.rides,
+      tags: const ['destinations', 'autocomplete', 'history'],
+      updatedAt: updatedAt,
+      upvotes: 60,
+      downvotes: 2,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'ride_multi_stop',
+      slug: 'multi-stop-rides',
+      title: 'Multi-stop rides',
+      summary:
+          'Drivers can add up to two intermediate stops when publishing a ride.',
+      body:
+          '## How to add stops\n\n1. In **Publish a ride**, tap **Add stop** below the destination field.\n2. Enter the stop address.\n3. Repeat for up to two stops.\n\nThe price suggestion adjusts automatically. Passengers see the full sequence in the ride detail page so they know whether their pickup is the first, middle, or last.',
+      category: HelpCategory.rides,
+      tags: const ['stops', 'ride', 'multi'],
+      updatedAt: updatedAt,
+      upvotes: 52,
+      downvotes: 3,
+    ),
+
+    // ---------- Safety (extra) ----------
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'saf_night_zones',
+      slug: 'driving-zones-to-avoid-at-night',
+      title: 'Driving zones to avoid at night',
+      summary:
+          'A small set of campus-adjacent neighborhoods have higher incident rates after 11 PM.',
+      body:
+          '## What we recommend\n\n- Avoid late-night rides through Egipto, Las Cruces, and outer Chapinero alleys.\n- Stay on Carrera 7 and Avenida Circunvalar when crossing those areas.\n- Drop passengers off at well-lit corners, not narrow side streets.\n\n## What Wheels does\n\nThe app highlights problematic stops at night with a yellow icon and asks the driver to confirm before accepting them.',
+      category: HelpCategory.safety,
+      tags: const ['safety', 'night', 'zones'],
+      updatedAt: updatedAt,
+      upvotes: 168,
+      downvotes: 4,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'saf_suspicious_patterns',
+      slug: 'identifying-suspicious-patterns',
+      title: 'Identifying suspicious patterns',
+      summary:
+          'Common red flags that a ride or contact may be unsafe.',
+      body:
+          '## Signs to watch for\n\n- The driver insists you change the destination after pickup.\n- A passenger requests an unusually long detour.\n- The other party asks for cash in addition to the app charge.\n- The vehicle does not match the model listed on the ride.\n\nIf you notice any of these, end the ride at the next safe spot and report it.',
+      category: HelpCategory.safety,
+      tags: const ['safety', 'suspicious', 'red flags'],
+      updatedAt: updatedAt,
+      upvotes: 142,
+      downvotes: 1,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'saf_trip_recording',
+      slug: 'trip-recording-feature',
+      title: 'Trip recording feature',
+      summary:
+          'You can record audio during the ride from inside the app. The recording is encrypted and only released after a safety report.',
+      body:
+          '## How to enable\n\n1. Open **Safety menu** during the ride.\n2. Tap **Start audio recording**.\n3. A small red indicator appears at the top while recording.\n\nThe driver and other passengers see a banner that recording is active. The audio is encrypted on device and only sent to Wheels when you file a safety report.',
+      category: HelpCategory.safety,
+      tags: const ['recording', 'safety', 'audio'],
+      updatedAt: updatedAt,
+      upvotes: 187,
+      downvotes: 2,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'saf_safe_pickup',
+      slug: 'safe-pickup-locations',
+      title: 'Safe pickup locations',
+      summary:
+          'Pick spots that are well-lit, public, and easy to identify.',
+      body:
+          '## What makes a good pickup spot\n\n- 24/7 store, gas station, or campus gate.\n- A street corner that the driver can stop at without blocking traffic.\n- Visible from a security camera if possible.\n\n## Bad spots\n\n- Inside parking lots — the driver cannot enter without paying.\n- Narrow side streets with no foot traffic.',
+      category: HelpCategory.safety,
+      tags: const ['pickup', 'safety', 'location'],
+      updatedAt: updatedAt,
+      upvotes: 104,
+      downvotes: 1,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'saf_insurance_basics',
+      slug: 'insurance-basics',
+      title: 'Insurance basics',
+      summary:
+          'Drivers must hold a valid SOAT and personal liability insurance. Wheels does not provide additional coverage.',
+      body:
+          '## What you need\n\n- Active SOAT (mandatory in Colombia).\n- Personal liability insurance is strongly recommended.\n\n## What Wheels covers\n\nWheels does not currently provide trip insurance. Future Sprints may add a partner integration. In the meantime, both parties are responsible for their own coverage.',
+      category: HelpCategory.safety,
+      tags: const ['insurance', 'safety', 'soat'],
+      updatedAt: updatedAt,
+      upvotes: 73,
+      downvotes: 5,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'saf_lost_item',
+      slug: 'lost-item-recovery',
+      title: 'Lost item recovery',
+      summary:
+          'If you forgot something in a ride, you have 7 days to coordinate recovery through the app.',
+      body:
+          '## How to claim a lost item\n\n1. Open the ride from your history.\n2. Tap **I left something**.\n3. Describe the item.\n\nThe driver gets a notification and can reply with a return time and place. If the driver does not respond within 48 hours, Wheels support steps in.',
+      category: HelpCategory.safety,
+      tags: const ['lost', 'item', 'safety'],
+      updatedAt: updatedAt,
+      upvotes: 81,
+      downvotes: 3,
+    ),
+
+    // ---------- Drivers (extra) ----------
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'drv_vehicle_requirements',
+      slug: 'vehicle-requirements',
+      title: 'Vehicle requirements',
+      summary:
+          'Minimum vehicle standards to publish a ride on Wheels.',
+      body:
+          '## Required\n\n- Year 2010 or newer.\n- Working seat belts in all seats.\n- Valid SOAT and technical inspection (tecnomecánica).\n- A photo of the front and side that clearly shows the plate.\n\n## Not allowed\n\n- Motorcycles for shared rides.\n- Commercial vehicles (taxis, buses) — Wheels is peer-to-peer.',
+      category: HelpCategory.drivers,
+      tags: const ['vehicle', 'driver', 'requirements'],
+      updatedAt: updatedAt,
+      upvotes: 113,
+      downvotes: 4,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'drv_photo_guidelines',
+      slug: 'driver-photo-guidelines',
+      title: 'Driver photo guidelines',
+      summary:
+          'Your driver photo must clearly show your face — no sunglasses, no group photos.',
+      body:
+          '## Rules\n\n- Front-facing, single subject.\n- Good light.\n- No sunglasses, no hats covering the face.\n- No filters that alter facial features.\n\nIf the verification team rejects your photo, you will get a notification with the reason. You can upload a new one immediately.',
+      category: HelpCategory.drivers,
+      tags: const ['photo', 'driver', 'verification'],
+      updatedAt: updatedAt,
+      upvotes: 64,
+      downvotes: 2,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'drv_earnings_cycle',
+      slug: 'earnings-cycle-and-payouts',
+      title: 'Earnings cycle and payouts',
+      summary:
+          'Driver balance settles 24 hours after each ride completes. Withdrawals are processed in 2 business days.',
+      body:
+          '## How the cycle works\n\n1. Ride completes.\n2. Wheels holds the amount in your **Pending** bucket for 24 hours.\n3. After 24 hours, the amount moves to **Available**.\n4. You request a withdrawal from **Available**.\n5. The bank receives the money in 2 business days.\n\n## Why we hold for 24h\n\nThat window lets passengers dispute charges before the money leaves Wheels.',
+      category: HelpCategory.drivers,
+      tags: const ['earnings', 'driver', 'cycle'],
+      updatedAt: updatedAt,
+      upvotes: 132,
+      downvotes: 5,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'drv_tax_considerations',
+      slug: 'tax-considerations',
+      title: 'Tax considerations',
+      summary:
+          'Driver income from Wheels may be taxable. Wheels provides an annual summary, but does not file for you.',
+      body:
+          '## What Wheels gives you\n\n- A downloadable PDF summary of total earnings per year.\n- Total ride count and average price.\n\n## What you must do\n\nConsult a tax advisor. Driver income is generally treated as honorarios in Colombia. Keep your own records of expenses such as fuel and maintenance.',
+      category: HelpCategory.drivers,
+      tags: const ['tax', 'driver', 'income'],
+      updatedAt: updatedAt,
+      upvotes: 58,
+      downvotes: 9,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'drv_bad_weather',
+      slug: 'bad-weather-protocol',
+      title: 'Bad weather protocol',
+      summary:
+          'Heavy rain or wind delays the estimated time and may unlock a small surge price.',
+      body:
+          '## What changes\n\n- The departure time estimate in your ride card adds a buffer.\n- A small surge multiplier (5-10%) may be suggested when you publish.\n- Passengers receive a heads-up notification 30 minutes before pickup.\n\nIf conditions become unsafe to drive, cancellations during bad weather do not affect your trust score as much (the system detects the weather context).',
+      category: HelpCategory.drivers,
+      tags: const ['weather', 'driver', 'surge'],
+      updatedAt: updatedAt,
+      upvotes: 95,
+      downvotes: 3,
+    ),
+    HelpArticleModel(
+      version: HelpArticleModel.currentVersion,
+      id: 'drv_late_protocol',
+      slug: 'late-driver-protocol',
+      title: 'Late driver protocol',
+      summary:
+          'If you are running late, send a quick message via the group chat. Passengers can cancel without penalty after 10 minutes.',
+      body:
+          '## What to do\n\n1. Open the group chat from the active ride.\n2. Send a quick "On my way, 5 more minutes" message.\n3. If you are running more than 10 minutes late, the passenger gets a free-cancel banner.\n\nMultiple late events in a week trigger a small trust-score decrease, plus a coaching nudge in your driver dashboard.',
+      category: HelpCategory.drivers,
+      tags: const ['late', 'driver', 'protocol'],
+      updatedAt: updatedAt,
+      upvotes: 78,
       downvotes: 6,
     ),
   ];
