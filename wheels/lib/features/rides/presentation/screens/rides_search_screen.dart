@@ -8,7 +8,6 @@ import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../shared/providers/connectivity_provider.dart';
 import '../../../../shared/services/current_location_service.dart';
-import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../shared/widgets/app_gradient_header.dart';
 import '../../../../theme/app_radius.dart';
@@ -594,24 +593,49 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     bool isCached = false,
     required bool isOnline,
   }) {
-    return Column(
-      children: [
-        if (isCached) ...[
-          _cachedResultsNotice(isOnline: isOnline),
-          const SizedBox(height: AppSpacing.m),
-        ],
-        _sectionTitle('Available Drivers', '${results.length} rides'),
-        const SizedBox(height: AppSpacing.s),
-        if (results.isEmpty) _emptyState(isCached: isCached),
-        for (var index = 0; index < results.length; index++) ...[
-          _RideResultCard(
-            ride: results[index],
-            isBestMatch: _sort == RideSortOption.smartMatch && index == 0,
-            onTap: () =>
-                context.go(AppRoutes.rideDetailsById(results[index].id)),
+    return SliverMainAxisGroup(
+      slivers: [
+        if (isCached)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.m),
+              child: RepaintBoundary(
+                child: _cachedResultsNotice(isOnline: isOnline),
+              ),
+            ),
           ),
-          const SizedBox(height: AppSpacing.m),
-        ],
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.s),
+            child: RepaintBoundary(
+              child: _sectionTitle('Available Drivers', '${results.length} rides'),
+            ),
+          ),
+        ),
+        if (results.isEmpty)
+          SliverToBoxAdapter(
+            child: RepaintBoundary(
+              child: _emptyState(isCached: isCached),
+            ),
+          )
+        else
+          SliverList.builder(
+            itemCount: results.length,
+            itemBuilder: (context, index) {
+              final ride = results[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.m),
+                child: RepaintBoundary(
+                  child: _RideResultCard(
+                    ride: ride,
+                    isBestMatch:
+                        _sort == RideSortOption.smartMatch && index == 0,
+                    onTap: () => context.go(AppRoutes.rideDetailsById(ride.id)),
+                  ),
+                ),
+              );
+            },
+          ),
       ],
     );
   }
@@ -804,37 +828,69 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
             error: (error, _) => _loadError(error, isOnline: isOnline),
           );
 
-    return AppScaffold(
-      title: 'Rides',
-      showAppBar: false,
+    return Scaffold(
       backgroundColor: palette.background,
-      scrollableHeader: AppGradientHeader(
-        title: 'Find a Ride',
-        subtitle: 'Available rides from your university',
-        onBack: () => context.go(AppRoutes.dashboard),
-        height: 160,
-      ),
       bottomNavigationBar: AppBottomNav(
         currentTab: AppBottomNavTab.middle,
         role: role,
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.m),
-        child: Column(
-          children: [
-            _searchCard(),
-            const SizedBox(height: AppSpacing.m),
-            _sortBar(
-              isInteractionDisabled: _isShowingOfflineFallback || !isOnline,
+      body: SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 430),
+            child: CustomScrollView(
+              cacheExtent: 720,
+              slivers: [
+                SliverToBoxAdapter(
+                  child: RepaintBoundary(
+                    child: AppGradientHeader(
+                      title: 'Find a Ride',
+                      subtitle: 'Available rides from your university',
+                      onBack: () => context.go(AppRoutes.dashboard),
+                      height: 160,
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.all(AppSpacing.m),
+                  sliver: SliverMainAxisGroup(
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: RepaintBoundary(child: _searchCard()),
+                      ),
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: AppSpacing.m),
+                      ),
+                      SliverToBoxAdapter(
+                        child: RepaintBoundary(
+                          child: _sortBar(
+                            isInteractionDisabled:
+                                _isShowingOfflineFallback || !isOnline,
+                          ),
+                        ),
+                      ),
+                      if (_sort == RideSortOption.smartMatch) ...[
+                        const SliverToBoxAdapter(
+                          child: SizedBox(height: AppSpacing.m),
+                        ),
+                        SliverToBoxAdapter(
+                          child: RepaintBoundary(child: _smartMatchNotice()),
+                        ),
+                      ],
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: AppSpacing.l),
+                      ),
+                      resultsSection,
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: AppSpacing.s),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            if (_sort == RideSortOption.smartMatch) ...[
-              const SizedBox(height: AppSpacing.m),
-              _smartMatchNotice(),
-            ],
-            const SizedBox(height: AppSpacing.l),
-            resultsSection,
-            const SizedBox(height: AppSpacing.s),
-          ],
+          ),
         ),
       ),
     );
