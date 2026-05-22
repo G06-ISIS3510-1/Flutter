@@ -840,6 +840,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
             child: CustomScrollView(
+              // ignore: deprecated_member_use
               cacheExtent: 720,
               slivers: [
                 SliverToBoxAdapter(
