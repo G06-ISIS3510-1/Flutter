@@ -11,6 +11,7 @@ import 'package:wheels/features/help/data/datasources/help_remote_datasource.dar
 import 'package:wheels/features/help/data/repositories/help_repository_impl.dart';
 import 'package:wheels/features/help/domain/entities/help_article.dart';
 import 'package:wheels/features/help/domain/entities/help_feedback.dart';
+import 'package:wheels/features/help/domain/entities/help_resolution_rate.dart';
 import 'package:wheels/shared/storage/app_hive.dart';
 
 import '../../../../support/help_test_data.dart';
@@ -19,8 +20,10 @@ class _FakeHelpRemoteDataSource implements HelpRemoteDataSource {
   _FakeHelpRemoteDataSource();
 
   final Map<String, HelpArticle> articles = <String, HelpArticle>{};
+  final List<HelpAnalyticsEventRecord> events = <HelpAnalyticsEventRecord>[];
   int getArticleCalls = 0;
   int watchArticlesCalls = 0;
+  int loadResolutionEventsCalls = 0;
 
   @override
   Future<HelpArticle?> getArticle(String articleId) async {
@@ -32,6 +35,16 @@ class _FakeHelpRemoteDataSource implements HelpRemoteDataSource {
   Stream<List<HelpArticle>> watchArticles() {
     watchArticlesCalls += 1;
     return Stream<List<HelpArticle>>.value(articles.values.toList());
+  }
+
+  @override
+  Future<List<HelpAnalyticsEventRecord>> loadResolutionEventsSince(
+    DateTime windowStart,
+  ) async {
+    loadResolutionEventsCalls += 1;
+    return events
+        .where((e) => !e.timestamp.isBefore(windowStart))
+        .toList(growable: false);
   }
 }
 
@@ -226,4 +239,74 @@ void main() {
       );
     });
   });
+
+  group('HelpRepositoryImpl.loadWeeklyResolutionRate (BQ-J4)', () {
+    test('aggregates fake events for the rolling 7-day window', () async {
+      final now = DateTime.utc(2026, 5, 21, 12);
+      final insideWindow = now.subtract(const Duration(days: 2));
+      final outsideWindow = now.subtract(const Duration(days: 10));
+
+      remote.events.addAll(<HelpAnalyticsEventRecord>[
+        HelpAnalyticsEventRecord(
+          event: helpEventSessionStarted,
+          timestamp: insideWindow,
+        ),
+        HelpAnalyticsEventRecord(
+          event: helpEventSessionStarted,
+          timestamp: insideWindow.add(const Duration(hours: 3)),
+        ),
+        HelpAnalyticsEventRecord(
+          event: helpEventContactSupportClicked,
+          timestamp: insideWindow.add(const Duration(hours: 4)),
+        ),
+        // Outside the 7-day window — must be ignored.
+        HelpAnalyticsEventRecord(
+          event: helpEventSessionStarted,
+          timestamp: outsideWindow,
+        ),
+      ]);
+
+      final rate = await repository.loadWeeklyResolutionRate(now: now);
+
+      expect(remote.loadResolutionEventsCalls, 1);
+      expect(rate.sessionsStarted, 2);
+      expect(rate.supportClicks, 1);
+      expect(rate.ratePercent, 50);
+      expect(rate.hasEnoughData, isTrue);
+    });
+
+    test('returns empty rate when remote fetch throws', () async {
+      // Replace the remote with a throwing variant.
+      final brokenRemote = _ThrowingRemoteDataSource();
+      final broken = HelpRepositoryImpl(
+        localDataSource: local,
+        remoteDataSource: brokenRemote,
+        preferencesDataSource: preferences,
+        articlesCache: lru,
+      );
+
+      final rate = await broken.loadWeeklyResolutionRate(
+        now: DateTime.utc(2026, 5, 21),
+      );
+
+      expect(rate.hasEnoughData, isFalse);
+      expect(rate.sessionsStarted, 0);
+    });
+  });
+}
+
+class _ThrowingRemoteDataSource implements HelpRemoteDataSource {
+  @override
+  Future<HelpArticle?> getArticle(String articleId) async => null;
+
+  @override
+  Stream<List<HelpArticle>> watchArticles() =>
+      const Stream<List<HelpArticle>>.empty();
+
+  @override
+  Future<List<HelpAnalyticsEventRecord>> loadResolutionEventsSince(
+    DateTime windowStart,
+  ) {
+    throw StateError('Firestore unavailable');
+  }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../entities/help_article.dart';
 import '../entities/help_feedback.dart';
+import '../entities/help_resolution_rate.dart';
 
 abstract class HelpRepository {
   Stream<List<HelpArticle>> watchArticles();
@@ -55,4 +56,6 @@ abstract class HelpRepository {
   Future<void> saveLastQuery({required String userId, required String query});
 
   Future<void> clearLastQuery(String userId);
+
+  Future<HelpResolutionRate> loadWeeklyResolutionRate({DateTime? now});
 }

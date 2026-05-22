@@ -11,6 +11,7 @@ import '../../domain/entities/help_category.dart';
 import '../providers/help_providers.dart';
 import '../widgets/help_article_tile.dart';
 import '../widgets/help_category_card.dart';
+import '../widgets/help_resolution_rate_banner.dart';
 import '../widgets/help_search_bar.dart';
 
 class HelpCenterScreen extends ConsumerStatefulWidget {
@@ -256,7 +257,24 @@ class _CategoryFilterChip extends StatelessWidget {
   }
 }
 
-class _HelpBrowseView extends ConsumerWidget {
+// F-J-8 micro-optimization (refs sprint4-wiki §6.1).
+//
+// Before: `_HelpBrowseView` was one `ConsumerWidget` that watched three
+// derived providers in a single `build()` and returned a monolithic
+// `ListView` of mixed children. Whenever any of the three providers
+// re-emitted, the entire browse view (category grid + recently viewed
+// strip + most-helpful list + banner + CTA) rebuilt and repainted together
+// even though only one section actually changed.
+//
+// After: each section is its own `RepaintBoundary`-wrapped `Consumer` that
+// watches only the provider it needs, so rebuilds and repaints are scoped
+// to the section that actually changed. The horizontal strip and the
+// long-list lists additionally pass `addAutomaticKeepAlives: false` and
+// `addRepaintBoundaries: false` because we are wrapping each child
+// manually with the correct `RepaintBoundary` granularity. `cacheExtent`
+// is bumped to 600 px so off-screen builds finish before they become
+// visible.
+class _HelpBrowseView extends StatelessWidget {
   const _HelpBrowseView({
     required this.sessionId,
     required this.articles,
@@ -270,12 +288,7 @@ class _HelpBrowseView extends ConsumerWidget {
   final ValueChanged<HelpArticle> onArticleTap;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = context.palette;
-    final counts = ref.watch(helpCategoryCountsProvider);
-    final recentlyViewed = ref.watch(helpRecentlyViewedArticlesProvider);
-    final mostHelpful = ref.watch(helpMostHelpfulProvider);
-
+  Widget build(BuildContext context) {
     if (articles.isEmpty) {
       return _HelpEmptyState(
         icon: Icons.help_outline_rounded,
@@ -292,87 +305,170 @@ class _HelpBrowseView extends ConsumerWidget {
         AppSpacing.m,
         AppSpacing.xl,
       ),
+      // ignore: deprecated_member_use
+      cacheExtent: 600,
+      addAutomaticKeepAlives: false,
       children: [
-        _SectionTitle('Browse by category'),
+        const _SectionTitle('Browse by category'),
         const SizedBox(height: AppSpacing.s),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            const spacing = AppSpacing.s;
-            final cardWidth = (constraints.maxWidth - spacing) / 2;
-            return Wrap(
-              spacing: spacing,
-              runSpacing: spacing,
-              children: <Widget>[
-                for (final category in HelpCategory.values)
-                  SizedBox(
-                    width: cardWidth,
-                    child: HelpCategoryCard(
-                      category: category,
-                      articleCount: counts[category] ?? 0,
-                      onTap: () => onCategoryTap(category),
-                    ),
-                  ),
-              ],
-            );
-          },
+        RepaintBoundary(
+          child: _CategoryGridSection(onCategoryTap: onCategoryTap),
         ),
-        if (recentlyViewed.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.l),
-          _SectionTitle('Recently viewed'),
-          const SizedBox(height: AppSpacing.s),
-          SizedBox(
-            height: 132,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: recentlyViewed.length,
-              separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.s),
-              itemBuilder: (context, index) {
-                final article = recentlyViewed[index];
-                return SizedBox(
+        const SizedBox(height: AppSpacing.l),
+        RepaintBoundary(
+          child: _RecentlyViewedSection(onArticleTap: onArticleTap),
+        ),
+        const SizedBox(height: AppSpacing.l),
+        const _SectionTitle('Most helpful'),
+        const SizedBox(height: AppSpacing.s),
+        RepaintBoundary(
+          child: _MostHelpfulSection(onArticleTap: onArticleTap),
+        ),
+        const SizedBox(height: AppSpacing.l),
+        const RepaintBoundary(child: HelpResolutionRateBanner()),
+        const SizedBox(height: AppSpacing.m),
+        RepaintBoundary(
+          child: _ContactSupportSection(sessionId: sessionId),
+        ),
+      ],
+    );
+  }
+}
+
+class _CategoryGridSection extends ConsumerWidget {
+  const _CategoryGridSection({required this.onCategoryTap});
+
+  final ValueChanged<HelpCategory> onCategoryTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final counts = ref.watch(helpCategoryCountsProvider);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = AppSpacing.s;
+        final cardWidth = (constraints.maxWidth - spacing) / 2;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: <Widget>[
+            for (final category in HelpCategory.values)
+              SizedBox(
+                width: cardWidth,
+                child: RepaintBoundary(
+                  child: HelpCategoryCard(
+                    category: category,
+                    articleCount: counts[category] ?? 0,
+                    onTap: () => onCategoryTap(category),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _RecentlyViewedSection extends ConsumerWidget {
+  const _RecentlyViewedSection({required this.onArticleTap});
+
+  final ValueChanged<HelpArticle> onArticleTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final recentlyViewed = ref.watch(helpRecentlyViewedArticlesProvider);
+    if (recentlyViewed.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle('Recently viewed'),
+        const SizedBox(height: AppSpacing.s),
+        SizedBox(
+          height: 132,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: recentlyViewed.length,
+            // ignore: deprecated_member_use
+            cacheExtent: 600,
+            addAutomaticKeepAlives: false,
+            addRepaintBoundaries: false,
+            separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.s),
+            itemBuilder: (context, index) {
+              final article = recentlyViewed[index];
+              return RepaintBoundary(
+                child: SizedBox(
                   width: 260,
                   child: HelpArticleTile(
                     article: article,
                     onTap: () => onArticleTap(article),
                     compact: true,
                   ),
-                );
-              },
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MostHelpfulSection extends ConsumerWidget {
+  const _MostHelpfulSection({required this.onArticleTap});
+
+  final ValueChanged<HelpArticle> onArticleTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mostHelpful = ref.watch(helpMostHelpfulProvider);
+    if (mostHelpful.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < mostHelpful.length; i++) ...[
+          if (i > 0) const SizedBox(height: AppSpacing.s),
+          RepaintBoundary(
+            child: HelpArticleTile(
+              article: mostHelpful[i],
+              onTap: () => onArticleTap(mostHelpful[i]),
             ),
           ),
         ],
-        const SizedBox(height: AppSpacing.l),
-        _SectionTitle('Most helpful'),
-        const SizedBox(height: AppSpacing.s),
-        ...mostHelpful.expand(
-          (article) => <Widget>[
-            HelpArticleTile(
-              article: article,
-              onTap: () => onArticleTap(article),
-            ),
-            const SizedBox(height: AppSpacing.s),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.m),
-        _ContactSupportCard(
-          onContact: () {
-            ref.read(helpAnalyticsServiceProvider).logContactSupportClicked(
-                  sessionId: sessionId,
-                  userId: currentHelpUserId(),
-                  query: ref.read(helpQueryProvider).debounced,
-                );
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: const Text(
-                    'Support form coming soon — your tap was recorded.',
-                  ),
-                  backgroundColor: palette.accent,
-                ),
-              );
-          },
-        ),
       ],
+    );
+  }
+}
+
+class _ContactSupportSection extends ConsumerWidget {
+  const _ContactSupportSection({required this.sessionId});
+
+  final String sessionId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.palette;
+    return _ContactSupportCard(
+      onContact: () {
+        ref.read(helpAnalyticsServiceProvider).logContactSupportClicked(
+              sessionId: sessionId,
+              userId: currentHelpUserId(),
+              query: ref.read(helpQueryProvider).debounced,
+            );
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Support form coming soon — your tap was recorded.',
+              ),
+              backgroundColor: palette.accent,
+            ),
+          );
+      },
     );
   }
 }
@@ -409,38 +505,46 @@ class _HelpSearchResults extends ConsumerWidget {
             AppSpacing.xl,
           ),
           itemCount: results.length + 1,
+          // ignore: deprecated_member_use
+          cacheExtent: 600,
+          addAutomaticKeepAlives: false,
+          addRepaintBoundaries: false,
           separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.s),
           itemBuilder: (context, index) {
             if (index == results.length) {
               return Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.m),
-                child: _ContactSupportCard(
-                  onContact: () {
-                    ref
-                        .read(helpAnalyticsServiceProvider)
-                        .logContactSupportClicked(
-                          sessionId: sessionId,
-                          userId: currentHelpUserId(),
-                          query: ref.read(helpQueryProvider).debounced,
-                        );
-                    ScaffoldMessenger.of(context)
-                      ..hideCurrentSnackBar()
-                      ..showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Support form coming soon — your tap was recorded.',
+                child: RepaintBoundary(
+                  child: _ContactSupportCard(
+                    onContact: () {
+                      ref
+                          .read(helpAnalyticsServiceProvider)
+                          .logContactSupportClicked(
+                            sessionId: sessionId,
+                            userId: currentHelpUserId(),
+                            query: ref.read(helpQueryProvider).debounced,
+                          );
+                      ScaffoldMessenger.of(context)
+                        ..hideCurrentSnackBar()
+                        ..showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Support form coming soon — your tap was recorded.',
+                            ),
                           ),
-                        ),
-                      );
-                  },
+                        );
+                    },
+                  ),
                 ),
               );
             }
             final article = results[index];
-            return HelpArticleTile(
-              article: article,
-              onTap: () =>
-                  context.go(AppRoutes.helpArticleById(article.id)),
+            return RepaintBoundary(
+              child: HelpArticleTile(
+                article: article,
+                onTap: () =>
+                    context.go(AppRoutes.helpArticleById(article.id)),
+              ),
             );
           },
         );
@@ -481,12 +585,18 @@ class _HelpCategoryListing extends StatelessWidget {
         AppSpacing.xl,
       ),
       itemCount: filtered.length,
+      // ignore: deprecated_member_use
+      cacheExtent: 600,
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: false,
       separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.s),
       itemBuilder: (context, index) {
         final article = filtered[index];
-        return HelpArticleTile(
-          article: article,
-          onTap: () => onArticleTap(article),
+        return RepaintBoundary(
+          child: HelpArticleTile(
+            article: article,
+            onTap: () => onArticleTap(article),
+          ),
         );
       },
     );

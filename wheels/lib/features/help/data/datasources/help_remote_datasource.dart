@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../domain/entities/help_article.dart';
 import '../../domain/entities/help_category.dart';
+import '../../domain/entities/help_resolution_rate.dart';
 
 class HelpRemoteDataSource {
   HelpRemoteDataSource({required FirebaseFirestore firestore})
@@ -11,6 +12,35 @@ class HelpRemoteDataSource {
 
   CollectionReference<Map<String, dynamic>> get _articlesCollection =>
       _firestore.collection('help_articles');
+
+  CollectionReference<Map<String, dynamic>> get _helpEventsCollection =>
+      _firestore.collection('help_events');
+
+  /// Fetches BQ-J4 events (session-started and contact-support-clicked) at or
+  /// after [windowStart]. The query intentionally filters only by timestamp
+  /// to avoid requiring a composite (`event` + `timestamp`) index; the event
+  /// name is filtered client-side, which is cheap because the time-bounded
+  /// result set is small (last 7 days).
+  Future<List<HelpAnalyticsEventRecord>> loadResolutionEventsSince(
+    DateTime windowStart,
+  ) async {
+    final snapshot = await _helpEventsCollection
+        .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(windowStart))
+        .get();
+    final events = <HelpAnalyticsEventRecord>[];
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final event = _readString(data['event']);
+      final timestamp = _readTimestamp(data['timestamp']);
+      if (event == null || timestamp == null) continue;
+      if (event != helpEventSessionStarted &&
+          event != helpEventContactSupportClicked) {
+        continue;
+      }
+      events.add(HelpAnalyticsEventRecord(event: event, timestamp: timestamp));
+    }
+    return events;
+  }
 
   Stream<List<HelpArticle>> watchArticles() {
     return _articlesCollection.snapshots().map((snapshot) {

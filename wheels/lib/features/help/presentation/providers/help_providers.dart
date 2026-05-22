@@ -19,6 +19,7 @@ import '../../data/services/help_analytics_service.dart';
 import '../../data/sync/help_feedback_sync_worker.dart';
 import '../../domain/entities/help_article.dart';
 import '../../domain/entities/help_category.dart';
+import '../../domain/entities/help_resolution_rate.dart';
 import '../../domain/repositories/help_repository.dart';
 
 // ----- Infrastructure singletons ------------------------------------------
@@ -143,6 +144,13 @@ final helpMostHelpfulProvider = Provider<List<HelpArticle>>((ref) {
   final sorted = <HelpArticle>[...articles]
     ..sort((a, b) => b.netHelpfulness.compareTo(a.netHelpfulness));
   return sorted.take(5).toList(growable: false);
+});
+
+// ----- BQ-J4 weekly resolution rate --------------------------------------
+
+final helpWeeklyResolutionRateProvider =
+    FutureProvider.autoDispose<HelpResolutionRate>((ref) {
+  return ref.watch(helpRepositoryProvider).loadWeeklyResolutionRate();
 });
 
 // ----- Query debounce ----------------------------------------------------

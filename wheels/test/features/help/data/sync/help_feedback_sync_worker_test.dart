@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wheels/features/help/data/sync/help_feedback_sync_worker.dart';
 import 'package:wheels/features/help/domain/entities/help_article.dart';
 import 'package:wheels/features/help/domain/entities/help_feedback.dart';
+import 'package:wheels/features/help/domain/entities/help_resolution_rate.dart';
 import 'package:wheels/features/help/domain/repositories/help_repository.dart';
 
 class _FakeHelpRepository implements HelpRepository {
@@ -111,6 +112,15 @@ class _FakeHelpRepository implements HelpRepository {
 
   @override
   Future<void> clearLastQuery(String userId) async {}
+
+  @override
+  Future<HelpResolutionRate> loadWeeklyResolutionRate({DateTime? now}) async {
+    final end = (now ?? DateTime.utc(2026, 5, 21));
+    return HelpResolutionRate.empty(
+      windowStart: end.subtract(const Duration(days: 7)),
+      windowEnd: end,
+    );
+  }
 }
 
 HelpFeedback _buildFeedback(String id, HelpFeedbackVote vote) {
