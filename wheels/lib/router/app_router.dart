@@ -12,6 +12,8 @@ import '../features/auth/presentation/screens/register_screen.dart';
 import '../features/admin/presentation/admin_dashboard.dart';
 import '../features/ride_history/presentation/screens/ride_history_screen.dart';
 import '../features/dashboard/presentation/screens/dashboard_screen.dart';
+import '../features/help/presentation/screens/help_article_screen.dart';
+import '../features/help/presentation/screens/help_center_screen.dart';
 import '../features/notifications/presentation/screens/notifications_screen.dart';
 import '../features/payments/presentation/screens/payment_screen.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
@@ -21,6 +23,8 @@ import '../features/rides/presentation/screens/create_ride_screen.dart';
 import '../features/rides/presentation/screens/group_screen.dart';
 import '../features/rides/presentation/screens/ride_details_screen.dart';
 import '../features/rides/presentation/screens/rides_search_screen.dart';
+import '../features/saved_destinations/presentation/screens/saved_destination_detail_screen.dart';
+import '../features/saved_destinations/presentation/screens/saved_destinations_screen.dart';
 import '../features/trust/presentation/screens/trust_screen.dart';
 import '../features/wallet/presentation/screens/wallet_screen.dart';
 import '../features/wallet/presentation/screens/withdrawal_request_screen.dart';
@@ -112,11 +116,23 @@ class AppRouter {
       ),
       GoRoute(
         path: AppRoutes.createRide,
-        builder: (context, state) => const CreateRideScreen(),
+        builder: (context, state) => CreateRideScreen(
+          initialSavedDestinationId: int.tryParse(
+            state.uri.queryParameters['savedDestinationId'] ?? '',
+          ),
+          forceSavedDestination:
+              state.uri.queryParameters['forceSavedDestination'] == '1',
+        ),
       ),
       GoRoute(
         path: AppRoutes.rides,
-        builder: (context, state) => const RidesSearchScreen(),
+        builder: (context, state) => RidesSearchScreen(
+          initialSavedDestinationId: int.tryParse(
+            state.uri.queryParameters['savedDestinationId'] ?? '',
+          ),
+          forceSavedDestination:
+              state.uri.queryParameters['forceSavedDestination'] == '1',
+        ),
       ),
       GoRoute(
         path: AppRoutes.rideDetails,
@@ -172,6 +188,30 @@ class AppRouter {
       GoRoute(
         path: AppRoutes.rideHistory,
         builder: (context, state) => const RideHistoryScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.helpCenter,
+        builder: (context, state) => const HelpCenterScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.helpArticle,
+        builder: (context, state) => HelpArticleScreen(
+          articleId: state.pathParameters['articleId'] ?? 'unknown',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.savedDestinations,
+        builder: (context, state) => const SavedDestinationsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.savedDestinationDetail,
+        builder: (context, state) => SavedDestinationDetailScreen(
+          localId:
+              int.tryParse(
+                state.pathParameters['savedDestinationId'] ?? '',
+              ) ??
+              -1,
+        ),
       ),
     ],
   );

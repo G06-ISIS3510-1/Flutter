@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../shared/providers/connectivity_provider.dart';
 import '../../../../shared/ui/app_scaffold.dart';
@@ -12,6 +13,7 @@ import '../../../../shared/widgets/app_button.dart';
 import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_spacing.dart';
 import '../../../../theme/app_theme_palette.dart';
+import '../../../../router/app_routes.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../data/models/local_withdrawal_request_draft_model.dart';
 import '../../domain/entities/withdrawal_request_input.dart';
@@ -36,8 +38,11 @@ class _WithdrawalRequestScreenState
 
   Timer? _draftSaveDebounce;
   String _accountType = 'savings';
+  String _preferredAccountType = 'savings';
   bool _isDraftLoaded = false;
   bool _draftRestored = false;
+  bool _isApplyingLocalState = false;
+  int _formVersion = 0;
   DateTime? _draftSavedAt;
 
   String get _draftCacheId {
@@ -45,6 +50,13 @@ class _WithdrawalRequestScreenState
     return user == null
         ? 'anonymous_withdrawal_request'
         : 'withdrawal_request_${user.uid}';
+  }
+
+  String get _preferredAccountTypeKey {
+    final user = ref.read(authUserProvider);
+    return user == null
+        ? 'preferred_withdrawal_account_type_anonymous'
+        : 'preferred_withdrawal_account_type_${user.uid}';
   }
 
   @override
@@ -72,7 +84,7 @@ class _WithdrawalRequestScreenState
   }
 
   void _onDraftChanged() {
-    if (!_isDraftLoaded) {
+    if (!_isDraftLoaded || _isApplyingLocalState) {
       return;
     }
 
@@ -97,6 +109,7 @@ class _WithdrawalRequestScreenState
   }
 
   Future<void> _restoreDraftIfAvailable() async {
+    final preferredAccountType = await _loadPreferredAccountType();
     final draft = await ref
         .read(withdrawalRequestDraftLocalDataSourceProvider)
         .loadDraft(cacheId: _draftCacheId);
@@ -105,12 +118,17 @@ class _WithdrawalRequestScreenState
       return;
     }
 
+    _preferredAccountType = preferredAccountType;
+    _accountType = preferredAccountType;
+
     if (draft != null && draft.hasMeaningfulData) {
+      _isApplyingLocalState = true;
       _amountController.text = draft.amountText;
       _bankNameController.text = draft.bankName;
       _accountNumberController.text = draft.accountNumber;
       _accountHolderNameController.text = draft.accountHolderName;
       _accountType = draft.accountType;
+      _isApplyingLocalState = false;
     }
 
     setState(() {
@@ -118,6 +136,20 @@ class _WithdrawalRequestScreenState
       _draftRestored = draft != null && draft.hasMeaningfulData;
       _draftSavedAt = draft?.savedAt;
     });
+  }
+
+  Future<String> _loadPreferredAccountType() async {
+    final prefs = await SharedPreferences.getInstance();
+    final preferred = prefs.getString(_preferredAccountTypeKey);
+    if (preferred == 'checking') {
+      return 'checking';
+    }
+    return 'savings';
+  }
+
+  Future<void> _savePreferredAccountType(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_preferredAccountTypeKey, value);
   }
 
   Future<void> _persistDraft({bool showFeedback = false}) async {
@@ -172,26 +204,59 @@ class _WithdrawalRequestScreenState
   }
 
   void _resetForm() {
+    _draftSaveDebounce?.cancel();
+    _isApplyingLocalState = true;
     _amountController.clear();
     _bankNameController.clear();
     _accountNumberController.clear();
     _accountHolderNameController.clear();
+    _accountType = _preferredAccountType;
+    _isApplyingLocalState = false;
+    _formKey.currentState?.reset();
 
     if (mounted) {
       setState(() {
-        _accountType = 'savings';
+        _draftRestored = false;
+        _draftSavedAt = null;
+        _formVersion++;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+
+        _isApplyingLocalState = true;
+        _amountController.clear();
+        _bankNameController.clear();
+        _accountNumberController.clear();
+        _accountHolderNameController.clear();
+        _isApplyingLocalState = false;
       });
     } else {
-      _accountType = 'savings';
+      _draftRestored = false;
+      _draftSavedAt = null;
+      _formVersion++;
     }
+  }
 
-    _formKey.currentState?.reset();
+  Future<void> _discardDraft() async {
+    _resetForm();
+    await _clearDraft(showFeedback: true);
   }
 
   String _formatDraftSavedAt(DateTime savedAt) {
     final date = '${savedAt.day}/${savedAt.month}/${savedAt.year}';
     final hour = TimeOfDay.fromDateTime(savedAt).format(context);
     return '$date at $hour';
+  }
+
+  void _closeScreen() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+
+    context.go(AppRoutes.wallet);
   }
 
   @override
@@ -224,7 +289,7 @@ class _WithdrawalRequestScreenState
                   ),
                 ),
               );
-            context.pop();
+            _closeScreen();
           },
           error: (error, _) {
             if (!(previous?.isLoading ?? false) || !mounted) {
@@ -261,9 +326,11 @@ class _WithdrawalRequestScreenState
                 }
 
                 return SingleChildScrollView(
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
+                  child: KeyedSubtree(
+                    key: ValueKey<int>(_formVersion),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (_draftRestored && _draftSavedAt != null) ...[
@@ -272,12 +339,7 @@ class _WithdrawalRequestScreenState
                             onSaveNow: isLoading
                                 ? null
                                 : () => _persistDraft(showFeedback: true),
-                            onDiscard: isLoading
-                                ? null
-                                : () async {
-                                    _resetForm();
-                                    await _clearDraft(showFeedback: true);
-                                  },
+                            onDiscard: isLoading ? null : _discardDraft,
                           ),
                           const SizedBox(height: AppSpacing.l),
                         ],
@@ -336,9 +398,11 @@ class _WithdrawalRequestScreenState
                               ? null
                               : (value) {
                                   if (value != null) {
+                                    _preferredAccountType = value;
                                     setState(() {
                                       _accountType = value;
                                     });
+                                    unawaited(_savePreferredAccountType(value));
                                     _scheduleDraftSave();
                                   }
                                 },
@@ -392,11 +456,12 @@ class _WithdrawalRequestScreenState
                         const SizedBox(height: AppSpacing.s),
                         AppButton(
                           label: 'Back',
-                          onPressed: isLoading ? null : () => context.pop(),
+                          onPressed: isLoading ? null : _closeScreen,
                           isPrimary: false,
                         ),
                       ],
                     ),
+                  ),
                   ),
                 );
               },

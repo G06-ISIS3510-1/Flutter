@@ -8,13 +8,15 @@ import '../../../../features/auth/presentation/providers/auth_providers.dart';
 import '../../../../router/app_routes.dart';
 import '../../../../shared/providers/connectivity_provider.dart';
 import '../../../../shared/services/current_location_service.dart';
-import '../../../../shared/ui/app_scaffold.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../shared/widgets/app_gradient_header.dart';
 import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
 import '../../../../theme/app_theme_palette.dart';
+import '../../../saved_destinations/domain/entities/saved_destination.dart';
+import '../../../saved_destinations/presentation/providers/saved_destinations_providers.dart';
+import '../../../saved_destinations/presentation/widgets/saved_destinations_chip.dart';
 import '../../data/datasources/rides_search_local_datasource.dart';
 import '../../data/models/local_ride_search_cache_model.dart';
 import '../../domain/entities/rides_entity.dart';
@@ -22,7 +24,14 @@ import '../models/ride_listing.dart';
 import '../providers/rides_providers.dart';
 
 class RidesSearchScreen extends ConsumerStatefulWidget {
-  const RidesSearchScreen({super.key});
+  const RidesSearchScreen({
+    this.initialSavedDestinationId,
+    this.forceSavedDestination = false,
+    super.key,
+  });
+
+  final int? initialSavedDestinationId;
+  final bool forceSavedDestination;
 
   @override
   ConsumerState<RidesSearchScreen> createState() => _RidesSearchScreenState();
@@ -59,6 +68,8 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   String? _lastSavedCacheSignature;
   bool _isShowingOfflineFallback = false;
   bool _isRetryingSearch = false;
+  bool _hasAppliedLastQuickPick = false;
+  bool _hasAppliedInitialSavedDestination = false;
 
   @override
   void initState() {
@@ -105,9 +116,66 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   Future<void> _initializeSearchState() async {
     await _restoreLatestSearch();
     await _syncOfflineFallbackWithConnectivity();
+    await _applyInitialSavedDestinationFromRouteIfRelevant();
     if (_cachedSearchCache == null) {
       await _prefillOriginWithCurrentLocation();
+      await _applyLastQuickPickIfRelevant();
     }
+  }
+
+  Future<void> _applyInitialSavedDestinationFromRouteIfRelevant() async {
+    if (_hasAppliedInitialSavedDestination) {
+      return;
+    }
+
+    final localId = widget.initialSavedDestinationId;
+    final userId = ref.read(authUserProvider)?.uid;
+    if (localId == null || userId == null) {
+      return;
+    }
+
+    final destination = await ref
+        .read(savedDestinationsRepositoryProvider)
+        .loadDestinationById(userId, localId);
+    if (!mounted || destination == null) {
+      return;
+    }
+
+    setState(() {
+      _destinationController.text = destination.address;
+      _appliedDestinationQuery = widget.forceSavedDestination
+          ? destination.address.trim().toLowerCase()
+          : _appliedDestinationQuery;
+      _hasAppliedInitialSavedDestination = true;
+    });
+  }
+
+  Future<void> _applyLastQuickPickIfRelevant() async {
+    if (_hasAppliedLastQuickPick || _cachedSearchCache != null) {
+      return;
+    }
+
+    final userId = ref.read(authUserProvider)?.uid;
+    if (userId == null) {
+      return;
+    }
+
+    final quickPick = await ref
+        .read(savedDestinationsRepositoryProvider)
+        .loadLastQuickPick(userId);
+    if (!mounted || quickPick == null) {
+      return;
+    }
+
+    if (_destinationController.text.trim().isNotEmpty) {
+      _hasAppliedLastQuickPick = true;
+      return;
+    }
+
+    setState(() {
+      _destinationController.text = quickPick.address;
+      _hasAppliedLastQuickPick = true;
+    });
   }
 
   Future<void> _syncOfflineFallbackWithConnectivity() async {
@@ -589,29 +657,71 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     ].join('::');
   }
 
+  void _applySavedDestination(SavedDestination destination) {
+    setState(() {
+      _destinationController.text = destination.address;
+    });
+
+    final userId = ref.read(authUserProvider)?.uid;
+    final localId = destination.localId;
+    if (userId != null && localId != null) {
+      unawaited(
+        ref.read(savedDestinationsRepositoryProvider).saveLastQuickPick(
+              userId: userId,
+              localId: localId,
+            ),
+      );
+    }
+  }
+
   Widget _buildResultsSection(
     List<RidesEntity> results, {
     bool isCached = false,
     required bool isOnline,
   }) {
-    return Column(
-      children: [
-        if (isCached) ...[
-          _cachedResultsNotice(isOnline: isOnline),
-          const SizedBox(height: AppSpacing.m),
-        ],
-        _sectionTitle('Available Drivers', '${results.length} rides'),
-        const SizedBox(height: AppSpacing.s),
-        if (results.isEmpty) _emptyState(isCached: isCached),
-        for (var index = 0; index < results.length; index++) ...[
-          _RideResultCard(
-            ride: results[index],
-            isBestMatch: _sort == RideSortOption.smartMatch && index == 0,
-            onTap: () =>
-                context.go(AppRoutes.rideDetailsById(results[index].id)),
+    return SliverMainAxisGroup(
+      slivers: [
+        if (isCached)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.m),
+              child: RepaintBoundary(
+                child: _cachedResultsNotice(isOnline: isOnline),
+              ),
+            ),
           ),
-          const SizedBox(height: AppSpacing.m),
-        ],
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.s),
+            child: RepaintBoundary(
+              child: _sectionTitle('Available Drivers', '${results.length} rides'),
+            ),
+          ),
+        ),
+        if (results.isEmpty)
+          SliverToBoxAdapter(
+            child: RepaintBoundary(
+              child: _emptyState(isCached: isCached),
+            ),
+          )
+        else
+          SliverList.builder(
+            itemCount: results.length,
+            itemBuilder: (context, index) {
+              final ride = results[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.m),
+                child: RepaintBoundary(
+                  child: _RideResultCard(
+                    ride: ride,
+                    isBestMatch:
+                        _sort == RideSortOption.smartMatch && index == 0,
+                    onTap: () => context.go(AppRoutes.rideDetailsById(ride.id)),
+                  ),
+                ),
+              );
+            },
+          ),
       ],
     );
   }
@@ -758,6 +868,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
     final palette = context.palette;
     final role = ref.watch(currentUserRoleProvider);
     final ridesAsync = ref.watch(availableRidesProvider);
+    ref.watch(savedDestinationsFeatureInitProvider);
     final connectivityAsync = ref.watch(connectivityStatusProvider);
     final isOnline = connectivityAsync.valueOrNull ?? true;
     final cachedResults = _cachedSearchCache?.toEntities();
@@ -804,37 +915,70 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
             error: (error, _) => _loadError(error, isOnline: isOnline),
           );
 
-    return AppScaffold(
-      title: 'Rides',
-      showAppBar: false,
+    return Scaffold(
       backgroundColor: palette.background,
-      scrollableHeader: AppGradientHeader(
-        title: 'Find a Ride',
-        subtitle: 'Available rides from your university',
-        onBack: () => context.go(AppRoutes.dashboard),
-        height: 160,
-      ),
       bottomNavigationBar: AppBottomNav(
         currentTab: AppBottomNavTab.middle,
         role: role,
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.m),
-        child: Column(
-          children: [
-            _searchCard(),
-            const SizedBox(height: AppSpacing.m),
-            _sortBar(
-              isInteractionDisabled: _isShowingOfflineFallback || !isOnline,
+      body: SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 430),
+            child: CustomScrollView(
+              // ignore: deprecated_member_use
+              cacheExtent: 720,
+              slivers: [
+                SliverToBoxAdapter(
+                  child: RepaintBoundary(
+                    child: AppGradientHeader(
+                      title: 'Find a Ride',
+                      subtitle: 'Available rides from your university',
+                      onBack: () => context.go(AppRoutes.dashboard),
+                      height: 160,
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.all(AppSpacing.m),
+                  sliver: SliverMainAxisGroup(
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: RepaintBoundary(child: _searchCard()),
+                      ),
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: AppSpacing.m),
+                      ),
+                      SliverToBoxAdapter(
+                        child: RepaintBoundary(
+                          child: _sortBar(
+                            isInteractionDisabled:
+                                _isShowingOfflineFallback || !isOnline,
+                          ),
+                        ),
+                      ),
+                      if (_sort == RideSortOption.smartMatch) ...[
+                        const SliverToBoxAdapter(
+                          child: SizedBox(height: AppSpacing.m),
+                        ),
+                        SliverToBoxAdapter(
+                          child: RepaintBoundary(child: _smartMatchNotice()),
+                        ),
+                      ],
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: AppSpacing.l),
+                      ),
+                      resultsSection,
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: AppSpacing.s),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            if (_sort == RideSortOption.smartMatch) ...[
-              const SizedBox(height: AppSpacing.m),
-              _smartMatchNotice(),
-            ],
-            const SizedBox(height: AppSpacing.l),
-            resultsSection,
-            const SizedBox(height: AppSpacing.s),
-          ],
+          ),
         ),
       ),
     );
@@ -842,6 +986,10 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
 
   Widget _searchCard() {
     final palette = context.palette;
+    final savedDestinations =
+        ref.watch(savedDestinationsStreamProvider).valueOrNull ??
+        const <SavedDestination>[];
+    final quickDestinations = savedDestinations.take(4).toList(growable: false);
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.m),
@@ -897,6 +1045,50 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
             icon: Icons.place_outlined,
             iconColor: palette.accent,
           ),
+          const SizedBox(height: AppSpacing.s),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  quickDestinations.isEmpty
+                      ? 'Saved destinations'
+                      : 'Quick destinations',
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () => context.push(AppRoutes.savedDestinations),
+                child: Text(
+                  quickDestinations.isEmpty ? 'Open' : 'Manage',
+                ),
+              ),
+            ],
+          ),
+          if (quickDestinations.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.s),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: AppSpacing.s,
+                runSpacing: AppSpacing.s,
+                children: [
+                  for (final destination in quickDestinations)
+                    SavedDestinationsChip(
+                      destination: destination,
+                      onTap: () => _applySavedDestination(destination),
+                    ),
+                ],
+              ),
+            ),
+          ] else ...[
+            Text(
+              'Save frequent places to prefill this search with one tap.',
+              style: TextStyle(color: palette.textSecondary, height: 1.35),
+            ),
+          ],
           const SizedBox(height: AppSpacing.s),
           TextField(
             controller: _dateController,

@@ -12,6 +12,11 @@ class AppHiveBoxes {
   static const String userReviewsCache = 'user_reviews_cache_box_v1';
   static const String registrationDrafts = 'registration_drafts_box_v1';
   static const String trustScoreCache = 'trust_score_cache_box_v1';
+  static const String helpArticles = 'help_articles_box_v1';
+  static const String helpBookmarks = 'help_bookmarks_box_v1';
+  static const String helpFeedbackPending = 'help_feedback_pending_box_v1';
+  static const String helpBookmarksPending = 'help_bookmarks_pending_box_v1';
+  static const String helpUserVotes = 'help_user_votes_box_v1';
 }
 
 class AppHiveKeys {
@@ -31,4 +36,9 @@ Future<void> initializeAppHive() async {
   await Hive.openBox<String>(AppHiveBoxes.userReviewsCache);
   await Hive.openBox<String>(AppHiveBoxes.registrationDrafts);
   await Hive.openBox<String>(AppHiveBoxes.trustScoreCache);
+  await Hive.openBox<String>(AppHiveBoxes.helpArticles);
+  await Hive.openBox<String>(AppHiveBoxes.helpBookmarks);
+  await Hive.openBox<String>(AppHiveBoxes.helpFeedbackPending);
+  await Hive.openBox<String>(AppHiveBoxes.helpBookmarksPending);
+  await Hive.openBox<String>(AppHiveBoxes.helpUserVotes);
 }

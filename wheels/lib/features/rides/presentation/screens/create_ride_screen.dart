@@ -17,12 +17,22 @@ import '../../../../theme/app_radius.dart';
 import '../../../../theme/app_shadows.dart';
 import '../../../../theme/app_spacing.dart';
 import '../../../../theme/app_theme_palette.dart';
+import '../../../saved_destinations/domain/entities/saved_destination.dart';
+import '../../../saved_destinations/presentation/providers/saved_destinations_providers.dart';
+import '../../../saved_destinations/presentation/widgets/saved_destinations_chip.dart';
 import '../../data/models/local_create_ride_draft_model.dart';
 import '../../domain/entities/rides_entity.dart';
 import '../providers/rides_providers.dart';
 
 class CreateRideScreen extends ConsumerStatefulWidget {
-  const CreateRideScreen({super.key});
+  const CreateRideScreen({
+    this.initialSavedDestinationId,
+    this.forceSavedDestination = false,
+    super.key,
+  });
+
+  final int? initialSavedDestinationId;
+  final bool forceSavedDestination;
 
   @override
   ConsumerState<CreateRideScreen> createState() => _CreateRideScreenState();
@@ -55,6 +65,8 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   String? _currentLocationSuggestion;
   String? _draftSyncReason;
   DateTime? _draftSavedAt;
+  bool _hasAppliedLastQuickPick = false;
+  bool _hasAppliedInitialSavedDestination = false;
 
   static const List<String> _campusLocations = <String>[
     'Campus Uniandes - Main Gate',
@@ -77,7 +89,9 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     _priceController.addListener(_onDraftFieldChanged);
     Future.microtask(() async {
       await _restoreDraftIfAvailable();
+      await _applyInitialSavedDestinationFromRouteIfRelevant();
       await _prefillOriginWithCurrentLocation();
+      await _applyLastQuickPickIfRelevant();
     });
   }
 
@@ -117,6 +131,57 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     } catch (_) {
       // Keep the field empty if the app cannot resolve the location on load.
     }
+  }
+
+  Future<void> _applyLastQuickPickIfRelevant() async {
+    if (_hasAppliedLastQuickPick || _destination.trim().isNotEmpty) {
+      return;
+    }
+
+    final userId = ref.read(authUserProvider)?.uid;
+    if (userId == null) {
+      return;
+    }
+
+    final quickPick = await ref
+        .read(savedDestinationsRepositoryProvider)
+        .loadLastQuickPick(userId);
+    if (!mounted || quickPick == null) {
+      return;
+    }
+
+    setState(() {
+      _destination = quickPick.address;
+      _hasAppliedLastQuickPick = true;
+    });
+  }
+
+  Future<void> _applyInitialSavedDestinationFromRouteIfRelevant() async {
+    if (_hasAppliedInitialSavedDestination) {
+      return;
+    }
+
+    if (!widget.forceSavedDestination && _destination.trim().isNotEmpty) {
+      return;
+    }
+
+    final localId = widget.initialSavedDestinationId;
+    final userId = ref.read(authUserProvider)?.uid;
+    if (localId == null || userId == null) {
+      return;
+    }
+
+    final destination = await ref
+        .read(savedDestinationsRepositoryProvider)
+        .loadDestinationById(userId, localId);
+    if (!mounted || destination == null) {
+      return;
+    }
+
+    setState(() {
+      _destination = destination.address;
+      _hasAppliedInitialSavedDestination = true;
+    });
   }
 
   String get _draftCacheId {
@@ -629,13 +694,36 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     }
   }
 
+  void _applySavedDestination(SavedDestination destination) {
+    setState(() {
+      _destination = destination.address;
+    });
+    _scheduleDraftAutosave();
+
+    final userId = ref.read(authUserProvider)?.uid;
+    final localId = destination.localId;
+    if (userId != null && localId != null) {
+      unawaited(
+        ref.read(savedDestinationsRepositoryProvider).saveLastQuickPick(
+              userId: userId,
+              localId: localId,
+            ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final role = ref.watch(currentUserRoleProvider);
+    ref.watch(savedDestinationsFeatureInitProvider);
     final createRideState = ref.watch(createRideControllerProvider);
     final connectivityAsync = ref.watch(connectivityStatusProvider);
     final isOnline = connectivityAsync.valueOrNull ?? true;
     final palette = context.palette;
+    final savedDestinations =
+        ref.watch(savedDestinationsStreamProvider).valueOrNull ??
+        const <SavedDestination>[];
+    final quickDestinations = savedDestinations.take(4).toList(growable: false);
 
     ref.listen<AsyncValue<String?>>(createRideControllerProvider, (
       previous,
@@ -817,6 +905,54 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
                       validatorText: 'Destination is required.',
                       suggestions: _locationSuggestionsFor,
                     ),
+                    const SizedBox(height: AppSpacing.s),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            quickDestinations.isEmpty
+                                ? 'Saved destinations'
+                                : 'Quick destinations',
+                            style: TextStyle(
+                              color: palette.textPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              context.push(AppRoutes.savedDestinations),
+                          child: Text(
+                            quickDestinations.isEmpty ? 'Open' : 'Manage',
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (quickDestinations.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Wrap(
+                          spacing: AppSpacing.s,
+                          runSpacing: AppSpacing.s,
+                          children: [
+                            for (final destination in quickDestinations)
+                              SavedDestinationsChip(
+                                destination: destination,
+                                onTap: () => _applySavedDestination(destination),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ] else ...[
+                      Text(
+                        'Save favorite places to prefill future ride publications.',
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
