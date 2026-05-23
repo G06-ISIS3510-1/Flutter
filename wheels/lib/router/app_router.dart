@@ -23,6 +23,8 @@ import '../features/rides/presentation/screens/create_ride_screen.dart';
 import '../features/rides/presentation/screens/group_screen.dart';
 import '../features/rides/presentation/screens/ride_details_screen.dart';
 import '../features/rides/presentation/screens/rides_search_screen.dart';
+import '../features/saved_destinations/presentation/screens/saved_destination_detail_screen.dart';
+import '../features/saved_destinations/presentation/screens/saved_destinations_screen.dart';
 import '../features/trust/presentation/screens/trust_screen.dart';
 import '../features/wallet/presentation/screens/wallet_screen.dart';
 import '../features/wallet/presentation/screens/withdrawal_request_screen.dart';
@@ -183,6 +185,20 @@ class AppRouter {
         path: AppRoutes.helpArticle,
         builder: (context, state) => HelpArticleScreen(
           articleId: state.pathParameters['articleId'] ?? 'unknown',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.savedDestinations,
+        builder: (context, state) => const SavedDestinationsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.savedDestinationDetail,
+        builder: (context, state) => SavedDestinationDetailScreen(
+          localId:
+              int.tryParse(
+                state.pathParameters['savedDestinationId'] ?? '',
+              ) ??
+              -1,
         ),
       ),
     ],
