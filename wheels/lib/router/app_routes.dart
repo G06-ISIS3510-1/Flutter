@@ -20,6 +20,9 @@ class AppRoutes {
   static const rideHistory = '/ride-history';
   static const helpCenter = '/help';
   static const helpArticle = '/help/article/:articleId';
+  static const savedDestinations = '/saved-destinations';
+  static const savedDestinationDetail =
+      '/saved-destinations/:savedDestinationId';
 
   static String groupByRideId(String rideId) => '/group/$rideId';
   static String groupChatByTripId(String tripId) =>
@@ -29,4 +32,10 @@ class AppRoutes {
   static String paymentByRideId(String rideId) => '/payment?rideId=$rideId';
   static String helpArticleById(String articleId) =>
       '/help/article/$articleId';
+  static String savedDestinationDetailById(int savedDestinationId) =>
+      '/saved-destinations/$savedDestinationId';
+  static String ridesWithSavedDestination(int savedDestinationId) =>
+      '/rides?savedDestinationId=$savedDestinationId&forceSavedDestination=1';
+  static String createRideWithSavedDestination(int savedDestinationId) =>
+      '/create-ride?savedDestinationId=$savedDestinationId&forceSavedDestination=1';
 }
