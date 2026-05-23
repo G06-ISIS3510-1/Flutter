@@ -124,7 +124,7 @@ class SavedDestinationsRepositoryImpl implements SavedDestinationsRepository {
 
     for (final destination in destinations) {
       final localId = destination.localId;
-      if (localId == null) {
+      if (localId == null || !destination.hasResolvedCoordinates) {
         continue;
       }
 

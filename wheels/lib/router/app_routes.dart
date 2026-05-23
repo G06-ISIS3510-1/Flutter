@@ -34,4 +34,8 @@ class AppRoutes {
       '/help/article/$articleId';
   static String savedDestinationDetailById(int savedDestinationId) =>
       '/saved-destinations/$savedDestinationId';
+  static String ridesWithSavedDestination(int savedDestinationId) =>
+      '/rides?savedDestinationId=$savedDestinationId&forceSavedDestination=1';
+  static String createRideWithSavedDestination(int savedDestinationId) =>
+      '/create-ride?savedDestinationId=$savedDestinationId&forceSavedDestination=1';
 }

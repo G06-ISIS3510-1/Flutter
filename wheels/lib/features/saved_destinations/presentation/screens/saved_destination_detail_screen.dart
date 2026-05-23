@@ -279,7 +279,7 @@ class _DetailActions extends ConsumerWidget {
                 if (!context.mounted) {
                   return;
                 }
-                context.go(AppRoutes.rides);
+                context.go(AppRoutes.ridesWithSavedDestination(localId));
               },
               icon: const Icon(Icons.search),
               label: const Text('Plan in ride search'),
@@ -302,7 +302,7 @@ class _DetailActions extends ConsumerWidget {
                 if (!context.mounted) {
                   return;
                 }
-                context.go(AppRoutes.createRide);
+                context.go(AppRoutes.createRideWithSavedDestination(localId));
               },
               icon: const Icon(Icons.add_road_outlined),
               label: const Text('Use in create ride'),

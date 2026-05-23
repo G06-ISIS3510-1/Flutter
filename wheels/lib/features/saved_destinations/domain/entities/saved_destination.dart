@@ -31,8 +31,12 @@ class SavedDestination {
 
   String get displayLabel => name.trim().isEmpty ? address : name.trim();
 
+  bool get hasResolvedCoordinates => latitude != 0 || longitude != 0;
+
   String get coordinatesLabel =>
-      '${latitude.toStringAsFixed(5)}, ${longitude.toStringAsFixed(5)}';
+      hasResolvedCoordinates
+          ? '${latitude.toStringAsFixed(5)}, ${longitude.toStringAsFixed(5)}'
+          : 'Coordinates pending';
 
   SavedDestination copyWith({
     int? localId,

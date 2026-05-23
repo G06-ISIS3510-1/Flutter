@@ -25,7 +25,14 @@ import '../models/ride_listing.dart';
 import '../providers/rides_providers.dart';
 
 class RidesSearchScreen extends ConsumerStatefulWidget {
-  const RidesSearchScreen({super.key});
+  const RidesSearchScreen({
+    this.initialSavedDestinationId,
+    this.forceSavedDestination = false,
+    super.key,
+  });
+
+  final int? initialSavedDestinationId;
+  final bool forceSavedDestination;
 
   @override
   ConsumerState<RidesSearchScreen> createState() => _RidesSearchScreenState();
@@ -63,6 +70,7 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   bool _isShowingOfflineFallback = false;
   bool _isRetryingSearch = false;
   bool _hasAppliedLastQuickPick = false;
+  bool _hasAppliedInitialSavedDestination = false;
 
   @override
   void initState() {
@@ -109,10 +117,38 @@ class _RidesSearchScreenState extends ConsumerState<RidesSearchScreen> {
   Future<void> _initializeSearchState() async {
     await _restoreLatestSearch();
     await _syncOfflineFallbackWithConnectivity();
+    await _applyInitialSavedDestinationFromRouteIfRelevant();
     if (_cachedSearchCache == null) {
       await _prefillOriginWithCurrentLocation();
       await _applyLastQuickPickIfRelevant();
     }
+  }
+
+  Future<void> _applyInitialSavedDestinationFromRouteIfRelevant() async {
+    if (_hasAppliedInitialSavedDestination) {
+      return;
+    }
+
+    final localId = widget.initialSavedDestinationId;
+    final userId = ref.read(authUserProvider)?.uid;
+    if (localId == null || userId == null) {
+      return;
+    }
+
+    final destination = await ref
+        .read(savedDestinationsRepositoryProvider)
+        .loadDestinationById(userId, localId);
+    if (!mounted || destination == null) {
+      return;
+    }
+
+    setState(() {
+      _destinationController.text = destination.address;
+      _appliedDestinationQuery = widget.forceSavedDestination
+          ? destination.address.trim().toLowerCase()
+          : _appliedDestinationQuery;
+      _hasAppliedInitialSavedDestination = true;
+    });
   }
 
   Future<void> _applyLastQuickPickIfRelevant() async {

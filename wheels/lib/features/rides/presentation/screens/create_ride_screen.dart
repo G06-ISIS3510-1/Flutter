@@ -25,7 +25,14 @@ import '../../domain/entities/rides_entity.dart';
 import '../providers/rides_providers.dart';
 
 class CreateRideScreen extends ConsumerStatefulWidget {
-  const CreateRideScreen({super.key});
+  const CreateRideScreen({
+    this.initialSavedDestinationId,
+    this.forceSavedDestination = false,
+    super.key,
+  });
+
+  final int? initialSavedDestinationId;
+  final bool forceSavedDestination;
 
   @override
   ConsumerState<CreateRideScreen> createState() => _CreateRideScreenState();
@@ -59,6 +66,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
   String? _draftSyncReason;
   DateTime? _draftSavedAt;
   bool _hasAppliedLastQuickPick = false;
+  bool _hasAppliedInitialSavedDestination = false;
 
   static const List<String> _campusLocations = <String>[
     'Campus Uniandes - Main Gate',
@@ -81,6 +89,7 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     _priceController.addListener(_onDraftFieldChanged);
     Future.microtask(() async {
       await _restoreDraftIfAvailable();
+      await _applyInitialSavedDestinationFromRouteIfRelevant();
       await _prefillOriginWithCurrentLocation();
       await _applyLastQuickPickIfRelevant();
     });
@@ -144,6 +153,34 @@ class _CreateRideScreenState extends ConsumerState<CreateRideScreen> {
     setState(() {
       _destination = quickPick.address;
       _hasAppliedLastQuickPick = true;
+    });
+  }
+
+  Future<void> _applyInitialSavedDestinationFromRouteIfRelevant() async {
+    if (_hasAppliedInitialSavedDestination) {
+      return;
+    }
+
+    if (!widget.forceSavedDestination && _destination.trim().isNotEmpty) {
+      return;
+    }
+
+    final localId = widget.initialSavedDestinationId;
+    final userId = ref.read(authUserProvider)?.uid;
+    if (localId == null || userId == null) {
+      return;
+    }
+
+    final destination = await ref
+        .read(savedDestinationsRepositoryProvider)
+        .loadDestinationById(userId, localId);
+    if (!mounted || destination == null) {
+      return;
+    }
+
+    setState(() {
+      _destination = destination.address;
+      _hasAppliedInitialSavedDestination = true;
     });
   }
 

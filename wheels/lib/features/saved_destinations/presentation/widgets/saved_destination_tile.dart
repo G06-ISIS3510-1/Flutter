@@ -14,11 +14,13 @@ class SavedDestinationTile extends StatelessWidget {
     required this.onTap,
     this.distanceKm,
     this.onDelete,
+    this.onEdit,
   });
 
   final SavedDestination destination;
   final VoidCallback onTap;
   final VoidCallback? onDelete;
+  final VoidCallback? onEdit;
   final double? distanceKm;
 
   @override
@@ -122,7 +124,17 @@ class SavedDestinationTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.s),
-                Icon(Icons.chevron_right, color: palette.textSecondary),
+                Column(
+                  children: [
+                    if (onEdit != null)
+                      IconButton(
+                        tooltip: 'Edit destination',
+                        onPressed: onEdit,
+                        icon: Icon(Icons.edit_outlined, color: palette.primary),
+                      ),
+                    Icon(Icons.chevron_right, color: palette.textSecondary),
+                  ],
+                ),
               ],
             ),
           ),

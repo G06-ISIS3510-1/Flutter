@@ -116,11 +116,23 @@ class AppRouter {
       ),
       GoRoute(
         path: AppRoutes.createRide,
-        builder: (context, state) => const CreateRideScreen(),
+        builder: (context, state) => CreateRideScreen(
+          initialSavedDestinationId: int.tryParse(
+            state.uri.queryParameters['savedDestinationId'] ?? '',
+          ),
+          forceSavedDestination:
+              state.uri.queryParameters['forceSavedDestination'] == '1',
+        ),
       ),
       GoRoute(
         path: AppRoutes.rides,
-        builder: (context, state) => const RidesSearchScreen(),
+        builder: (context, state) => RidesSearchScreen(
+          initialSavedDestinationId: int.tryParse(
+            state.uri.queryParameters['savedDestinationId'] ?? '',
+          ),
+          forceSavedDestination:
+              state.uri.queryParameters['forceSavedDestination'] == '1',
+        ),
       ),
       GoRoute(
         path: AppRoutes.rideDetails,

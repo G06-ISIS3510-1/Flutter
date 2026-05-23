@@ -57,13 +57,10 @@ class _SavedDestinationsScreenState
     }
 
     try {
-      final locations = await locationFromAddress(result.address);
-      final coordinates = locations.isEmpty
-          ? null
-          : locations.first;
-      if (coordinates == null) {
-        throw Exception('We could not resolve that address to map coordinates.');
-      }
+      final coordinates = await _resolveCoordinatesForDraft(
+        address: result.address.trim(),
+        existing: existing,
+      );
 
       final repository = ref.read(savedDestinationsRepositoryProvider);
       final destination = SavedDestination(
@@ -71,8 +68,8 @@ class _SavedDestinationsScreenState
         userId: userId,
         name: result.name.trim(),
         address: result.address.trim(),
-        latitude: coordinates.latitude,
-        longitude: coordinates.longitude,
+        latitude: coordinates.$1,
+        longitude: coordinates.$2,
         createdAt: existing?.createdAt ?? DateTime.now().toUtc(),
         lastUsedAt: existing?.lastUsedAt ?? DateTime.now().toUtc(),
         useCount: existing?.useCount ?? 0,
@@ -91,9 +88,13 @@ class _SavedDestinationsScreenState
         ..showSnackBar(
           SnackBar(
             content: Text(
-              existing == null
-                  ? 'Destination saved locally.'
-                  : 'Destination updated locally.',
+              coordinates.$3
+                  ? existing == null
+                        ? 'Destination saved locally.'
+                        : 'Destination updated locally.'
+                  : existing == null
+                  ? 'Destination saved locally without route coordinates. You can refine it later when online.'
+                  : 'Destination updated locally. Coordinates will need to be refreshed later.',
             ),
           ),
         );
@@ -107,6 +108,27 @@ class _SavedDestinationsScreenState
           SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
         );
     }
+  }
+
+  Future<(double, double, bool)> _resolveCoordinatesForDraft({
+    required String address,
+    SavedDestination? existing,
+  }) async {
+    try {
+      final locations = await locationFromAddress(address);
+      if (locations.isNotEmpty) {
+        final coordinates = locations.first;
+        return (coordinates.latitude, coordinates.longitude, true);
+      }
+    } catch (_) {
+      // Fallback handled below to preserve offline-first local writes.
+    }
+
+    if (existing != null && existing.hasResolvedCoordinates) {
+      return (existing.latitude, existing.longitude, false);
+    }
+
+    return (0.0, 0.0, false);
   }
 
   Future<void> _deleteDestination(SavedDestination destination) async {
@@ -319,6 +341,8 @@ class _SavedDestinationsScreenState
                                           ),
                                         );
                                       },
+                                      onEdit: () =>
+                                          _openDestinationEditor(existing: destination),
                                       onDelete: () => _deleteDestination(destination),
                                     );
                                   },
